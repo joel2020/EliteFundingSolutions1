@@ -1,0 +1,244 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Backgrounds */
+  --bg-primary: #F8F9FB;
+  --bg-elevated: #FFFFFF;
+  --bg-subtle: #F1F3F7;
+  --bg-dark: #070E1A;
+
+  /* Text */
+  --text-primary: #0A1628;
+  --text-secondary: #5A6A85;
+  --text-muted: #8C9BB5;
+  --text-on-dark: #F0F4FF;
+  --text-on-dark-muted: #8C9BB5;
+
+  /* Border */
+  --border-default: #DDE3EF;
+  --border-subtle: #EDF0F7;
+
+  /* Brand — Deep Navy + Gold */
+  --brand: #0F2B5B;
+  --brand-hover: #0A1E42;
+  --brand-light: #E8EDF8;
+  --brand-text: #0F2B5B;
+
+  /* Gold accent */
+  --gold: #C9A84C;
+  --gold-hover: #B8962E;
+  --gold-light: #FBF6E9;
+  --gold-text: #9A6F1A;
+
+  /* Status */
+  --success: #10B981;
+  --success-light: #F0FDF4;
+  --warning: #F59E0B;
+  --warning-light: #FFFBEB;
+  --error: #EF4444;
+  --error-light: #FEF2F2;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(10,22,40,0.06);
+  --shadow-md: 0 4px 16px rgba(10,22,40,0.08);
+  --shadow-lg: 0 8px 32px rgba(10,22,40,0.12);
+  --shadow-card: 0 1px 4px rgba(10,22,40,0.06), 0 1px 2px rgba(10,22,40,0.04);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* shadcn/ui tokens */
+  --background: 220 30% 98%;
+  --foreground: 220 50% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 50% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 50% 10%;
+  --primary: 220 64% 21%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 20% 95%;
+  --secondary-foreground: 220 50% 10%;
+  --muted: 220 20% 95%;
+  --muted-foreground: 220 15% 46%;
+  --accent: 220 64% 21%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 220 20% 88%;
+  --input: 220 20% 88%;
+  --ring: 220 64% 21%;
+  --radius: 0.625rem;
+  --chart-1: 220 64% 21%;
+  --chart-2: 43 72% 55%;
+  --chart-3: 160 60% 45%;
+  --chart-4: 30 80% 55%;
+  --chart-5: 340 75% 55%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  /* Button primitives */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] text-white font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in;
+    background-color: #0F2B5B;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:hover {
+    background-color: #0A1E42;
+    box-shadow: var(--shadow-md);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in;
+    background-color: #C9A84C;
+    color: #0A1628;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-gold:hover {
+    background-color: #B8962E;
+    box-shadow: var(--shadow-md);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-white font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in border;
+    color: #0A1628;
+    border-color: #DDE3EF;
+  }
+  .btn-secondary:hover {
+    background-color: #F1F3F7;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-transparent font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in;
+    color: #0F2B5B;
+  }
+  .btn-ghost:hover {
+    background-color: #E8EDF8;
+  }
+
+  /* Card */
+  .card {
+    @apply bg-white border rounded-[16px] p-6;
+    border-color: #DDE3EF;
+    box-shadow: var(--shadow-card);
+  }
+  .card-interactive {
+    @apply card transition-all duration-200 ease-in cursor-pointer;
+  }
+  .card-interactive:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Input */
+  .input-field {
+    @apply h-11 w-full bg-white rounded-[10px] px-[14px] text-[15px] placeholder-[#8C9BB5] transition-all duration-150;
+    color: #0A1628;
+    border: 1px solid #DDE3EF;
+  }
+  .input-field:focus {
+    outline: none;
+    border-color: #0F2B5B;
+    box-shadow: 0 0 0 3px rgba(15,43,91,0.08);
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center rounded-[6px] px-[10px] py-1 text-[12px] font-semibold;
+  }
+  .badge-default { @apply badge bg-[#F1F3F7] text-[#5A6A85]; }
+  .badge-brand { @apply badge bg-[#E8EDF8] text-[#0F2B5B]; }
+  .badge-gold { @apply badge bg-[#FBF6E9] text-[#9A6F1A]; }
+  .badge-success { @apply badge bg-[#F0FDF4] text-[#059669]; }
+  .badge-warning { @apply badge bg-[#FFFBEB] text-[#D97706]; }
+  .badge-error { @apply badge bg-[#FEF2F2] text-[#DC2626]; }
+
+  /* Section spacing */
+  .section {
+    @apply py-20 md:py-24 lg:py-32;
+  }
+  .container-page {
+    @apply max-w-[1200px] mx-auto px-6 md:px-8 lg:px-0;
+  }
+
+  /* Animations */
+  .animate-fade-up {
+    animation: fadeUp 0.5s ease-out forwards;
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F3F7;
+}
+::-webkit-scrollbar-thumb {
+  background: #C0CAD9;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8C9BB5;
+}
