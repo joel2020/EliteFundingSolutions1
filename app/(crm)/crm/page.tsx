@@ -4,36 +4,21 @@ import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
 import Link from 'next/link';
-import { TrendingUp, FileText, CircleAlert as AlertCircle, ClipboardCheck, Tag, Signature as FileSignature, DollarSign, RefreshCw, ArrowRight, ArrowUp, Minus } from 'lucide-react';
-import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
-} from 'recharts';
+import { TrendingUp, FileText, AlertCircle, ClipboardCheck, DollarSign, RefreshCw, ArrowRight, ArrowUp, Minus } from 'lucide-react';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// ─── Types ────────────────────────────────────────────────────────────────
 interface DashboardMetrics {
   new_applications: number;
   documents_pending: number;
   underwriting_queue: number;
-  offers_received: number;
-  contracts_pending: number;
+  active_deals: number;
   funded_volume_mtd: number;
   renewal_opportunities: number;
-  active_deals: number;
+  total_leads: number;
+  avg_deal_size: number;
 }
 
-interface DealRow {
-  id: string;
-  stage_slug: string;
-  requested_amount: number | null;
-  business_name: string | null;
-  assigned_rep_name: string | null;
-  updated_at: string;
-  funding_probability: number;
-  missing_documents: number | null;
-}
-
-// ─── KPI Card ────────────────────────────────────────────────────────────
 function KpiCard({
   title, value, subtitle, icon, trend, href, color = '#2563EB'
 }: {
@@ -80,333 +65,225 @@ function KpiCard({
   return href ? <Link href={href}>{content}</Link> : content;
 }
 
-// ─── Pipeline funnel data ─────────────────────────────────────────────────
-const funnelData = [
-  { stage: 'Applied', count: 48 },
-  { stage: 'Docs', count: 36 },
-  { stage: 'UW Review', count: 22 },
-  { stage: 'Offers', count: 15 },
-  { stage: 'Contracted', count: 11 },
-  { stage: 'Funded', count: 9 },
-];
-
-const volumeData = [
-  { month: 'Jul', funded: 280000 },
-  { month: 'Aug', funded: 340000 },
-  { month: 'Sep', funded: 290000 },
-  { month: 'Oct', funded: 420000 },
-  { month: 'Nov', funded: 380000 },
-  { month: 'Dec', funded: 510000 },
-  { month: 'Jan', funded: 460000 },
-  { month: 'Feb', funded: 590000 },
-  { month: 'Mar', funded: 620000 },
-  { month: 'Apr', funded: 540000 },
-  { month: 'May', funded: 710000 },
-];
-
-const stageColors: Record<string, string> = {
-  lead_captured: '#A1A1AA',
-  application_started: '#F59E0B',
-  application_submitted: '#2563EB',
-  documents_requested: '#F59E0B',
-  documents_received: '#2563EB',
-  underwriting_review: '#8B5CF6',
-  submitted_to_partners: '#2563EB',
-  offers_received: '#10B981',
-  offer_presented: '#10B981',
-  contract_sent: '#F59E0B',
-  contract_signed: '#10B981',
-  funded: '#10B981',
-  renewal_eligible: '#2563EB',
-  declined: '#EF4444',
-  lost_unresponsive: '#A1A1AA',
-};
-
-function stageBadge(slug: string) {
-  const labels: Record<string, string> = {
-    lead_captured: 'Lead',
-    application_started: 'App Started',
-    application_submitted: 'Submitted',
-    documents_requested: 'Docs Needed',
-    documents_received: 'Docs In',
-    underwriting_review: 'Underwriting',
-    submitted_to_partners: 'Submitted',
-    offers_received: 'Offers In',
-    offer_presented: 'Offer Sent',
-    contract_sent: 'Contract Out',
-    contract_signed: 'Signed',
-    funded: 'Funded',
-    renewal_eligible: 'Renewal',
-    declined: 'Declined',
-    lost_unresponsive: 'Lost',
-  };
-  const color = stageColors[slug] ?? '#A1A1AA';
-  return (
-    <span
-      className="inline-flex items-center rounded-[6px] px-2 py-0.5 text-[11px] font-semibold"
-      style={{ backgroundColor: `${color}18`, color }}
-    >
-      {labels[slug] ?? slug}
-    </span>
-  );
-}
-
-// ─── Dashboard Page ───────────────────────────────────────────────────────
-export default function CrmDashboard() {
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [recentDeals, setRecentDeals] = useState<DealRow[]>([]);
+export default function DashboardPage() {
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
+    new_applications: 0,
+    documents_pending: 0,
+    underwriting_queue: 0,
+    active_deals: 0,
+    funded_volume_mtd: 0,
+    renewal_opportunities: 0,
+    total_leads: 0,
+    avg_deal_size: 0,
+  });
   const [loading, setLoading] = useState(true);
+  const [dealsByStage, setDealsByStage] = useState<any[]>([]);
+  const [recentDeals, setRecentDeals] = useState<any[]>([]);
 
   useEffect(() => {
-    const load = async () => {
-      const [metricsRes, dealsRes] = await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any).rpc('get_dashboard_metrics', { p_org_id: DEFAULT_ORG_ID }),
-        supabase
-          .from('deal_summary_view')
-          .select('id,stage_slug,requested_amount,business_name,assigned_rep_name,updated_at,funding_probability,missing_documents')
-          .eq('organization_id', DEFAULT_ORG_ID)
-          .order('updated_at', { ascending: false })
-          .limit(8),
-      ]);
-
-      if (metricsRes.data) setMetrics(metricsRes.data as DashboardMetrics);
-      if (dealsRes.data) setRecentDeals(dealsRes.data as DealRow[]);
-      setLoading(false);
-    };
-    load();
+    loadDashboardData();
   }, []);
 
-  const m = metrics ?? {
-    new_applications: 0, documents_pending: 0, underwriting_queue: 0,
-    offers_received: 0, contracts_pending: 0, funded_volume_mtd: 0,
-    renewal_opportunities: 0, active_deals: 0,
+  const loadDashboardData = async () => {
+    try {
+      // Load all metrics in parallel
+      const [
+        { data: applications },
+        { data: deals },
+        { data: renewals },
+        { data: leads },
+        { data: documents },
+      ] = await Promise.all([
+        supabase.from('applications').select('*').eq('organization_id', DEFAULT_ORG_ID),
+        supabase.from('deals').select('*').eq('organization_id', DEFAULT_ORG_ID).is('deleted_at', null),
+        supabase.from('renewals').select('*').eq('organization_id', DEFAULT_ORG_ID),
+        supabase.from('leads').select('*').eq('organization_id', DEFAULT_ORG_ID).is('deleted_at', null),
+        supabase.from('documents').select('*').eq('organization_id', DEFAULT_ORG_ID),
+      ]);
+
+      // Calculate metrics
+      const newApps = applications?.filter(a => ['submitted', 'in_review'].includes(a.status)).length || 0;
+      const docsPending = applications?.filter(a => a.status === 'docs_requested').length || 0;
+      const uwQueue = applications?.filter(a => ['in_review', 'under_review'].includes(a.status)).length || 0;
+      const activeDeals = deals?.length || 0;
+      const fundedDeals = deals?.filter(d => d.stage === 'funded') || [];
+      const fundedVolume = fundedDeals.reduce((sum, d) => sum + (d.requested_amount || 0), 0);
+      const renewalOpps = renewals?.filter(r => r.status === 'eligible').length || 0;
+      const totalLeads = leads?.length || 0;
+      const avgDeal = deals && deals.length > 0 
+        ? Math.round(deals.reduce((sum, d) => sum + (d.requested_amount || 0), 0) / deals.length)
+        : 0;
+
+      setMetrics({
+        new_applications: newApps,
+        documents_pending: docsPending,
+        underwriting_queue: uwQueue,
+        active_deals: activeDeals,
+        funded_volume_mtd: fundedVolume,
+        renewal_opportunities: renewalOpps,
+        total_leads: totalLeads,
+        avg_deal_size: avgDeal,
+      });
+
+      // Deals by stage for chart
+      const stages = ['lead', 'application', 'documents', 'underwriting', 'offer', 'contract', 'funded'];
+      const stageData = stages.map(stage => ({
+        stage: stage.charAt(0).toUpperCase() + stage.slice(1),
+        count: deals?.filter(d => d.stage === stage).length || 0,
+      }));
+      setDealsByStage(stageData);
+
+      // Recent deals
+      const recent = deals?.slice(0, 5).map(d => ({
+        id: d.id,
+        business_name: d.business_name,
+        amount: d.requested_amount,
+        stage: d.stage,
+        created_at: d.created_at,
+      })) || [];
+      setRecentDeals(recent);
+
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    }
+    setLoading(false);
   };
 
-  const fmt = (n: number) =>
-    n >= 1000000
-      ? `$${(n / 1000000).toFixed(1)}M`
-      : n >= 1000
-      ? `$${(n / 1000).toFixed(0)}K`
-      : `$${n.toLocaleString()}`;
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <CrmTopbar title="Dashboard" subtitle="Loading..." />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-[#A1A1AA]">Loading dashboard...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <CrmTopbar
         title="Dashboard"
-        subtitle="Welcome back. Here's what needs your attention."
-        actions={
-          <Link
-            href="/crm/applications"
-            className="inline-flex items-center gap-2 rounded-[8px] bg-[#2563EB] text-white font-semibold text-[13px] h-9 px-4 hover:bg-[#1D4ED8] transition-colors"
-          >
-            New Application
-          </Link>
-        }
+        subtitle={`Welcome back! Here's your business overview`}
       />
 
-      <div className="flex-1 overflow-y-auto p-8">
-        {/* KPI grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="flex-1 overflow-y-auto p-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <KpiCard
             title="New Applications"
-            value={loading ? '—' : m.new_applications}
-            subtitle="Last 30 days"
+            value={metrics.new_applications}
+            subtitle="Pending review"
             icon={<FileText className="w-5 h-5" />}
-            trend={12}
             href="/crm/applications"
             color="#2563EB"
-          />
-          <KpiCard
-            title="Documents Pending"
-            value={loading ? '—' : m.documents_pending}
-            subtitle="Awaiting upload"
-            icon={<AlertCircle className="w-5 h-5" />}
-            href="/crm/documents"
-            color="#F59E0B"
-          />
-          <KpiCard
-            title="Underwriting Queue"
-            value={loading ? '—' : m.underwriting_queue}
-            subtitle="Files in review"
-            icon={<ClipboardCheck className="w-5 h-5" />}
-            href="/crm/underwriting"
-            color="#8B5CF6"
-          />
-          <KpiCard
-            title="Offers Received"
-            value={loading ? '—' : m.offers_received}
-            subtitle="Awaiting presentation"
-            icon={<Tag className="w-5 h-5" />}
-            href="/crm/offers"
-            color="#10B981"
-          />
-          <KpiCard
-            title="Contracts Pending"
-            value={loading ? '—' : m.contracts_pending}
-            subtitle="Sent, awaiting signature"
-            icon={<FileSignature className="w-5 h-5" />}
-            href="/crm/contracts"
-            color="#2563EB"
-          />
-          <KpiCard
-            title="Funded MTD"
-            value={loading ? '—' : fmt(m.funded_volume_mtd)}
-            subtitle="Month-to-date volume"
-            icon={<DollarSign className="w-5 h-5" />}
-            trend={8}
-            href="/crm/reports"
-            color="#10B981"
-          />
-          <KpiCard
-            title="Renewal Opportunities"
-            value={loading ? '—' : m.renewal_opportunities}
-            subtitle="Eligible for renewal"
-            icon={<RefreshCw className="w-5 h-5" />}
-            href="/crm/renewals"
-            color="#F59E0B"
           />
           <KpiCard
             title="Active Deals"
-            value={loading ? '—' : m.active_deals}
+            value={metrics.active_deals}
             subtitle="In pipeline"
             icon={<TrendingUp className="w-5 h-5" />}
             href="/crm/pipeline"
-            color="#2563EB"
+            color="#7C3AED"
+          />
+          <KpiCard
+            title="Funded MTD"
+            value={`$${(metrics.funded_volume_mtd / 1000).toFixed(0)}k`}
+            subtitle="This month"
+            icon={<DollarSign className="w-5 h-5" />}
+            color="#059669"
+          />
+          <KpiCard
+            title="Renewals"
+            value={metrics.renewal_opportunities}
+            subtitle="Eligible clients"
+            icon={<RefreshCw className="w-5 h-5" />}
+            href="/crm/renewals"
+            color="#D97706"
           />
         </div>
 
-        {/* Charts row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Funded volume chart */}
-          <div
-            className="lg:col-span-2 bg-white border border-[#E4E4E7] rounded-[16px] p-6"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-[15px] font-semibold text-[#09090B]">Funded Volume</h3>
-                <p className="text-[13px] text-[#A1A1AA]">Last 11 months</p>
-              </div>
-              <span className="badge-success">+18% YoY</span>
-            </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={volumeData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="fundGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563EB" stopOpacity={0.12} />
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F4F4F5" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#A1A1AA' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: '#A1A1AA' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v/1000}K`} />
-                <Tooltip
-                  contentStyle={{ border: '1px solid #E4E4E7', borderRadius: 10, fontSize: 13 }}
-                  formatter={(v: number) => [`$${v.toLocaleString()}`, 'Funded']}
-                />
-                <Area type="monotone" dataKey="funded" stroke="#2563EB" strokeWidth={2} fill="url(#fundGrad)" dot={false} activeDot={{ r: 4 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Pipeline funnel */}
-          <div
-            className="bg-white border border-[#E4E4E7] rounded-[16px] p-6"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-          >
-            <div className="mb-6">
-              <h3 className="text-[15px] font-semibold text-[#09090B]">Pipeline Funnel</h3>
-              <p className="text-[13px] text-[#A1A1AA]">Current stage distribution</p>
-            </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={funnelData} layout="vertical" margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F4F4F5" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 12, fill: '#A1A1AA' }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="stage" type="category" tick={{ fontSize: 12, fill: '#71717A' }} axisLine={false} tickLine={false} width={60} />
-                <Tooltip contentStyle={{ border: '1px solid #E4E4E7', borderRadius: 10, fontSize: 13 }} />
-                <Bar dataKey="count" fill="#2563EB" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        {/* Secondary KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <KpiCard
+            title="Underwriting Queue"
+            value={metrics.underwriting_queue}
+            subtitle="Need review"
+            icon={<ClipboardCheck className="w-5 h-5" />}
+            href="/crm/underwriting"
+            color="#0891B2"
+          />
+          <KpiCard
+            title="Documents Pending"
+            value={metrics.documents_pending}
+            subtitle="Awaiting upload"
+            icon={<AlertCircle className="w-5 h-5" />}
+            color="#EF4444"
+          />
+          <KpiCard
+            title="Total Leads"
+            value={metrics.total_leads}
+            subtitle="All time"
+            icon={<TrendingUp className="w-5 h-5" />}
+            href="/crm/leads"
+            color="#8B5CF6"
+          />
+          <KpiCard
+            title="Avg Deal Size"
+            value={`$${(metrics.avg_deal_size / 1000).toFixed(0)}k`}
+            subtitle="Average funding"
+            icon={<DollarSign className="w-5 h-5" />}
+            color="#10B981"
+          />
         </div>
 
-        {/* Recent deals table */}
-        <div
-          className="bg-white border border-[#E4E4E7] rounded-[16px] overflow-hidden"
-          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-        >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[#F4F4F5]">
-            <h3 className="text-[15px] font-semibold text-[#09090B]">Recent Pipeline Activity</h3>
-            <Link
-              href="/crm/pipeline"
-              className="text-[13px] font-medium text-[#2563EB] hover:underline flex items-center gap-1"
-            >
-              View all <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-[#F4F4F5]">
-                  {['Business', 'Stage', 'Amount', 'Probability', 'Assigned Rep', 'Docs Missing', 'Last Update'].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.04em] text-[#71717A] whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-[14px] text-[#A1A1AA]">Loading…</td>
-                  </tr>
-                ) : recentDeals.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-[14px] text-[#A1A1AA]">No deals yet</td>
-                  </tr>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Pipeline Funnel Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Pipeline by Stage</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dealsByStage}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E4E4E7" />
+                  <XAxis dataKey="stage" stroke="#71717A" style={{ fontSize: '12px' }} />
+                  <YAxis stroke="#71717A" style={{ fontSize: '12px' }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#2563EB" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Recent Deals */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Deals</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {recentDeals.length === 0 ? (
+                  <div className="text-center py-8 text-[#A1A1AA]">No recent deals</div>
                 ) : (
                   recentDeals.map((deal) => (
-                    <tr key={deal.id} className="border-b border-[#F4F4F5] hover:bg-[#FAFAFA] transition-colors">
-                      <td className="px-4 py-3.5">
-                        <Link href={`/crm/deals/${deal.id}`} className="text-[14px] font-medium text-[#09090B] hover:text-[#2563EB] transition-colors">
-                          {deal.business_name ?? '—'}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3.5">{stageBadge(deal.stage_slug)}</td>
-                      <td className="px-4 py-3.5 text-[14px] text-[#09090B]">
-                        {deal.requested_amount ? `$${(deal.requested_amount / 1000).toFixed(0)}K` : '—'}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 bg-[#F4F4F5] rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-[#2563EB]"
-                              style={{ width: `${deal.funding_probability}%` }}
-                            />
-                          </div>
-                          <span className="text-[13px] text-[#71717A]">{deal.funding_probability}%</span>
+                    <div key={deal.id} className="flex items-center justify-between py-2 border-b border-[#F4F4F5] last:border-0">
+                      <div>
+                        <div className="font-medium text-[#09090B]">{deal.business_name}</div>
+                        <div className="text-xs text-[#71717A] capitalize">{deal.stage}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-[#09090B]">${deal.amount?.toLocaleString() || '0'}</div>
+                        <div className="text-xs text-[#A1A1AA]">
+                          {new Date(deal.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-[14px] text-[#71717A]">
-                        {deal.assigned_rep_name ?? '—'}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        {(deal.missing_documents ?? 0) > 0 ? (
-                          <span className="badge-warning">{deal.missing_documents} missing</span>
-                        ) : (
-                          <span className="badge-success">Complete</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5 text-[13px] text-[#A1A1AA] whitespace-nowrap">
-                        {new Date(deal.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   ))
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

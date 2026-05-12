@@ -2,357 +2,370 @@
 
 import { useEffect, useState } from 'react';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
-import Link from 'next/link';
-import { FileText, Upload, MessageSquare, Download, Calendar, CircleCheck as CheckCircle2, Clock, CircleAlert as AlertCircle, ArrowRight } from 'lucide-react';
+import { FileText, Upload, MessageSquare, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
 
-interface PortalData {
-  application: {
-    id: string;
-    status: string;
-    requested_amount: number | null;
-    submitted_at: string | null;
-    businesses: { legal_name: string } | null;
-  } | null;
-  documents: Array<{
-    id: string;
-    label: string;
-    status: string;
-    created_at: string;
-    file_name: string;
-  }>;
-  docRequests: Array<{
-    id: string;
-    label: string;
-    status: string;
-    required: boolean;
-    document_type: string;
-  }>;
-}
-
-const stageProgress: Record<string, number> = {
-  started: 10,
-  submitted: 25,
-  under_review: 45,
-  approved: 75,
-  funded: 100,
-  declined: 0,
+const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
+  draft: { label: 'Draft', icon: FileText, color: 'bg-gray-100 text-gray-700' },
+  submitted: { label: 'Submitted', icon: CheckCircle, color: 'bg-blue-100 text-blue-700' },
+  in_review: { label: 'In Review', icon: Clock, color: 'bg-yellow-100 text-yellow-700' },
+  docs_requested: { label: 'Docs Needed', icon: AlertCircle, color: 'bg-orange-100 text-orange-700' },
+  approved: { label: 'Approved', icon: CheckCircle, color: 'bg-green-100 text-green-700' },
+  declined: { label: 'Declined', icon: AlertCircle, color: 'bg-red-100 text-red-700' },
 };
 
-const stageLabels: Record<string, { label: string; color: string; bg: string }> = {
-  started: { label: 'Application Started', color: '#D97706', bg: '#FFFBEB' },
-  submitted: { label: 'Application Received', color: '#2563EB', bg: '#EFF6FF' },
-  under_review: { label: 'Under Review', color: '#7C3AED', bg: '#F5F3FF' },
-  approved: { label: 'Approved', color: '#059669', bg: '#F0FDF4' },
-  funded: { label: 'Funded', color: '#059669', bg: '#F0FDF4' },
-  declined: { label: 'Not Approved', color: '#DC2626', bg: '#FEF2F2' },
-};
-
-const docStatusConfig: Record<string, { label: string; color: string }> = {
-  uploaded: { label: 'Uploaded', color: '#2563EB' },
-  in_review: { label: 'In Review', color: '#D97706' },
-  approved: { label: 'Approved', color: '#059669' },
-  rejected: { label: 'Rejected', color: '#DC2626' },
-  needs_replacement: { label: 'Needs Replacement', color: '#DC2626' },
-  requested: { label: 'Requested', color: '#D97706' },
-};
-
-export default function PortalPage() {
-  const [data, setData] = useState<PortalData | null>(null);
+export default function ClientPortalPage() {
+  const [applications, setApplications] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [offers, setOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ email: string; id: string } | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
-  const [sendingMsg, setSendingMsg] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    const init = async () => {
-      const { data: authData } = await supabase.auth.getUser();
-      const u = authData.user;
-
-      if (!u) {
-        setLoading(false);
-        return;
-      }
-
-      setUser({ email: u.email ?? '', id: u.id });
-
-      // Load owner record to find linked applications
-      const [{ data: owner }, { data: docs }, { data: docReqs }] = await Promise.all([
-        supabase
-          .from('owners')
-          .select('id')
-          .eq('user_id', u.id)
-          .maybeSingle(),
-        supabase
-          .from('documents')
-          .select('id,label,status,created_at,file_name')
-          .eq('uploaded_by_user_id', u.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('document_requests')
-          .select('id,label,status,required,document_type')
-          .eq('organization_id', DEFAULT_ORG_ID)
-          .order('required', { ascending: false })
-          .limit(10),
-      ]);
-
-      // Try to find application via owner
-      let application = null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
-      if (owner) {
-        const { data: bos } = await db
-          .from('business_owners')
-          .select('business_id')
-          .eq('owner_id', (owner as { id: string }).id)
-          .limit(1)
-          .maybeSingle();
-
-        if (bos) {
-          const { data: app } = await db
-            .from('applications')
-            .select('id,status,requested_amount,submitted_at,businesses(legal_name)')
-            .eq('business_id', (bos as { business_id: string }).business_id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          application = app;
-        }
-      }
-
-      setData({
-        application: application as PortalData['application'],
-        documents: (docs ?? []) as PortalData['documents'],
-        docRequests: (docReqs ?? []) as PortalData['docRequests'],
-      });
-      setLoading(false);
-    };
-
-    init();
+    loadPortalData();
   }, []);
 
+  const loadPortalData = async () => {
+    try {
+      const [
+        { data: apps },
+        { data: docs },
+        { data: offerData },
+      ] = await Promise.all([
+        supabase.from('applications').select('*').eq('organization_id', DEFAULT_ORG_ID).order('created_at', { ascending: false }).limit(5),
+        supabase.from('documents').select('*').eq('organization_id', DEFAULT_ORG_ID).order('created_at', { ascending: false }).limit(10),
+        supabase.from('offers').select('*').eq('organization_id', DEFAULT_ORG_ID).order('created_at', { ascending: false }).limit(5),
+      ]);
+
+      setApplications(apps || []);
+      setDocuments(docs || []);
+      setOffers(offerData || []);
+    } catch (error) {
+      console.error('Error loading portal data:', error);
+    }
+    setLoading(false);
+  };
+
+  const handleFileUpload = async () => {
+    if (!uploadFile) {
+      toast.error('Please select a file');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = uploadFile.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${DEFAULT_ORG_ID}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, uploadFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          organization_id: DEFAULT_ORG_ID,
+          document_type: 'other',
+          file_name: uploadFile.name,
+          file_path: filePath,
+          file_url: publicUrl,
+          file_size: uploadFile.size,
+        });
+
+      if (dbError) throw dbError;
+
+      toast.success('Document uploaded successfully');
+      setShowUploadDialog(false);
+      setUploadFile(null);
+      loadPortalData();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload document');
+    }
+    setUploading(false);
+  };
+
   const sendMessage = async () => {
-    if (!message.trim() || !user) return;
-    setSendingMsg(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any).from('messages').insert({
-      organization_id: DEFAULT_ORG_ID,
-      application_id: data?.application?.id ?? null,
-      direction: 'inbound',
-      channel: 'portal',
-      body: message,
-      delivery_status: 'sent',
-      sent_at: new Date().toISOString(),
-    });
-    setMessage('');
-    setSendingMsg(false);
+    if (!message.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        organization_id: DEFAULT_ORG_ID,
+        message_type: 'client_inquiry',
+        content: message,
+        status: 'unread',
+      });
+
+    if (error) {
+      toast.error('Failed to send message');
+    } else {
+      toast.success('Message sent to your advisor');
+      setShowMessageDialog(false);
+      setMessage('');
+    }
+  };
+
+  const getApplicationProgress = (status: string) => {
+    const stages = ['submitted', 'in_review', 'docs_requested', 'approved'];
+    const currentIndex = stages.indexOf(status);
+    return currentIndex >= 0 ? ((currentIndex + 1) / stages.length) * 100 : 0;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-[14px] text-[#A1A1AA]">Loading your portal…</div>
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
+        <div className="text-[#A1A1AA]">Loading your portal...</div>
       </div>
     );
   }
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 text-center">
-        <p className="text-[15px] text-[#71717A] mb-4">Please sign in to access your portal.</p>
-        <Link href="/login" className="btn-primary">Sign In</Link>
-      </div>
-    );
-  }
-
-  const app = data?.application;
-  const pct = app ? (stageProgress[app.status] ?? 0) : 0;
-  const stageInfo = app ? (stageLabels[app.status] ?? stageLabels.submitted) : null;
-  const pendingDocs = data?.docRequests.filter((d) => d.status === 'requested') ?? [];
 
   return (
-    <div className="space-y-6">
-      {/* Welcome */}
-      <div>
-        <h1 className="text-[24px] font-bold text-[#09090B] tracking-tight">
-          Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}
-        </h1>
-        <p className="text-[14px] text-[#71717A] mt-1">
-          Your funding application portal. Track status, upload documents, and message your advisor.
-        </p>
+    <div className="min-h-screen bg-[#FAFAFA]">
+      {/* Header */}
+      <div className="bg-white border-b border-[#E4E4E7]">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-[#09090B]">Client Portal</h1>
+              <p className="text-[#71717A]">Track your applications and funding status</p>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowUploadDialog(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Document
+              </Button>
+              <Button onClick={() => setShowMessageDialog(true)}>
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Message Advisor
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Application status */}
-      {app ? (
-        <div
-          className="bg-white border border-[#E4E4E7] rounded-[16px] p-6"
-          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-        >
-          <div className="flex items-start justify-between mb-5">
-            <div>
-              <h2 className="text-[16px] font-semibold text-[#09090B]">
-                {app.businesses?.legal_name ?? 'Your Application'}
-              </h2>
-              <p className="text-[13px] text-[#A1A1AA] mt-0.5">
-                Application ID: {app.id.slice(0, 12).toUpperCase()}
-              </p>
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <Tabs defaultValue="applications" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="applications">Applications</TabsTrigger>
+            <TabsTrigger value="offers">Offers</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
+          </TabsList>
+
+          {/* Applications Tab */}
+          <TabsContent value="applications">
+            <div className="space-y-4">
+              {applications.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-[#A1A1AA]" />
+                    <p className="text-[#71717A]">No applications yet</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                applications.map((app) => {
+                  const status = statusConfig[app.status];
+                  const Icon = status?.icon || FileText;
+                  const progress = getApplicationProgress(app.status);
+                  
+                  return (
+                    <Card key={app.id}>
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="font-semibold text-lg text-[#09090B] mb-1">
+                              {app.business_name || 'Application'}
+                            </h3>
+                            <p className="text-sm text-[#71717A]">
+                              Requested: ${app.requested_amount?.toLocaleString() || '0'}
+                            </p>
+                          </div>
+                          <Badge className={status?.color}>
+                            <Icon className="w-3 h-3 mr-1" />
+                            {status?.label || app.status}
+                          </Badge>
+                        </div>
+
+                        <div className="mb-4">
+                          <div className="flex justify-between text-sm mb-2">
+                            <span className="text-[#71717A]">Progress</span>
+                            <span className="font-semibold text-[#09090B]">{Math.round(progress)}%</span>
+                          </div>
+                          <Progress value={progress} className="h-2" />
+                        </div>
+
+                        <div className="text-xs text-[#A1A1AA]">
+                          Submitted {new Date(app.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
+              )}
             </div>
-            {stageInfo && (
-              <span
-                className="inline-flex items-center rounded-[8px] px-3 py-1.5 text-[13px] font-semibold"
-                style={{ backgroundColor: stageInfo.bg, color: stageInfo.color }}
-              >
-                {stageInfo.label}
-              </span>
-            )}
-          </div>
+          </TabsContent>
 
-          {/* Progress bar */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-[12px] text-[#A1A1AA] mb-2">
-              <span>Application Progress</span>
-              <span>{pct}%</span>
+          {/* Offers Tab */}
+          <TabsContent value="offers">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {offers.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="py-12 text-center">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-[#A1A1AA]" />
+                    <p className="text-[#71717A]">No offers yet</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                offers.map((offer) => (
+                  <Card key={offer.id}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{offer.business_name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-[#71717A]">Funding Amount</span>
+                          <span className="font-semibold text-[#09090B]">${offer.funding_amount?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#71717A]">Total Payback</span>
+                          <span className="font-semibold text-[#09090B]">${offer.total_payback?.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#71717A]">Payment</span>
+                          <span className="font-semibold text-[#09090B]">
+                            ${offer.payment_amount?.toLocaleString()} {offer.payment_frequency}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#71717A]">Term</span>
+                          <span className="font-semibold text-[#09090B]">{offer.term_months} months</span>
+                        </div>
+                        <Button className="w-full mt-4">
+                          Accept Offer
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
-            <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
-                style={{ width: `${pct}%` }}
-              />
+          </TabsContent>
+
+          {/* Documents Tab */}
+          <TabsContent value="documents">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {documents.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="py-12 text-center">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-[#A1A1AA]" />
+                    <p className="text-[#71717A] mb-4">No documents uploaded</p>
+                    <Button onClick={() => setShowUploadDialog(true)}>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Document
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                documents.map((doc) => (
+                  <Card key={doc.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-lg bg-[#EFF6FF] flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-[#2563EB]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-[#09090B] truncate">{doc.file_name}</div>
+                          <div className="text-xs text-[#71717A]">
+                            {new Date(doc.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => window.open(doc.file_url, '_blank')}>
+                        View
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
-          </div>
+          </TabsContent>
+        </Tabs>
+      </div>
 
-          <div className="grid grid-cols-3 gap-4 text-center">
-            {[
-              { label: 'Amount Requested', value: app.requested_amount ? `$${Number(app.requested_amount).toLocaleString()}` : '—' },
-              { label: 'Submitted', value: app.submitted_at ? new Date(app.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Not yet' },
-              { label: 'Documents', value: `${(data?.documents ?? []).length} uploaded` },
-            ].map((item) => (
-              <div key={item.label} className="bg-[#FAFAFA] rounded-[10px] p-3">
-                <div className="text-[12px] text-[#A1A1AA] mb-1">{item.label}</div>
-                <div className="text-[15px] font-semibold text-[#09090B]">{item.value}</div>
-              </div>
-            ))}
+      {/* Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>Upload a document for your application</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="file">Select File</Label>
+            <Input
+              id="file"
+              type="file"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+              className="mt-2"
+            />
           </div>
-        </div>
-      ) : (
-        <div
-          className="bg-white border border-[#E4E4E7] rounded-[16px] p-8 text-center"
-          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-        >
-          <FileText className="w-10 h-10 text-[#E4E4E7] mx-auto mb-3" />
-          <p className="text-[15px] font-medium text-[#09090B] mb-2">No application found</p>
-          <p className="text-[14px] text-[#71717A] mb-5">Complete a funding application to get started.</p>
-          <Link href="/apply" className="btn-primary">
-            Apply for Funding
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Link>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
+            <Button onClick={handleFileUpload} disabled={uploading || !uploadFile}>
+              {uploading ? 'Uploading...' : 'Upload'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Document checklist */}
-        <div
-          className="bg-white border border-[#E4E4E7] rounded-[16px] overflow-hidden"
-          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-        >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#F4F4F5]">
-            <h3 className="text-[15px] font-semibold text-[#09090B] flex items-center gap-2">
-              <Upload className="w-4 h-4 text-[#2563EB]" />
-              Document Checklist
-            </h3>
-            {pendingDocs.length > 0 && (
-              <span className="badge-warning">{pendingDocs.length} needed</span>
-            )}
-          </div>
-          <div className="p-4 space-y-2">
-            {[
-              { label: 'Bank Statements (3 months)', done: false, required: true },
-              { label: "Driver's License / State ID", done: false, required: true },
-              { label: 'Voided Check', done: false, required: true },
-              { label: 'Processing Statements', done: false, required: false },
-              { label: 'Business Tax Returns', done: false, required: false },
-            ].map((doc) => (
-              <div key={doc.label} className="flex items-center justify-between py-2 border-b border-[#F4F4F5] last:border-0">
-                <div className="flex items-center gap-2">
-                  {doc.done ? (
-                    <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                  )}
-                  <span className="text-[13px] text-[#52525B]">{doc.label}</span>
-                  {doc.required && !doc.done && (
-                    <span className="text-[11px] text-[#EF4444] font-medium">Required</span>
-                  )}
-                </div>
-                {!doc.done && (
-                  <label className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#2563EB] cursor-pointer hover:underline">
-                    <Upload className="w-3 h-3" />
-                    Upload
-                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" />
-                  </label>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Message advisor */}
-        <div
-          className="bg-white border border-[#E4E4E7] rounded-[16px] overflow-hidden"
-          style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-        >
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[#F4F4F5]">
-            <h3 className="text-[15px] font-semibold text-[#09090B] flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-[#2563EB]" />
-              Message Your Advisor
-            </h3>
-          </div>
-          <div className="p-4 flex flex-col gap-3">
-            <div className="bg-[#EFF6FF] rounded-[10px] px-4 py-3 text-[13px] text-[#2563EB]">
-              <strong>Elite Funding Solutions Team</strong> — Your advisor typically responds within 2 business hours.
-            </div>
-
-            <textarea
+      {/* Message Dialog */}
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Message Your Advisor</DialogTitle>
+            <DialogDescription>Send a message to your funding advisor</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="message">Message</Label>
+            <Textarea
+              id="message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask about your application, documents, or offers…"
-              rows={4}
-              className="w-full bg-[#FAFAFA] border border-[#E4E4E7] rounded-[10px] px-4 py-3 text-[14px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#EFF6FF] transition-all"
+              rows={5}
+              placeholder="Type your message here..."
+              className="mt-2"
             />
-
-            <button
-              onClick={sendMessage}
-              disabled={!message.trim() || sendingMsg}
-              className="inline-flex items-center justify-center gap-2 rounded-[10px] bg-[#2563EB] text-white font-semibold text-[14px] h-10 px-5 hover:bg-[#1D4ED8] transition-all disabled:opacity-50"
-            >
-              {sendingMsg ? 'Sending…' : 'Send Message'}
-            </button>
           </div>
-        </div>
-      </div>
-
-      {/* Quick actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { icon: <FileText className="w-5 h-5" />, label: 'View Application', href: '/apply' },
-          { icon: <Download className="w-5 h-5" />, label: 'Download Contracts', href: '#' },
-          { icon: <Calendar className="w-5 h-5" />, label: 'Schedule a Call', href: '/contact' },
-          { icon: <Clock className="w-5 h-5" />, label: 'Application History', href: '#' },
-        ].map((action) => (
-          <Link
-            key={action.label}
-            href={action.href}
-            className="flex flex-col items-center gap-2 bg-white border border-[#E4E4E7] rounded-[12px] p-4 hover:border-[#2563EB] hover:bg-[#EFF6FF] transition-all group text-center"
-            style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
-          >
-            <div className="text-[#71717A] group-hover:text-[#2563EB] transition-colors">
-              {action.icon}
-            </div>
-            <span className="text-[13px] font-medium text-[#52525B] group-hover:text-[#09090B] transition-colors">
-              {action.label}
-            </span>
-          </Link>
-        ))}
-      </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMessageDialog(false)}>Cancel</Button>
+            <Button onClick={sendMessage}>
+              Send Message
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
