@@ -3,121 +3,218 @@
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
-import { CircleAlert as AlertCircle, User, DollarSign, TrendingUp } from 'lucide-react';
-import type { DealSummary } from '@/types/database';
+import { Plus, DollarSign, Building2, User } from 'lucide-react';
+import type { Deal } from '@/types/database';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const STAGE_ORDER = [
-  { slug: 'lead_captured', label: 'Lead Captured', color: '#A1A1AA' },
-  { slug: 'application_submitted', label: 'Submitted', color: '#2563EB' },
-  { slug: 'documents_received', label: 'Docs In', color: '#2563EB' },
-  { slug: 'underwriting_review', label: 'Underwriting', color: '#8B5CF6' },
-  { slug: 'offers_received', label: 'Offers', color: '#10B981' },
-  { slug: 'contract_sent', label: 'Contract Out', color: '#F59E0B' },
-  { slug: 'funded', label: 'Funded', color: '#10B981' },
+const stages = [
+  { id: 'lead', label: 'Lead', color: '#71717A' },
+  { id: 'application', label: 'Application', color: '#2563EB' },
+  { id: 'documents', label: 'Documents', color: '#D97706' },
+  { id: 'underwriting', label: 'Underwriting', color: '#7C3AED' },
+  { id: 'offer', label: 'Offer', color: '#059669' },
+  { id: 'contract', label: 'Contract', color: '#0891B2' },
+  { id: 'funded', label: 'Funded', color: '#10B981' },
 ];
 
+interface DealFormData {
+  business_name: string;
+  contact_name: string;
+  requested_amount: string;
+  stage: string;
+}
+
+const emptyForm: DealFormData = {
+  business_name: '',
+  contact_name: '',
+  requested_amount: '',
+  stage: 'lead',
+};
+
 export default function PipelinePage() {
-  const [deals, setDeals] = useState<DealSummary[]>([]);
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dragId, setDragId] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const [formData, setFormData] = useState<DealFormData>(emptyForm);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    supabase
-      .from('deal_summary_view')
-      .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
-      .then(({ data }) => {
-        if (data) setDeals(data as DealSummary[]);
-        setLoading(false);
-      });
+    loadDeals();
   }, []);
 
-  const dealsByStage = (slug: string) =>
-    deals.filter((d) => d.stage_slug === slug);
-
-  const handleDragStart = (id: string) => setDragId(id);
-
-  const handleDrop = async (targetSlug: string) => {
-    if (!dragId) return;
-    const deal = deals.find((d) => d.id === dragId);
-    if (!deal || deal.stage_slug === targetSlug) { setDragId(null); return; }
-
-    setDeals((prev) =>
-      prev.map((d) => d.id === dragId ? { ...d, stage_slug: targetSlug } : d)
-    );
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
+  const loadDeals = async () => {
+    const { data, error } = await supabase
       .from('deals')
-      .update({ stage_slug: targetSlug })
-      .eq('id', dragId);
+      .select('*')
+      .eq('organization_id', DEFAULT_ORG_ID)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
 
-    setDragId(null);
+    if (error) {
+      toast.error('Failed to load deals');
+      console.error(error);
+    } else if (data) {
+      setDeals(data as Deal[]);
+    }
+    setLoading(false);
   };
+
+  const handleAdd = () => {
+    setFormData(emptyForm);
+    setShowDialog(true);
+  };
+
+  const saveDeal = async () => {
+    if (!formData.business_name || !formData.requested_amount) {
+      toast.error('Business name and amount are required');
+      return;
+    }
+
+    setSaving(true);
+    
+    const dealData = {
+      organization_id: DEFAULT_ORG_ID,
+      business_name: formData.business_name,
+      contact_name: formData.contact_name,
+      requested_amount: parseFloat(formData.requested_amount),
+      stage: formData.stage,
+    };
+
+    const { error } = await supabase
+      .from('deals')
+      .insert([dealData]);
+
+    if (error) {
+      toast.error('Failed to create deal');
+      console.error(error);
+    } else {
+      toast.success('Deal created successfully');
+      setShowDialog(false);
+      loadDeals();
+    }
+    
+    setSaving(false);
+  };
+
+  const moveToStage = async (dealId: string, newStage: string) => {
+    const { error } = await supabase
+      .from('deals')
+      .update({ stage: newStage })
+      .eq('id', dealId);
+
+    if (error) {
+      toast.error('Failed to move deal');
+    } else {
+      toast.success('Deal moved');
+      loadDeals();
+    }
+  };
+
+  const groupedDeals = stages.reduce((acc, stage) => {
+    acc[stage.id] = deals.filter(d => d.stage === stage.id);
+    return acc;
+  }, {} as Record<string, Deal[]>);
+
+  const totalValue = deals.reduce((sum, d) => sum + (d.requested_amount || 0), 0);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <CrmTopbar
         title="Pipeline"
-        subtitle="Drag and drop deals between stages"
+        subtitle={`${deals.length} deals • $${totalValue.toLocaleString()} total value`}
         actions={
-          <button className="inline-flex items-center gap-2 rounded-[8px] bg-[#2563EB] text-white font-semibold text-[13px] h-9 px-4 hover:bg-[#1D4ED8] transition-colors">
-            + New Deal
-          </button>
+          <Button onClick={handleAdd}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Deal
+          </Button>
         }
       />
 
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
-        <div className="flex gap-4 h-full min-w-max">
-          {STAGE_ORDER.map((stage) => {
-            const stagDeals = dealsByStage(stage.slug);
-            const totalAmt = stagDeals.reduce((s, d) => s + (d.requested_amount ?? 0), 0);
-
+        <div className="flex gap-4 h-full pb-4">
+          {stages.map((stage) => {
+            const stageDeals = groupedDeals[stage.id] || [];
+            const stageValue = stageDeals.reduce((sum, d) => sum + (d.requested_amount || 0), 0);
+            
             return (
-              <div
-                key={stage.slug}
-                className="w-[280px] flex flex-col"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop(stage.slug)}
-              >
-                {/* Column header */}
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: stage.color }}
-                    />
-                    <span className="text-[13px] font-semibold text-[#09090B]">{stage.label}</span>
-                    <span className="text-[12px] text-[#A1A1AA] bg-[#F4F4F5] rounded-full px-2 py-0.5">
-                      {stagDeals.length}
-                    </span>
-                  </div>
-                  {totalAmt > 0 && (
-                    <span className="text-[12px] text-[#71717A]">
-                      ${(totalAmt / 1000).toFixed(0)}K
-                    </span>
-                  )}
-                </div>
-
-                {/* Column body */}
-                <div
-                  className={`flex-1 overflow-y-auto flex flex-col gap-3 p-2 rounded-[12px] transition-colors min-h-[200px] ${
-                    dragId ? 'bg-[#F4F4F5]' : 'bg-[#F4F4F5]/50'
-                  }`}
+              <div key={stage.id} className="flex-shrink-0 w-[320px] flex flex-col">
+                <div 
+                  className="rounded-t-lg px-4 py-3 flex items-center justify-between"
+                  style={{ backgroundColor: `${stage.color}15` }}
                 >
-                  {loading ? (
-                    <div className="flex items-center justify-center h-24 text-[13px] text-[#A1A1AA]">Loading…</div>
-                  ) : stagDeals.length === 0 ? (
-                    <div className="flex items-center justify-center h-24 text-[13px] text-[#A1A1AA] border-2 border-dashed border-[#E4E4E7] rounded-[10px]">
-                      Drop here
+                  <div>
+                    <span className="font-semibold text-sm" style={{ color: stage.color }}>
+                      {stage.label}
+                    </span>
+                    <div className="text-xs text-[#71717A] mt-0.5">
+                      ${stageValue.toLocaleString()}
                     </div>
+                  </div>
+                  <span className="text-xs bg-white rounded-full px-2 py-0.5 text-[#71717A] font-medium">
+                    {stageDeals.length}
+                  </span>
+                </div>
+                
+                <div className="bg-[#FAFAFA] p-2 space-y-2 flex-1 overflow-y-auto rounded-b-lg">
+                  {loading ? (
+                    <div className="text-center py-8 text-[#A1A1AA] text-sm">Loading…</div>
+                  ) : stageDeals.length === 0 ? (
+                    <div className="text-center py-8 text-[#A1A1AA] text-sm">No deals</div>
                   ) : (
-                    stagDeals.map((deal) => (
-                      <DealCard
+                    stageDeals.map((deal) => (
+                      <div
                         key={deal.id}
-                        deal={deal}
-                        onDragStart={() => handleDragStart(deal.id)}
-                      />
+                        className="bg-white border border-[#E4E4E7] rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-[#71717A]" />
+                            <span className="font-medium text-sm text-[#09090B]">
+                              {deal.business_name}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        {deal.contact_name && (
+                          <div className="flex items-center gap-1 text-xs text-[#71717A] mb-2">
+                            <User className="w-3 h-3" />
+                            {deal.contact_name}
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1 text-sm font-semibold text-[#09090B]">
+                            <DollarSign className="w-4 h-4" />
+                            {deal.requested_amount?.toLocaleString() || '0'}
+                          </div>
+                          
+                          <Select
+                            value={deal.stage}
+                            onValueChange={(newStage) => moveToStage(deal.id, newStage)}
+                          >
+                            <SelectTrigger className="w-[100px] h-6 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {stages.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="text-xs text-[#A1A1AA] mt-2">
+                          {new Date(deal.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
                     ))
                   )}
                 </div>
@@ -126,58 +223,64 @@ export default function PipelinePage() {
           })}
         </div>
       </div>
-    </div>
-  );
-}
 
-function DealCard({ deal, onDragStart }: { deal: DealSummary; onDragStart: () => void }) {
-  return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      className="bg-white border border-[#E4E4E7] rounded-[12px] p-4 cursor-grab active:cursor-grabbing hover:border-[#D4D4D8] hover:shadow-md transition-all duration-150 select-none"
-      style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
-    >
-      <div className="mb-3">
-        <h4 className="text-[14px] font-semibold text-[#09090B] leading-tight mb-0.5">
-          {deal.business_name ?? 'Unknown Business'}
-        </h4>
-        {deal.business_dba && (
-          <p className="text-[12px] text-[#A1A1AA]">dba {deal.business_dba}</p>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-1.5 text-[13px] text-[#52525B]">
-          <DollarSign className="w-3.5 h-3.5 text-[#A1A1AA]" />
-          <span className="font-medium">
-            {deal.requested_amount ? `$${(deal.requested_amount / 1000).toFixed(0)}K` : '—'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 text-[12px] text-[#71717A]">
-          <TrendingUp className="w-3.5 h-3.5" />
-          {deal.funding_probability}%
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[12px] text-[#71717A]">
-          <User className="w-3 h-3" />
-          {deal.assigned_rep_name ?? 'Unassigned'}
-        </div>
-        {(deal.missing_documents ?? 0) > 0 && (
-          <div className="flex items-center gap-1 text-[11px] text-[#D97706] font-medium">
-            <AlertCircle className="w-3 h-3" />
-            {deal.missing_documents} doc{(deal.missing_documents ?? 0) > 1 ? 's' : ''} needed
+      {/* New Deal Dialog */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Deal</DialogTitle>
+            <DialogDescription>Add a new deal to your pipeline</DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="business_name">Business Name *</Label>
+              <Input
+                id="business_name"
+                value={formData.business_name}
+                onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="contact_name">Contact Name</Label>
+              <Input
+                id="contact_name"
+                value={formData.contact_name}
+                onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="requested_amount">Requested Amount *</Label>
+              <Input
+                id="requested_amount"
+                type="number"
+                value={formData.requested_amount}
+                onChange={(e) => setFormData({ ...formData, requested_amount: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="stage">Stage</Label>
+              <Select value={formData.stage} onValueChange={(v) => setFormData({ ...formData, stage: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>{stage.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        )}
-      </div>
 
-      {deal.industry && (
-        <div className="mt-3 pt-3 border-t border-[#F4F4F5]">
-          <span className="text-[11px] text-[#A1A1AA]">{deal.industry}</span>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
+            <Button onClick={saveDeal} disabled={saving}>
+              {saving ? 'Creating...' : 'Create Deal'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
