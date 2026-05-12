@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { CircleCheck as CheckCircle2, ArrowRight, ArrowLeft, Shield, Lock } from 'lucide-react';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 // ─── Step types ────────────────────────────────────────────────────────────
@@ -25,7 +24,6 @@ interface FormData {
   state: string;
   zip: string;
   monthly_gross_revenue: string;
-  average_daily_balance: string;
   deposit_count: string;
   current_processor: string;
   landlord_name: string;
@@ -40,7 +38,7 @@ interface FormData {
   email: string;
   phone: string;
   dob: string;
-  ssn_last4: string;
+  ssn_full: string;
   ownership_pct: string;
   credit_range: string;
   home_address: string;
@@ -72,26 +70,25 @@ interface FormData {
   routing_number: string;
   account_last4: string;
   avg_monthly_deposits: string;
-  negative_days: string;
-  nsf_count: string;
   ending_balance: string;
+  consent_authorized: boolean;
 }
 
 const initialForm: FormData = {
   legal_name: '', dba: '', entity_type: '', ein: '', industry: '',
   naics_code: '', start_date: '', business_phone: '', business_email: '',
   website: '', address: '', city: '', state: '', zip: '',
-  monthly_gross_revenue: '', average_daily_balance: '', deposit_count: '',
+  monthly_gross_revenue: '', deposit_count: '',
   current_processor: '', landlord_name: '', landlord_phone: '', rent_amount: '',
   has_tax_lien: false, has_bankruptcy: false,
-  first_name: '', last_name: '', email: '', phone: '', dob: '', ssn_last4: '',
+  first_name: '', last_name: '', email: '', phone: '', dob: '', ssn_full: '',
   ownership_pct: '100', credit_range: '',
   home_address: '', home_city: '', home_state: '', home_zip: '',
   requested_amount: '', use_of_funds: '', timeline: '',
   has_existing_advances: false, payment_frequency: '', notes: '',
   existing_advances: [],
   bank_name: '', account_type: '', routing_number: '', account_last4: '',
-  avg_monthly_deposits: '', negative_days: '0', nsf_count: '0', ending_balance: '',
+  avg_monthly_deposits: '', ending_balance: '', consent_authorized: false,
 };
 
 const steps = [
@@ -210,9 +207,8 @@ function StepBusiness({ data, update }: { data: FormData; update: (k: keyof Form
 
       <div className="border-t border-[#F4F4F5] pt-5">
         <h3 className="text-[15px] font-semibold text-[#09090B] mb-4">Revenue & Banking Snapshot</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <InputField label="Monthly Gross Revenue" name="monthly_gross_revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" placeholder="0" required hint="Average over last 3 months" />
-          <InputField label="Average Daily Balance" name="average_daily_balance" value={data.average_daily_balance} onChange={(v) => update('average_daily_balance', v)} type="number" placeholder="0" />
           <InputField label="Monthly Deposit Count" name="deposit_count" value={data.deposit_count} onChange={(v) => update('deposit_count', v)} type="number" placeholder="0" />
         </div>
       </div>
@@ -255,7 +251,7 @@ function StepOwner({ data, update }: { data: FormData; update: (k: keyof FormDat
         <InputField label="Email Address" name="email" value={data.email} onChange={(v) => update('email', v)} type="email" required />
         <InputField label="Mobile Phone" name="phone" value={data.phone} onChange={(v) => update('phone', v)} type="tel" required />
         <InputField label="Date of Birth" name="dob" value={data.dob} onChange={(v) => update('dob', v)} type="date" required hint="Kept confidential and encrypted" />
-        <InputField label="SSN Last 4 Digits" name="ssn_last4" value={data.ssn_last4} onChange={(v) => update('ssn_last4', v)} placeholder="XXXX" hint="We never store your full SSN" />
+        <InputField label="Full Social Security Number" name="ssn_full" value={data.ssn_full} onChange={(v) => update('ssn_full', v)} placeholder="XXX-XX-XXXX" required hint="Encrypted server-side for underwriting identity verification" />
         <InputField label="Ownership Percentage" name="ownership_pct" value={data.ownership_pct} onChange={(v) => update('ownership_pct', v)} type="number" placeholder="100" hint="Enter 100 if sole owner" />
         <SelectField label="Credit Score Range" name="credit_range" value={data.credit_range} onChange={(v) => update('credit_range', v)} options={[
           { value: 'below_500', label: 'Below 500' },
@@ -450,15 +446,13 @@ function StepBank({ data, update }: { data: FormData; update: (k: keyof FormData
         <InputField label="Account Last 4 Digits" name="account_last4" value={data.account_last4} onChange={(v) => update('account_last4', v)} placeholder="XXXX" hint="Last 4 digits only" />
         <InputField label="Average Monthly Deposits" name="avg_monthly_deposits" value={data.avg_monthly_deposits} onChange={(v) => update('avg_monthly_deposits', v)} type="number" placeholder="0" />
         <InputField label="Estimated Ending Balance" name="ending_balance" value={data.ending_balance} onChange={(v) => update('ending_balance', v)} type="number" placeholder="0" hint="Current approximate balance" />
-        <InputField label="Negative Days (last 3 months)" name="negative_days" value={data.negative_days} onChange={(v) => update('negative_days', v)} type="number" placeholder="0" hint="Days the account went negative" />
-        <InputField label="NSF Count (last 3 months)" name="nsf_count" value={data.nsf_count} onChange={(v) => update('nsf_count', v)} type="number" placeholder="0" hint="Number of returned / insufficient fund items" />
       </div>
     </div>
   );
 }
 
 // ─── Step 6 – Document Upload ─────────────────────────────────────────────
-function StepDocuments() {
+function StepDocuments({ files, setFiles }: { files: File[]; setFiles: (files: File[]) => void }) {
   const docs = [
     { id: 'bank_statements', label: 'Last 3 Bank Statements', required: true, description: 'All pages of your last 3 complete months' },
     { id: 'drivers_license', label: "Driver's License or State ID", required: true, description: 'Front and back of government-issued photo ID' },
@@ -492,12 +486,26 @@ function StepDocuments() {
             <div>
               <label className="inline-flex items-center gap-2 rounded-[8px] bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#09090B] font-medium text-[13px] h-9 px-4 cursor-pointer transition-colors">
                 <span>Choose File</span>
-                <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.heic" multiple />
+                <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" multiple onChange={(event) => setFiles([...files, ...Array.from(event.target.files || [])])} />
               </label>
             </div>
           </div>
         ))}
       </div>
+
+      {files.length > 0 && (
+        <div className="border border-[#E4E4E7] rounded-[12px] p-4">
+          <h3 className="text-[13px] font-semibold text-[#09090B] mb-2">Selected files</h3>
+          <ul className="space-y-1 text-[12px] text-[#71717A]">
+            {files.map((file, index) => (
+              <li key={`${file.name}-${index}`} className="flex justify-between gap-3">
+                <span className="truncate">{file.name}</span>
+                <button type="button" className="text-[#EF4444]" onClick={() => setFiles(files.filter((_, fileIndex) => fileIndex !== index))}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="bg-[#FAFAFA] border border-[#E4E4E7] rounded-[12px] px-5 py-4">
         <p className="text-[13px] text-[#71717A]">
@@ -511,7 +519,7 @@ function StepDocuments() {
 }
 
 // ─── Step 7 – Review ───────────────────────────────────────────────────────
-function StepReview({ data }: { data: FormData }) {
+function StepReview({ data, update }: { data: FormData; update: (k: keyof FormData, v: boolean) => void }) {
   const sections = [
     {
       title: 'Business',
@@ -580,7 +588,7 @@ function StepReview({ data }: { data: FormData }) {
 
       <div className="border border-[#E4E4E7] rounded-[12px] p-5">
         <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" required className="mt-0.5 w-4 h-4 rounded border-[#E4E4E7]" />
+          <input type="checkbox" checked={data.consent_authorized} onChange={(e) => update('consent_authorized', e.target.checked)} required className="mt-0.5 w-4 h-4 rounded border-[#E4E4E7]" />
           <p className="text-[13px] text-[#71717A] leading-relaxed">
             By submitting this application, I certify that all information provided is accurate and complete. I authorize Elite Funding Solutions to conduct a soft credit inquiry and to share this application with funding partners on my behalf. I have read and agree to the{' '}
             <a href="/terms" className="text-[#2563EB] hover:underline">Terms of Service</a> and{' '}
@@ -642,138 +650,67 @@ export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [form, setForm] = useState<FormData>(initialForm);
   const [submitting, setSubmitting] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
   const updateField = (key: keyof FormData, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const next = () => setCurrentStep((s) => Math.min(s + 1, 8) as Step);
+  const validateCurrentStep = () => {
+    const requiredByStep: Partial<Record<Step, Array<keyof FormData>>> = {
+      1: ['legal_name', 'entity_type', 'ein', 'industry', 'start_date', 'business_phone', 'business_email', 'address', 'city', 'state', 'zip', 'monthly_gross_revenue'],
+      2: ['first_name', 'last_name', 'email', 'phone', 'dob', 'ssn_full', 'home_address', 'home_city', 'home_state', 'home_zip'],
+      3: ['requested_amount'],
+      5: ['bank_name'],
+    };
+
+    const missing = (requiredByStep[currentStep] || []).filter((field) => !form[field]);
+    if (missing.length > 0) {
+      toast.error('Please complete all required fields before continuing.');
+      return false;
+    }
+
+    if (currentStep === 2 && !/^\d{3}-?\d{2}-?\d{4}$/.test(form.ssn_full)) {
+      toast.error('Please enter a valid 9-digit Social Security number.');
+      return false;
+    }
+
+    if (currentStep === 7 && !form.consent_authorized) {
+      toast.error('Please accept the authorization before submitting.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const next = () => {
+    if (!validateCurrentStep()) return;
+    setCurrentStep((s) => Math.min(s + 1, 8) as Step);
+  };
   const back = () => setCurrentStep((s) => Math.max(s - 1, 1) as Step);
 
   const handleSubmit = async () => {
+    if (!validateCurrentStep()) return;
     setSubmitting(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
     try {
-      // Insert business
-      const { data: biz, error: bizErr } = await db
-        .from('businesses')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          legal_name: form.legal_name,
-          dba: form.dba || null,
-          entity_type: form.entity_type as never || null,
-          industry: form.industry || null,
-          start_date: form.start_date || null,
-          phone: form.business_phone || null,
-          email: form.business_email || null,
-          website: form.website || null,
-          address: form.address || null,
-          city: form.city || null,
-          state: form.state || null,
-          zip: form.zip || null,
-          monthly_gross_revenue: form.monthly_gross_revenue ? Number(form.monthly_gross_revenue) : null,
-          average_daily_balance: form.average_daily_balance ? Number(form.average_daily_balance) : null,
-          deposit_count_monthly: form.deposit_count ? Number(form.deposit_count) : null,
-          rent_amount: form.rent_amount ? Number(form.rent_amount) : null,
-          has_tax_lien: form.has_tax_lien,
-          has_bankruptcy: form.has_bankruptcy,
-        })
-        .select('id')
-        .single();
+      const payload = new FormData();
+      payload.append('payload', JSON.stringify(form));
+      files.forEach((file) => payload.append('documents', file));
 
-      if (bizErr) throw bizErr;
-
-      // Insert owner
-      const { data: owner, error: ownerErr } = await db
-        .from('owners')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          first_name: form.first_name,
-          last_name: form.last_name,
-          email: form.email || null,
-          phone: form.phone || null,
-          ssn_last4: form.ssn_last4 || null,
-          ownership_percentage: form.ownership_pct ? Number(form.ownership_pct) : null,
-          credit_score_range: form.credit_range as never || null,
-          address: form.home_address || null,
-          city: form.home_city || null,
-          state: form.home_state || null,
-          zip: form.home_zip || null,
-        })
-        .select('id')
-        .single();
-
-      if (ownerErr) throw ownerErr;
-
-      // Link owner to business
-      await db.from('business_owners').insert({
-        organization_id: DEFAULT_ORG_ID,
-        business_id: biz.id,
-        owner_id: owner.id,
-        ownership_percentage: form.ownership_pct ? Number(form.ownership_pct) : null,
-        is_primary: true,
+      const response = await fetch('/api/applications/submit', {
+        method: 'POST',
+        body: payload,
       });
 
-      // Insert application
-      const { data: app, error: appErr } = await db
-        .from('applications')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          business_id: biz.id,
-          status: 'submitted',
-          requested_amount: form.requested_amount ? Number(form.requested_amount) : null,
-          use_of_funds: form.use_of_funds || null,
-          desired_timeline: form.timeline || null,
-          has_existing_advances: form.has_existing_advances,
-          desired_payment_frequency: form.payment_frequency as never || null,
-          notes: form.notes || null,
-          bank_name: form.bank_name || null,
-          account_type: form.account_type as never || null,
-          routing_number: form.routing_number || null,
-          account_last4: form.account_last4 || null,
-          avg_monthly_deposits: form.avg_monthly_deposits ? Number(form.avg_monthly_deposits) : null,
-          negative_days_count: Number(form.negative_days) || 0,
-          nsf_count: Number(form.nsf_count) || 0,
-          ending_balance_estimate: form.ending_balance ? Number(form.ending_balance) : null,
-          submitted_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
-
-      if (appErr) throw appErr;
-
-      // Insert existing advances
-      if (form.existing_advances.length > 0) {
-        await db.from('existing_advances').insert(
-          form.existing_advances.map((adv) => ({
-            organization_id: DEFAULT_ORG_ID,
-            application_id: app.id,
-            funder_name: adv.funder_name || null,
-            original_funded_amount: adv.original_amount ? Number(adv.original_amount) : null,
-            current_balance: adv.current_balance ? Number(adv.current_balance) : null,
-            daily_payment: adv.daily_payment ? Number(adv.daily_payment) : null,
-            payment_frequency: adv.payment_frequency as never || null,
-          }))
-        );
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Application submission failed.');
       }
-
-      // Insert lead
-      await db.from('leads').insert({
-        organization_id: DEFAULT_ORG_ID,
-        lead_source: 'website',
-        first_name: form.first_name,
-        last_name: form.last_name,
-        email: form.email || null,
-        phone: form.phone || null,
-        business_name: form.legal_name,
-        status: 'application_started',
-      });
 
       setCurrentStep(8);
     } catch (err) {
-      console.error(err);
-      toast.error('Something went wrong. Please try again or contact support.');
+      const message = err instanceof Error ? err.message : 'Something went wrong. Please try again or contact support.';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -816,8 +753,8 @@ export default function ApplyPage() {
           {currentStep === 3 && <StepFunding data={form} update={updateField as never} />}
           {currentStep === 4 && <StepExistingAdvances data={form} update={updateField as never} />}
           {currentStep === 5 && <StepBank data={form} update={updateField as never} />}
-          {currentStep === 6 && <StepDocuments />}
-          {currentStep === 7 && <StepReview data={form} />}
+          {currentStep === 6 && <StepDocuments files={files} setFiles={setFiles} />}
+          {currentStep === 7 && <StepReview data={form} update={updateField as never} />}
           {currentStep === 8 && <StepConfirmation data={form} />}
 
           {/* Navigation */}

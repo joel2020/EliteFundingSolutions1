@@ -1,7 +1,14 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
+
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is required to send email.');
+  }
+
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 export interface EmailData {
   to: string;
@@ -11,16 +18,17 @@ export interface EmailData {
 
 export async function sendEmail({ to, subject, html }: EmailData) {
   try {
-    const data = await resend.emails.send({
+    const data = await getResendClient().emails.send({
       from: senderEmail,
       to: [to],
       subject,
       html,
     });
     return { success: true, data };
-  } catch (error: any) {
-    console.error('Email send error:', error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Email send failed';
+    console.error('Email send error:', message);
+    return { success: false, error: message };
   }
 }
 

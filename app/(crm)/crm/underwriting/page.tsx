@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 const riskLevels = [
   { value: 'low', label: 'Low Risk', color: 'bg-green-100 text-green-700', icon: CheckCircle },
@@ -332,7 +333,7 @@ export default function UnderwritingPage() {
                 id="recommended_amount"
                 type="number"
                 value={recommendedAmount}
-                onChange={(e) => setRecommendedAmount(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRecommendedAmount(e.target.value)}
                 placeholder="Enter recommended funding amount"
               />
             </div>

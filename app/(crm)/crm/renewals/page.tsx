@@ -24,7 +24,7 @@ export default function RenewalsPage() {
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect() => {
+  useEffect(() => {
     loadRenewals();
   }, []);
 
