@@ -10,7 +10,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           <Link href="/portal" className="flex items-center gap-2.5">
             <div className="relative w-7 h-7 rounded-[7px] overflow-hidden bg-[#0F1E35] shrink-0">
               <Image
-                src="/Elite_Funding_Solutions_Logo_Final.jpg"
+                src="/elite-funding-logo.png"
                 alt="Elite Funding Solutions"
                 width={28}
                 height={28}

@@ -50,7 +50,7 @@ export default function LoginPage() {
           <Link href="/" className="inline-flex items-center gap-3 justify-center">
             <div className="relative w-9 h-9 rounded-[8px] overflow-hidden bg-[#0F1E35]">
               <Image
-                src="/Elite_Funding_Solutions_Logo_Final.jpg"
+                src="/elite-funding-logo.png"
                 alt="Elite Funding Solutions"
                 width={36}
                 height={36}

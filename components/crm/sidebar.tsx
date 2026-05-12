@@ -89,7 +89,7 @@ export function CrmSidebar() {
       <div className="flex items-center gap-3 px-4 py-5 shrink-0" style={{ borderBottom: '1px solid #111E35' }}>
         <div className="relative w-8 h-8 rounded-[8px] overflow-hidden shrink-0 bg-[#0F1E35]">
           <Image
-            src="/Elite_Funding_Solutions_Logo_Final.jpg"
+            src="/elite-funding-logo.png"
             alt="Elite Funding Solutions"
             width={32}
             height={32}

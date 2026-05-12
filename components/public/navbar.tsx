@@ -48,7 +48,7 @@ export function PublicNavbar() {
           <Link href="/" className="flex items-center gap-3 shrink-0">
             <div className="relative w-9 h-9 rounded-[8px] overflow-hidden bg-[#0F1E35] flex items-center justify-center">
               <Image
-                src="/Elite_Funding_Solutions_Logo_Final.jpg"
+                src="/elite-funding-logo.png"
                 alt="Elite Funding Solutions"
                 width={36}
                 height={36}

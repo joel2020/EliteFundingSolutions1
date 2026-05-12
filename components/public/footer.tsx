@@ -39,7 +39,7 @@ export function PublicFooter() {
             <Link href="/" className="flex items-center gap-3 mb-6">
               <div className="relative w-9 h-9 rounded-[8px] overflow-hidden bg-[#0F1E35] flex items-center justify-center shrink-0">
                 <Image
-                  src="/Elite_Funding_Solutions_Logo_Final.jpg"
+                  src="/elite-funding-logo.png"
                   alt="Elite Funding Solutions"
                   width={36}
                   height={36}
