@@ -35,7 +35,7 @@ Important: Do not deploy this repo to the similarly named Vercel project `elite-
 - Production Supabase URL: https://mdrrcrmowurbrwvdsgnq.supabase.co
 - Database Host: db.mdrrcrmowurbrwvdsgnq.supabase.co
 
-Important: The old Supabase project `hiweeafewcralneqfosy` / `bolt-native-database-66464383` was a temporary project and should not be used for Elite Funding Solutions production work.
+Important: Use only the production Supabase project listed above for Elite Funding Solutions production work.
 
 ## Required Environment Variables
 
@@ -66,9 +66,9 @@ When working on this project:
 1. Use GitHub repo `joel2020/EliteFundingSolutions1`.
 2. Deploy to Vercel project `elite-funding-solutions1`.
 3. Use Supabase project ref `mdrrcrmowurbrwvdsgnq`.
-4. Do not use Supabase project ref `hiweeafewcralneqfosy` for this project.
+4. Use only the Supabase project ref listed in this file for this project.
 5. Do not use the `elite-funding-solutions` Vercel project by default.
-6. Do not use any Bypass Solution, Bravo Mechanical, Murray Legal, or Alivio projects for this build.
+6. Use Elite Funding Solutions branding and infrastructure only for this build.
 7. Before schema or auth changes, confirm the Supabase project ref matches `mdrrcrmowurbrwvdsgnq`.
 8. Before deployment work, confirm the Vercel project ID matches `prj_rdMIIE052Gvi8EI664kXFYQHQYue`.
 
