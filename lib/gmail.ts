@@ -1,0 +1,133 @@
+import { google } from 'googleapis';
+
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+];
+
+export function getOAuth2Client() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/gmail/callback`;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing Google OAuth credentials. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your environment variables.');
+  }
+
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+export function getAuthUrl() {
+  const oauth2Client = getOAuth2Client();
+  return oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: SCOPES,
+    prompt: 'consent',
+  });
+}
+
+export async function getGmailClient(accessToken: string, refreshToken?: string) {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  return google.gmail({ version: 'v1', auth: oauth2Client });
+}
+
+export async function sendEmail({
+  accessToken,
+  refreshToken,
+  to,
+  subject,
+  body,
+  from,
+}: {
+  accessToken: string;
+  refreshToken?: string;
+  to: string;
+  subject: string;
+  body: string;
+  from?: string;
+}) {
+  const gmail = await getGmailClient(accessToken, refreshToken);
+
+  const message = [
+    `From: ${from || 'me'}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    '',
+    body,
+  ].join('\n');
+
+  const encodedMessage = Buffer.from(message)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  const res = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+      raw: encodedMessage,
+    },
+  });
+
+  return res.data;
+}
+
+export async function listEmails({
+  accessToken,
+  refreshToken,
+  maxResults = 50,
+  query,
+}: {
+  accessToken: string;
+  refreshToken?: string;
+  maxResults?: number;
+  query?: string;
+}) {
+  const gmail = await getGmailClient(accessToken, refreshToken);
+
+  const res = await gmail.users.messages.list({
+    userId: 'me',
+    maxResults,
+    q: query,
+  });
+
+  return res.data.messages || [];
+}
+
+export async function getEmail({
+  accessToken,
+  refreshToken,
+  messageId,
+}: {
+  accessToken: string;
+  refreshToken?: string;
+  messageId: string;
+}) {
+  const gmail = await getGmailClient(accessToken, refreshToken);
+
+  const res = await gmail.users.messages.get({
+    userId: 'me',
+    id: messageId,
+    format: 'full',
+  });
+
+  return res.data;
+}
+
+export async function getUserProfile(accessToken: string, refreshToken?: string) {
+  const gmail = await getGmailClient(accessToken, refreshToken);
+
+  const res = await gmail.users.getProfile({
+    userId: 'me',
+  });
+
+  return res.data;
+}
