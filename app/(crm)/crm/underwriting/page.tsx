@@ -1,365 +1,362 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle2, TrendingUp, Calculator } from 'lucide-react';
+import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { FileText, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
+import type { Application } from '@/types/database';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// ─── Underwriting calculator ──────────────────────────────────────────────
-function calculateUnderwriting(inputs: UWInputs): UWOutputs {
-  const {
-    monthly_revenue, avg_daily_balance, deposit_count, nsf_count,
-    negative_days, existing_balance, existing_daily_pmts, time_in_business,
-    credit_range, has_tax_lien, has_bankruptcy
-  } = inputs;
+const riskLevels = [
+  { value: 'low', label: 'Low Risk', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  { value: 'medium', label: 'Medium Risk', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
+  { value: 'high', label: 'High Risk', color: 'bg-orange-100 text-orange-700', icon: AlertCircle },
+  { value: 'declined', label: 'Decline', color: 'bg-red-100 text-red-700', icon: XCircle },
+];
 
-  let score = 100;
-  const flags: string[] = [];
-
-  // Revenue scoring
-  if (monthly_revenue < 10000) { score -= 30; flags.push('Low monthly revenue'); }
-  else if (monthly_revenue < 20000) { score -= 10; }
-
-  // Average daily balance
-  if (avg_daily_balance < 2000) { score -= 25; flags.push('Low average daily balance'); }
-  else if (avg_daily_balance < 5000) { score -= 10; }
-
-  // NSF count
-  if (nsf_count >= 5) { score -= 20; flags.push('High NSF count'); }
-  else if (nsf_count >= 2) { score -= 10; }
-
-  // Negative days
-  if (negative_days >= 5) { score -= 20; flags.push('Too many negative days'); }
-  else if (negative_days >= 2) { score -= 8; }
-
-  // Time in business
-  if (time_in_business < 6) { score -= 25; flags.push('Short time in business'); }
-  else if (time_in_business < 12) { score -= 10; }
-
-  // Credit score
-  const creditPoints: Record<string, number> = {
-    below_500: -20, '500_549': -10, '550_599': -5,
-    '600_649': 0, '650_699': 5, '700_749': 10, '750_plus': 15,
-  };
-  score += creditPoints[credit_range] ?? 0;
-  if (credit_range === 'below_500') flags.push('Low credit score');
-
-  // Derogatory
-  if (has_tax_lien) { score -= 15; flags.push('Open tax lien'); }
-  if (has_bankruptcy) { score -= 20; flags.push('Open bankruptcy'); }
-
-  // Existing payment burden
-  const burden = monthly_revenue > 0
-    ? ((existing_daily_pmts * 21) / monthly_revenue) * 100
-    : 0;
-  if (burden > 50) { score -= 20; flags.push('High existing payment burden'); }
-  else if (burden > 30) { score -= 10; }
-
-  score = Math.max(0, Math.min(100, score));
-
-  // Risk tier
-  let risk_tier: 'A' | 'B' | 'C' | 'D' | 'decline';
-  if (score >= 80) risk_tier = 'A';
-  else if (score >= 65) risk_tier = 'B';
-  else if (score >= 50) risk_tier = 'C';
-  else if (score >= 30) risk_tier = 'D';
-  else risk_tier = 'decline';
-
-  // Funding range: typically 1x to 2x monthly revenue
-  const base = monthly_revenue;
-  const min_funding = risk_tier === 'decline' ? 0 : Math.round(base * 0.8 / 1000) * 1000;
-  const max_funding = risk_tier === 'decline' ? 0 : Math.round(
-    base * (risk_tier === 'A' ? 2.5 : risk_tier === 'B' ? 2 : risk_tier === 'C' ? 1.5 : 1) / 1000
-  ) * 1000;
-
-  // Factor rate based on risk
-  const factor_rates: Record<string, number> = {
-    A: 1.20, B: 1.28, C: 1.35, D: 1.42, decline: 0
-  };
-  const factor_rate = factor_rates[risk_tier];
-
-  // Payment estimate (120-day term typical)
-  const mid_funding = (min_funding + max_funding) / 2;
-  const payback = mid_funding * factor_rate;
-  const daily_pmt = payback / 120;
-  const weekly_pmt = daily_pmt * 5;
-  const max_safe = monthly_revenue * 0.15; // 15% of monthly rev per day max
-
-  return {
-    score,
-    risk_tier,
-    risk_flags: flags,
-    min_funding,
-    max_funding,
-    factor_rate,
-    payback_amount: Math.round(payback),
-    daily_payment: Math.round(daily_pmt),
-    weekly_payment: Math.round(weekly_pmt * 5),
-    max_safe_daily: Math.round(max_safe),
-    burden_pct: Math.round(burden),
-    renewal_eligible: score >= 60 && existing_balance === 0,
-  };
-}
-
-interface UWInputs {
-  monthly_revenue: number;
-  avg_daily_balance: number;
-  deposit_count: number;
-  nsf_count: number;
-  negative_days: number;
-  existing_balance: number;
-  existing_daily_pmts: number;
-  time_in_business: number;
-  credit_range: string;
-  has_tax_lien: boolean;
-  has_bankruptcy: boolean;
-}
-
-interface UWOutputs {
-  score: number;
-  risk_tier: 'A' | 'B' | 'C' | 'D' | 'decline';
-  risk_flags: string[];
-  min_funding: number;
-  max_funding: number;
-  factor_rate: number;
-  payback_amount: number;
-  daily_payment: number;
-  weekly_payment: number;
-  max_safe_daily: number;
-  burden_pct: number;
-  renewal_eligible: boolean;
-}
-
-const tierColors: Record<string, { bg: string; text: string; label: string }> = {
-  A: { bg: '#F0FDF4', text: '#059669', label: 'A — Strong' },
-  B: { bg: '#EFF6FF', text: '#2563EB', label: 'B — Good' },
-  C: { bg: '#FFFBEB', text: '#D97706', label: 'C — Moderate' },
-  D: { bg: '#FEF2F2', text: '#DC2626', label: 'D — High Risk' },
-  decline: { bg: '#FEF2F2', text: '#DC2626', label: 'Decline' },
-};
-
-// ─── Page ─────────────────────────────────────────────────────────────────
 export default function UnderwritingPage() {
-  const [inputs, setInputs] = useState<UWInputs>({
-    monthly_revenue: 0, avg_daily_balance: 0, deposit_count: 0,
-    nsf_count: 0, negative_days: 0, existing_balance: 0,
-    existing_daily_pmts: 0, time_in_business: 12,
-    credit_range: '650_699', has_tax_lien: false, has_bankruptcy: false,
-  });
-  const [result, setResult] = useState<UWOutputs | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [riskAssessment, setRiskAssessment] = useState('medium');
+  const [recommendedAmount, setRecommendedAmount] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const update = (key: keyof UWInputs, value: number | string | boolean) => {
-    setInputs((prev) => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    loadApplications();
+  }, []);
+
+  const loadApplications = async () => {
+    const { data, error } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('organization_id', DEFAULT_ORG_ID)
+      .in('status', ['submitted', 'in_review', 'under_review'])
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast.error('Failed to load applications');
+      console.error(error);
+    } else if (data) {
+      setApplications(data as Application[]);
+    }
+    setLoading(false);
   };
 
-  const calculate = () => setResult(calculateUnderwriting(inputs));
+  const openReview = (app: Application) => {
+    setSelectedApp(app);
+    setReviewNotes('');
+    setRiskAssessment('medium');
+    setRecommendedAmount(app.requested_amount?.toString() || '');
+    setShowReviewDialog(true);
+  };
 
-  const numInput = (label: string, key: keyof UWInputs, isCurrency = false, hint?: string) => (
-    <div>
-      <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">{label}</label>
-      <div className="relative">
-        {isCurrency && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A1A1AA] text-[14px]">$</span>
-        )}
-        <input
-          type="number"
-          min={0}
-          value={inputs[key] as number || ''}
-          onChange={(e) => update(key, Number(e.target.value))}
-          className={`input-field w-full ${isCurrency ? 'pl-7' : ''}`}
-          placeholder="0"
-        />
-      </div>
-      {hint && <p className="text-[12px] text-[#A1A1AA] mt-1">{hint}</p>}
-    </div>
-  );
+  const submitReview = async () => {
+    if (!selectedApp) return;
 
-  const fmt = (n: number) => `$${n.toLocaleString()}`;
+    setSaving(true);
+
+    // Update application status
+    const { error: appError } = await supabase
+      .from('applications')
+      .update({ 
+        status: riskAssessment === 'declined' ? 'declined' : 'approved',
+        underwriting_notes: reviewNotes,
+      })
+      .eq('id', selectedApp.id);
+
+    if (appError) {
+      toast.error('Failed to submit review');
+      console.error(appError);
+      setSaving(false);
+      return;
+    }
+
+    // Create underwriting review record
+    const { error: reviewError } = await supabase
+      .from('underwriting_reviews')
+      .insert({
+        organization_id: DEFAULT_ORG_ID,
+        application_id: selectedApp.id,
+        risk_level: riskAssessment,
+        notes: reviewNotes,
+        recommended_amount: recommendedAmount ? parseFloat(recommendedAmount) : null,
+        status: riskAssessment === 'declined' ? 'declined' : 'approved',
+      });
+
+    if (reviewError) {
+      console.error('Failed to create review record:', reviewError);
+    }
+
+    toast.success(`Application ${riskAssessment === 'declined' ? 'declined' : 'approved'}`);
+    setShowReviewDialog(false);
+    loadApplications();
+    setSaving(false);
+  };
+
+  const calculateScore = (app: Application) => {
+    // Simple scoring algorithm
+    let score = 50;
+    
+    if (app.monthly_gross_revenue) {
+      if (app.monthly_gross_revenue > 100000) score += 20;
+      else if (app.monthly_gross_revenue > 50000) score += 10;
+      else if (app.monthly_gross_revenue > 25000) score += 5;
+    }
+    
+    if (app.requested_amount && app.monthly_gross_revenue) {
+      const ratio = app.requested_amount / app.monthly_gross_revenue;
+      if (ratio < 0.5) score += 15;
+      else if (ratio < 1) score += 10;
+      else if (ratio < 2) score += 5;
+    }
+    
+    if (app.time_in_business_months) {
+      if (app.time_in_business_months > 24) score += 15;
+      else if (app.time_in_business_months > 12) score += 10;
+      else if (app.time_in_business_months > 6) score += 5;
+    }
+
+    return Math.min(100, Math.max(0, score));
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 75) return 'text-green-600';
+    if (score >= 50) return 'text-yellow-600';
+    if (score >= 25) return 'text-orange-600';
+    return 'text-red-600';
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <CrmTopbar
-        title="Underwriting Calculator"
-        subtitle="Analyze deal risk and calculate funding parameters"
+        title="Underwriting"
+        subtitle={`${applications.length} applications in review queue`}
       />
 
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-[1100px]">
-          {/* Inputs */}
-          <div
-            className="lg:col-span-2 bg-white border border-[#E4E4E7] rounded-[16px] p-6"
-            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-          >
-            <h2 className="text-[16px] font-semibold text-[#09090B] mb-6 flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-[#2563EB]" />
-              Input Data
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {numInput('Monthly Gross Revenue', 'monthly_revenue', true)}
-              {numInput('Average Daily Balance', 'avg_daily_balance', true)}
-              {numInput('Monthly Deposit Count', 'deposit_count')}
-              {numInput('NSF Count (last 3 months)', 'nsf_count', false, 'Returned / insufficient fund items')}
-              {numInput('Negative Days (last 3 months)', 'negative_days')}
-              {numInput('Time in Business (months)', 'time_in_business')}
-              {numInput('Existing Advance Balance', 'existing_balance', true)}
-              {numInput('Existing Daily Payments', 'existing_daily_pmts', true)}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Credit Score Range</label>
-                <select
-                  value={inputs.credit_range}
-                  onChange={(e) => update('credit_range', e.target.value)}
-                  className="input-field w-full"
-                >
-                  {[
-                    { value: 'below_500', label: 'Below 500' },
-                    { value: '500_549', label: '500 – 549' },
-                    { value: '550_599', label: '550 – 599' },
-                    { value: '600_649', label: '600 – 649' },
-                    { value: '650_699', label: '650 – 699' },
-                    { value: '700_749', label: '700 – 749' },
-                    { value: '750_plus', label: '750+' },
-                  ].map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-[#71717A]">In Review</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-[#09090B]">
+                {applications.filter(a => a.status === 'in_review').length}
               </div>
-              <div className="flex flex-col gap-3 justify-end">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={inputs.has_tax_lien} onChange={(e) => update('has_tax_lien', e.target.checked)} className="w-4 h-4" />
-                  <span className="text-[13px] text-[#52525B]">Open tax lien</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={inputs.has_bankruptcy} onChange={(e) => update('has_bankruptcy', e.target.checked)} className="w-4 h-4" />
-                  <span className="text-[13px] text-[#52525B]">Open bankruptcy</span>
-                </label>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-[#71717A]">Pending Docs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-[#09090B]">
+                {applications.filter(a => a.status === 'docs_requested').length}
               </div>
-            </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-[#71717A]">Total Value</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-[#09090B]">
+                ${applications.reduce((sum, a) => sum + (a.requested_amount || 0), 0).toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-[#71717A]">Avg Amount</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-[#09090B]">
+                ${applications.length > 0 ? Math.round(applications.reduce((sum, a) => sum + (a.requested_amount || 0), 0) / applications.length).toLocaleString() : 0}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            <div className="mt-6 pt-4 border-t border-[#F4F4F5]">
-              <button
-                onClick={calculate}
-                className="inline-flex items-center gap-2 rounded-[10px] bg-[#2563EB] text-white font-semibold text-[15px] h-11 px-6 hover:bg-[#1D4ED8] transition-all"
-              >
-                <TrendingUp className="w-4 h-4" />
-                Calculate Underwriting
-              </button>
+        {/* Applications List */}
+        <div className="space-y-4">
+          {loading ? (
+            <div className="text-center py-12 text-[#A1A1AA]">Loading…</div>
+          ) : applications.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="w-12 h-12 mx-auto mb-4 text-[#A1A1AA]" />
+              <p className="text-[#71717A]">No applications in underwriting queue</p>
             </div>
-          </div>
-
-          {/* Results */}
-          <div className="flex flex-col gap-4">
-            {result ? (
-              <>
-                {/* Risk tier */}
+          ) : (
+            applications.map((app) => {
+              const score = calculateScore(app);
+              return (
                 <div
-                  className="bg-white border border-[#E4E4E7] rounded-[16px] p-5"
-                  style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
+                  key={app.id}
+                  className="bg-white border border-[#E4E4E7] rounded-[16px] p-5 hover:shadow-md transition-shadow"
                 >
-                  <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#A1A1AA] mb-3">Risk Assessment</div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div
-                      className="w-14 h-14 rounded-[12px] flex items-center justify-center text-[22px] font-bold"
-                      style={{ backgroundColor: tierColors[result.risk_tier].bg, color: tierColors[result.risk_tier].text }}
-                    >
-                      {result.risk_tier === 'decline' ? '✕' : result.risk_tier}
-                    </div>
-                    <div>
-                      <div className="text-[16px] font-bold text-[#09090B]">
-                        {tierColors[result.risk_tier].label}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <h3 className="text-lg font-semibold text-[#09090B]">
+                          {app.business_name || 'Unnamed Business'}
+                        </h3>
+                        <Badge variant="secondary">{app.status.replace('_', ' ')}</Badge>
                       </div>
-                      <div className="text-[13px] text-[#71717A]">Score: {result.score}/100</div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <div className="text-xs text-[#71717A] mb-1">Requested Amount</div>
+                          <div className="flex items-center gap-1 font-semibold text-[#09090B]">
+                            <DollarSign className="w-4 h-4" />
+                            {app.requested_amount?.toLocaleString() || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[#71717A] mb-1">Monthly Revenue</div>
+                          <div className="font-semibold text-[#09090B]">
+                            ${app.monthly_gross_revenue?.toLocaleString() || '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[#71717A] mb-1">Time in Business</div>
+                          <div className="font-semibold text-[#09090B]">
+                            {app.time_in_business_months ? `${app.time_in_business_months} months` : '—'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[#71717A] mb-1">Credit Score</div>
+                          <div className="font-semibold text-[#09090B]">
+                            {app.credit_score || '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Risk Score */}
+                      <div className="flex items-center gap-4">
+                        <div>
+                          <div className="text-xs text-[#71717A] mb-1">Risk Score</div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-32 h-2 bg-[#F4F4F5] rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all ${score >= 75 ? 'bg-green-500' : score >= 50 ? 'bg-yellow-500' : score >= 25 ? 'bg-orange-500' : 'bg-red-500'}`}
+                                style={{ width: `${score}%` }}
+                              />
+                            </div>
+                            <span className={`font-bold ${getScoreColor(score)}`}>
+                              {score}/100
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button onClick={() => openReview(app)}>
+                        Review Application
+                      </Button>
                     </div>
                   </div>
-
-                  {/* Score bar */}
-                  <div className="h-2 bg-[#F4F4F5] rounded-full overflow-hidden mb-4">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${result.score}%`,
-                        backgroundColor: result.score >= 65 ? '#10B981' : result.score >= 40 ? '#F59E0B' : '#EF4444'
-                      }}
-                    />
-                  </div>
-
-                  {/* Funding range */}
-                  {result.risk_tier !== 'decline' && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-[#F4F4F5] rounded-[10px] p-3">
-                        <div className="text-[11px] text-[#A1A1AA] mb-0.5">Min Funding</div>
-                        <div className="text-[15px] font-bold text-[#09090B]">{fmt(result.min_funding)}</div>
-                      </div>
-                      <div className="bg-[#F4F4F5] rounded-[10px] p-3">
-                        <div className="text-[11px] text-[#A1A1AA] mb-0.5">Max Funding</div>
-                        <div className="text-[15px] font-bold text-[#09090B]">{fmt(result.max_funding)}</div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-
-                {/* Offer parameters */}
-                {result.risk_tier !== 'decline' && (
-                  <div
-                    className="bg-white border border-[#E4E4E7] rounded-[16px] p-5"
-                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-                  >
-                    <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#A1A1AA] mb-3">Estimated Offer Terms</div>
-                    <div className="flex flex-col gap-2.5">
-                      {[
-                        ['Factor Rate', result.factor_rate.toFixed(2)],
-                        ['Payback Amount', fmt(result.payback_amount)],
-                        ['Daily Payment', fmt(result.daily_payment)],
-                        ['Weekly Payment', fmt(result.weekly_payment)],
-                        ['Max Safe Daily Pmt', fmt(result.max_safe_daily)],
-                        ['Existing Pmt Burden', `${result.burden_pct}%`],
-                      ].map(([label, value]) => (
-                        <div key={label} className="flex items-center justify-between py-1.5 border-b border-[#F4F4F5] last:border-0">
-                          <span className="text-[13px] text-[#71717A]">{label}</span>
-                          <span className="text-[14px] font-semibold text-[#09090B]">{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Risk flags */}
-                {result.risk_flags.length > 0 && (
-                  <div
-                    className="bg-white border border-[#E4E4E7] rounded-[16px] p-5"
-                    style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-                  >
-                    <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#A1A1AA] mb-3">Risk Flags</div>
-                    <div className="flex flex-col gap-2">
-                      {result.risk_flags.map((flag) => (
-                        <div key={flag} className="flex items-center gap-2 text-[13px] text-[#D97706]">
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          {flag}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {result.risk_tier !== 'decline' && result.risk_flags.length === 0 && (
-                  <div className="flex items-center gap-2 bg-[#F0FDF4] border border-[#DCFCE7] rounded-[12px] px-4 py-3">
-                    <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0" />
-                    <span className="text-[13px] text-[#059669] font-medium">No risk flags identified</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div
-                className="bg-white border border-[#E4E4E7] rounded-[16px] p-8 text-center"
-                style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
-              >
-                <Calculator className="w-10 h-10 text-[#E4E4E7] mx-auto mb-3" />
-                <p className="text-[14px] text-[#A1A1AA]">Enter deal data and click Calculate to see the underwriting analysis.</p>
-              </div>
-            )}
-          </div>
+              );
+            })
+          )}
         </div>
       </div>
+
+      {/* Review Dialog */}
+      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Underwriting Review</DialogTitle>
+            <DialogDescription>
+              Review and assess {selectedApp?.business_name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Application Summary */}
+            <div className="bg-[#F4F4F5] rounded-lg p-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-[#71717A]">Requested:</span>
+                  <span className="ml-2 font-semibold">${selectedApp?.requested_amount?.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-[#71717A]">Revenue:</span>
+                  <span className="ml-2 font-semibold">${selectedApp?.monthly_gross_revenue?.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-[#71717A]">Time in Business:</span>
+                  <span className="ml-2 font-semibold">{selectedApp?.time_in_business_months} months</span>
+                </div>
+                <div>
+                  <span className="text-[#71717A]">Credit Score:</span>
+                  <span className="ml-2 font-semibold">{selectedApp?.credit_score || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="risk_assessment">Risk Assessment</Label>
+              <Select value={riskAssessment} onValueChange={setRiskAssessment}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {riskLevels.map((level) => (
+                    <SelectItem key={level.value} value={level.value}>
+                      <div className="flex items-center gap-2">
+                        <level.icon className="w-4 h-4" />
+                        {level.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="recommended_amount">Recommended Amount</Label>
+              <Input
+                id="recommended_amount"
+                type="number"
+                value={recommendedAmount}
+                onChange={(e) => setRecommendedAmount(e.target.value)}
+                placeholder="Enter recommended funding amount"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="review_notes">Review Notes</Label>
+              <Textarea
+                id="review_notes"
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                rows={4}
+                placeholder="Enter your underwriting notes and assessment..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>Cancel</Button>
+            <Button onClick={submitReview} disabled={saving || !reviewNotes}>
+              {saving ? 'Submitting...' : 'Submit Review'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
