@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Plus, Users, TrendingUp, DollarSign, Mail, Phone } from 'lucide-react';
 import type { IsoBroker } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,8 @@ const emptyForm: BrokerFormData = {
 };
 
 export default function IsoBrokersPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [brokers, setBrokers] = useState<IsoBroker[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
@@ -40,14 +43,16 @@ export default function IsoBrokersPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadBrokers();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadBrokers = async () => {
     const { data, error } = await supabase
       .from('iso_brokers')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -68,7 +73,7 @@ export default function IsoBrokersPage() {
     setSaving(true);
     
     const brokerData = {
-      organization_id: DEFAULT_ORG_ID,
+      organization_id: organizationId,
       company_name: formData.company_name,
       contact_name: formData.contact_name,
       email: formData.email || null,

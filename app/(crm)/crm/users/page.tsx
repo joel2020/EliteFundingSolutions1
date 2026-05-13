@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Plus, MoreVertical, Mail, Shield, UserCheck, UserX } from 'lucide-react';
 import type { UserProfile } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,8 @@ const roleConfig: Record<string, { label: string; color: string }> = {
 };
 
 export default function UsersPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -37,14 +40,16 @@ export default function UsersPage() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadUsers();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadUsers = async () => {
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -65,7 +70,7 @@ export default function UsersPage() {
     setSending(true);
 
     const { error } = await supabase.from('user_profiles').insert({
-      organization_id: DEFAULT_ORG_ID,
+      organization_id: organizationId,
       email: inviteEmail,
       first_name: inviteFirstName,
       last_name: inviteLastName,

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Download, TrendingUp, Users, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,8 @@ import { toast } from 'sonner';
 const COLORS = ['#2563EB', '#7C3AED', '#059669', '#D97706', '#EF4444', '#0891B2'];
 
 export default function ReportsPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('30');
   
@@ -35,10 +38,10 @@ export default function ReportsPage() {
         { data: deals },
         { data: users },
       ] = await Promise.all([
-        supabase.from('leads').select('*').eq('organization_id', DEFAULT_ORG_ID).gte('created_at', startDate.toISOString()),
-        supabase.from('applications').select('*').eq('organization_id', DEFAULT_ORG_ID).gte('created_at', startDate.toISOString()),
-        supabase.from('deals').select('*').eq('organization_id', DEFAULT_ORG_ID).gte('created_at', startDate.toISOString()),
-        supabase.from('user_profiles').select('*').eq('organization_id', DEFAULT_ORG_ID),
+        supabase.from('leads').select('*').eq('organization_id', organizationId).gte('created_at', startDate.toISOString()),
+        supabase.from('applications').select('*').eq('organization_id', organizationId).gte('created_at', startDate.toISOString()),
+        supabase.from('deals').select('*').eq('organization_id', organizationId).gte('created_at', startDate.toISOString()),
+        supabase.from('user_profiles').select('*').eq('organization_id', organizationId),
       ]);
 
       // Lead Source Analysis

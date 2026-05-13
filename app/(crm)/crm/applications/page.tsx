@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Search, MoreVertical, FileText, Edit, ExternalLink, X } from 'lucide-react';
-import type { Application } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +38,9 @@ const statusConfig: Record<string, { label: string; bg: string; text: string }> 
 };
 
 export default function ApplicationsPage() {
-  const [applications, setApplications] = useState<Application[]>([]);
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
+  const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
@@ -48,9 +50,11 @@ export default function ApplicationsPage() {
   const [revealSensitive, setRevealSensitive] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadApplications();
     loadCurrentProfile();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadCurrentProfile = async () => {
     const { data: authData } = await supabase.auth.getUser();
@@ -59,7 +63,7 @@ export default function ApplicationsPage() {
       .from('user_profiles')
       .select('id, role, organization_id')
       .eq('user_id', authData.user.id)
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .single();
     setCurrentProfile(data);
   };
@@ -67,15 +71,16 @@ export default function ApplicationsPage() {
   const loadApplications = async () => {
     const { data, error } = await supabase
       .from('applications')
-      .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .select('id,organization_id,business_id,status,requested_amount,submitted_at,created_at,application_payload,certification_accepted,credit_authorization_accepted,esign_consent_accepted,sms_consent_accepted,terms_accepted,privacy_policy_accepted,signed_name,signed_at,signature_date,businesses(legal_name,dba,email,phone,ein_last4),leads(first_name,last_name,email,phone)')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
       toast.error('Failed to load applications');
       console.error(error);
     } else if (data) {
-      setApplications(data as Application[]);
+      setApplications(data as any[]);
     }
     setLoading(false);
   };
@@ -84,7 +89,8 @@ export default function ApplicationsPage() {
     const { error } = await supabase
       .from('applications')
       .update({ status: newStatus })
-      .eq('id', appId);
+      .eq('id', appId)
+      .eq('organization_id', organizationId);
 
     if (error) {
       toast.error('Failed to update status');
@@ -99,8 +105,8 @@ export default function ApplicationsPage() {
     setSelectedApplication(application);
     setRevealSensitive(false);
     const [{ data: docs }, { data: history }] = await Promise.all([
-      supabase.from('documents').select('*').eq('application_id', application.id).order('created_at', { ascending: false }),
-      supabase.from('status_history').select('*').eq('application_id', application.id).order('changed_at', { ascending: false }),
+      supabase.from('documents').select('id,label,file_name,storage_path,document_type,status,created_at').eq('application_id', application.id).eq('organization_id', organizationId).order('created_at', { ascending: false }),
+      supabase.from('status_history').select('id,previous_status,new_status,notes,changed_at').eq('application_id', application.id).eq('organization_id', organizationId).order('changed_at', { ascending: false }),
     ]);
     setSelectedDocuments(docs || []);
     setSelectedHistory(history || []);
@@ -134,8 +140,9 @@ export default function ApplicationsPage() {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      (app.business_name ?? '').toLowerCase().includes(q) ||
-      (app.contact_name ?? '').toLowerCase().includes(q)
+      ((app.businesses?.legal_name || app.businesses?.dba || '')).toLowerCase().includes(q) ||
+      ((app.leads?.first_name || '') + ' ' + (app.leads?.last_name || '')).toLowerCase().includes(q) ||
+      (app.leads?.email || app.businesses?.email || '').toLowerCase().includes(q)
     );
   });
 
@@ -192,10 +199,10 @@ export default function ApplicationsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-[#71717A]" />
-                        <span className="font-medium text-[#09090B]">{app.business_name || '—'}</span>
+                        <span className="font-medium text-[#09090B]">{app.businesses?.legal_name || app.businesses?.dba || 'Unlinked business'}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[#52525B]">{app.contact_name || '—'}</td>
+                    <td className="px-4 py-3 text-[#52525B]">{[app.leads?.first_name, app.leads?.last_name].filter(Boolean).join(' ') || app.leads?.email || app.businesses?.email || '—'}</td>
                     <td className="px-4 py-3 font-semibold text-[#09090B]">
                       {app.requested_amount ? `$${app.requested_amount.toLocaleString()}` : '—'}
                     </td>
@@ -225,9 +232,9 @@ export default function ApplicationsPage() {
                             <FileText className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => updateStatus(app.id, 'in_review')}>
+                          <DropdownMenuItem onClick={() => updateStatus(app.id, 'under_review')}>
                             <Edit className="w-4 h-4 mr-2" />
-                            Mark In Review
+                            Move to Underwriting
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { DollarSign, TrendingUp, Users, Calendar } from 'lucide-react';
 import type { Commission } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
@@ -18,19 +19,23 @@ const statusColors: Record<string, string> = {
 };
 
 export default function CommissionsPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadCommissions();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadCommissions = async () => {
     const { data, error } = await supabase
       .from('commissions')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) {

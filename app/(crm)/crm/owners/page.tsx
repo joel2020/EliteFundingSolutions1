@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search, UserRound } from 'lucide-react';
@@ -10,16 +11,20 @@ import { toast } from 'sonner';
 import type { Owner } from '@/types/database';
 
 export default function OwnersPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [owners, setOwners] = useState<Owner[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     const loadOwners = async () => {
       const { data, error } = await supabase
         .from('owners')
         .select('*')
-        .eq('organization_id', DEFAULT_ORG_ID)
+        .eq('organization_id', organizationId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
@@ -33,7 +38,7 @@ export default function OwnersPage() {
     };
 
     loadOwners();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const filtered = owners.filter((owner) => {
     const q = search.toLowerCase();

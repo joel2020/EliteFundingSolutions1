@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Plus, DollarSign, Building2, User } from 'lucide-react';
-import type { Deal } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -14,13 +14,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const stages = [
-  { id: 'lead', label: 'Lead', color: '#71717A' },
-  { id: 'application', label: 'Application', color: '#2563EB' },
-  { id: 'documents', label: 'Documents', color: '#D97706' },
-  { id: 'underwriting', label: 'Underwriting', color: '#7C3AED' },
-  { id: 'offer', label: 'Offer', color: '#059669' },
-  { id: 'contract', label: 'Contract', color: '#0891B2' },
+  { id: 'lead_captured', label: 'Lead Captured', color: '#71717A' },
+  { id: 'application_started', label: 'Application Started', color: '#F59E0B' },
+  { id: 'application_submitted', label: 'Application Submitted', color: '#2563EB' },
+  { id: 'documents_requested', label: 'Documents Requested', color: '#F59E0B' },
+  { id: 'documents_received', label: 'Documents Received', color: '#2563EB' },
+  { id: 'underwriting_review', label: 'Underwriting Review', color: '#7C3AED' },
+  { id: 'submitted_to_partners', label: 'Submitted to Partners', color: '#2563EB' },
+  { id: 'offers_received', label: 'Offers Received', color: '#10B981' },
+  { id: 'offer_presented', label: 'Offer Presented', color: '#10B981' },
+  { id: 'contract_sent', label: 'Contract Sent', color: '#F59E0B' },
+  { id: 'contract_signed', label: 'Contract Signed', color: '#10B981' },
   { id: 'funded', label: 'Funded', color: '#10B981' },
+  { id: 'renewal_eligible', label: 'Renewal Eligible', color: '#2563EB' },
+  { id: 'declined', label: 'Declined', color: '#EF4444' },
+  { id: 'lost_unresponsive', label: 'Lost / Unresponsive', color: '#A1A1AA' },
 ];
 
 interface DealFormData {
@@ -34,25 +42,29 @@ const emptyForm: DealFormData = {
   business_name: '',
   contact_name: '',
   requested_amount: '',
-  stage: 'lead',
+  stage: 'lead_captured',
 };
 
 export default function PipelinePage() {
-  const [deals, setDeals] = useState<Deal[]>([]);
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
+  const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState<DealFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadDeals();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadDeals = async () => {
     const { data, error } = await supabase
       .from('deals')
-      .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .select('id,title,stage_slug,requested_amount,funded_amount,created_at,businesses(legal_name,dba)')
+      .eq('organization_id', organizationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
@@ -60,7 +72,7 @@ export default function PipelinePage() {
       toast.error('Failed to load deals');
       console.error(error);
     } else if (data) {
-      setDeals(data as Deal[]);
+      setDeals(data as any[]);
     }
     setLoading(false);
   };
@@ -79,11 +91,10 @@ export default function PipelinePage() {
     setSaving(true);
     
     const dealData = {
-      organization_id: DEFAULT_ORG_ID,
-      business_name: formData.business_name,
-      contact_name: formData.contact_name,
+      organization_id: organizationId,
+      title: formData.business_name,
       requested_amount: parseFloat(formData.requested_amount),
-      stage: formData.stage,
+      stage_slug: formData.stage,
     };
 
     const { error } = await supabase
@@ -105,8 +116,9 @@ export default function PipelinePage() {
   const moveToStage = async (dealId: string, newStage: string) => {
     const { error } = await supabase
       .from('deals')
-      .update({ stage: newStage })
-      .eq('id', dealId);
+      .update({ stage_slug: newStage })
+      .eq('id', dealId)
+      .eq('organization_id', organizationId);
 
     if (error) {
       toast.error('Failed to move deal');
@@ -117,9 +129,9 @@ export default function PipelinePage() {
   };
 
   const groupedDeals = stages.reduce((acc, stage) => {
-    acc[stage.id] = deals.filter(d => d.stage === stage.id);
+    acc[stage.id] = deals.filter(d => d.stage_slug === stage.id);
     return acc;
-  }, {} as Record<string, Deal[]>);
+  }, {} as Record<string, any[]>);
 
   const totalValue = deals.reduce((sum, d) => sum + (d.requested_amount || 0), 0);
 
@@ -176,15 +188,15 @@ export default function PipelinePage() {
                           <div className="flex items-center gap-2">
                             <Building2 className="w-4 h-4 text-[#71717A]" />
                             <span className="font-medium text-sm text-[#09090B]">
-                              {deal.business_name}
+                              {deal.businesses?.legal_name || deal.businesses?.dba || deal.title || 'Unnamed business'}
                             </span>
                           </div>
                         </div>
                         
-                        {deal.contact_name && (
+                        {deal.business_id && (
                           <div className="flex items-center gap-1 text-xs text-[#71717A] mb-2">
                             <User className="w-3 h-3" />
-                            {deal.contact_name}
+                            Linked business
                           </div>
                         )}
                         
@@ -195,7 +207,7 @@ export default function PipelinePage() {
                           </div>
                           
                           <Select
-                            value={deal.stage}
+                            value={deal.stage_slug}
                             onValueChange={(newStage) => moveToStage(deal.id, newStage)}
                           >
                             <SelectTrigger className="w-[100px] h-6 text-xs">

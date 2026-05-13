@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,8 @@ import { toast } from 'sonner';
 import type { Message } from '@/types/database';
 
 export default function MessagesPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -27,7 +30,7 @@ export default function MessagesPage() {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -40,8 +43,10 @@ export default function MessagesPage() {
   };
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadMessages();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const saveMessage = async () => {
     if (!body.trim()) {
@@ -51,7 +56,7 @@ export default function MessagesPage() {
 
     setSaving(true);
     const { error } = await supabase.from('messages').insert({
-      organization_id: DEFAULT_ORG_ID,
+      organization_id: organizationId,
       direction: 'outbound',
       channel: 'portal',
       recipient_email: recipientEmail || null,

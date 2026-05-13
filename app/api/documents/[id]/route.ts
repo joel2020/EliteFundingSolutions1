@@ -5,9 +5,9 @@ import { createServiceSupabaseClient } from '@/lib/server-supabase';
 
 export const dynamic = 'force-dynamic';
 
-const INTERNAL_CRM_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+const DELETE_ROLES = ['super_admin', 'admin', 'manager', 'processor'];
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
   const cookieStore = cookies();
   const authClient = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
@@ -15,6 +15,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       setAll() { /* route does not mutate auth cookies */ },
     },
   });
+
   const { data: { session } } = await authClient.auth.getSession();
   if (!session) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
@@ -26,11 +27,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq('is_active', true)
     .single();
 
-  if (!profile || !INTERNAL_CRM_ROLES.includes(profile.role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  if (!profile || !DELETE_ROLES.includes(profile.role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
 
   const { data: doc, error } = await supabase
     .from('documents')
-    .select('id, organization_id, storage_path, file_name')
+    .select('id, organization_id, storage_path, file_name, document_type, application_id, deal_id')
     .eq('id', params.id)
     .single();
 
@@ -38,22 +39,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const isDownload = body?.disposition === 'download';
-  const { data, error: signedError } = await supabase.storage
-    .from('application-documents')
-    .createSignedUrl(doc.storage_path, 120, isDownload ? { download: doc.file_name } : undefined);
+  const { error: storageError } = await supabase.storage.from('application-documents').remove([doc.storage_path]);
+  if (storageError) return NextResponse.json({ success: false, error: 'Unable to delete private file.' }, { status: 500 });
 
-  if (signedError || !data?.signedUrl) return NextResponse.json({ success: false, error: 'Unable to open document.' }, { status: 500 });
+  const { error: deleteError } = await supabase.from('documents').delete().eq('id', doc.id).eq('organization_id', profile.organization_id);
+  if (deleteError) return NextResponse.json({ success: false, error: 'Unable to delete document record.' }, { status: 500 });
 
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
     user_id: session.user.id,
-    action: isDownload ? 'document_download_signed_url_created' : 'document_preview_signed_url_created',
+    action: 'document_deleted',
     resource_type: 'documents',
     resource_id: doc.id,
-    new_data: { file_name: doc.file_name, expires_in_seconds: 120 },
+    old_data: doc,
   });
 
-  return NextResponse.json({ success: true, url: data.signedUrl });
+  return NextResponse.json({ success: true });
 }
