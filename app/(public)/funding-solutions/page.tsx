@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function FundingSolutionsPage() {
   return (
-    <main className="bg-[#F8F9FB]">
+    <main className="bg-[#030812]">
       <section className="page-hero-dark">
         <div className="container-page py-24 md:py-32">
           <p className="eyebrow mb-4">Funding solutions</p>
@@ -26,8 +26,8 @@ export default function FundingSolutionsPage() {
             <h2 className="text-2xl font-semibold tracking-tight text-[#0A1628]">{solution.title}</h2>
             <p className="mt-3 flex-1 leading-7 text-[#5A6A85]">{solution.summary}</p>
             <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-2xl bg-[#F8F9FB] p-4"><dt className="text-[#5A6A85]">Typical review</dt><dd className="mt-1 font-semibold text-[#0A1628]">{solution.speed}</dd></div>
-              <div className="rounded-2xl bg-[#F8F9FB] p-4"><dt className="text-[#5A6A85]">Starting docs</dt><dd className="mt-1 font-semibold text-[#0A1628]">{solution.documents.length}+ items</dd></div>
+              <div className="rounded-2xl bg-[#030812] p-4"><dt className="text-[#5A6A85]">Typical review</dt><dd className="mt-1 font-semibold text-[#0A1628]">{solution.speed}</dd></div>
+              <div className="rounded-2xl bg-[#030812] p-4"><dt className="text-[#5A6A85]">Starting docs</dt><dd className="mt-1 font-semibold text-[#0A1628]">{solution.documents.length}+ items</dd></div>
             </dl>
             <Link href={`/funding-solutions/${solution.slug}`} className="mt-6 inline-flex items-center gap-2 font-semibold text-[#0A1628]">View product details <ArrowRight className="h-4 w-4" /></Link>
           </article>

@@ -284,3 +284,54 @@
     @apply bg-[#F8F9FB] text-[#0A1628];
   }
 }
+
+@layer components {
+  .premium-card {
+    border-color: rgba(214, 175, 98, 0.16) !important;
+    background: rgba(8, 21, 35, 0.88) !important;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22) !important;
+  }
+  .premium-card h1,
+  .premium-card h2,
+  .premium-card h3,
+  .premium-card h4,
+  .premium-card label,
+  .premium-card dt,
+  .premium-card dd,
+  .premium-card strong {
+    color: #ffffff !important;
+  }
+  .premium-card p,
+  .premium-card li,
+  .premium-card span:not(.text-white):not([class*="bg-"]) {
+    color: #b9c2d0;
+  }
+  .premium-card .input-field,
+  .premium-card input,
+  .premium-card select,
+  .premium-card textarea {
+    background: #ffffff !important;
+    color: #0a1628 !important;
+  }
+  .page-hero-dark,
+  .page-hero-light {
+    background: radial-gradient(circle at 70% 24%, rgba(62,114,174,0.28), transparent 28%), linear-gradient(90deg,#030812 0%,#06101f 44%,#030812 100%) !important;
+    color: #fff !important;
+    border-bottom: 1px solid rgba(199, 164, 90, 0.14);
+  }
+  .page-hero-dark h1,
+  .page-hero-light h1,
+  .page-hero-dark h2,
+  .page-hero-light h2,
+  main.bg-\[\#030812\] h1 {
+    color: #fff;
+  }
+  main.bg-\[\#030812\] > section:first-child:not(.page-hero-dark):not(.page-hero-light) {
+    background: radial-gradient(circle at 70% 24%, rgba(62,114,174,0.22), transparent 28%), linear-gradient(90deg,#030812 0%,#06101f 48%,#030812 100%);
+    border-bottom: 1px solid rgba(199, 164, 90, 0.14);
+  }
+  main.bg-\[\#030812\] > section:first-child p:not(.eyebrow) {
+    color: #cbd5e1;
+  }
+  main.bg-\[\#030812\] .eyebrow { color: #e7c579; }
+}

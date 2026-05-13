@@ -15,7 +15,7 @@ const pillars = [
 
 export default function AboutPage() {
   return (
-    <main className="bg-[#F8F9FB]">
+    <main className="bg-[#030812]">
       <section className="page-hero-dark">
         <div className="container-page grid gap-12 py-24 md:py-32 lg:grid-cols-[1fr_0.9fr] lg:items-start">
           <div>
@@ -23,7 +23,7 @@ export default function AboutPage() {
             <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white md:text-7xl">A premium funding desk for ambitious businesses.</h1>
             <p className="mt-6 text-lg leading-8 text-slate-300">Elite Funding Solutions combines secure intake, disciplined file packaging, and high-touch advisory to help business owners evaluate capital options with clarity and confidence.</p>
           </div>
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-6 md:p-8">
+          <div className="rounded-[28px] border border-white/10 bg-[#05101d]/[0.045] p-6 md:p-8">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#C9A84C]">Our operating standard</p>
             <p className="mt-4 text-2xl font-semibold leading-snug text-white">No fake urgency. No guaranteed-approval claims. No confusing lender jargon without context.</p>
             <p className="mt-4 leading-7 text-slate-300">We position funding conversations around documentation quality, responsible repayment capacity, and terms that fit the use of funds.</p>
@@ -49,7 +49,7 @@ export default function AboutPage() {
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#C9A84C]">Trusted funding process</p>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white">Built to support sensitive applications.</h2>
             <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {['Protected collection of EIN, SSN, consent, and bank statement details.', 'Clear partner-network language before files are reviewed for funding options.', 'No fake logos, guaranteed approvals, or invented funded-volume claims.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-slate-200">{item}</div>)}
+              {['Protected collection of EIN, SSN, consent, and bank statement details.', 'Clear partner-network language before files are reviewed for funding options.', 'No fake logos, guaranteed approvals, or invented funded-volume claims.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-[#05101d]/[0.045] p-4 text-sm leading-6 text-slate-200">{item}</div>)}
             </div>
           </article>
         </div>

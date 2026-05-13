@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Industries Served | Elite Funding So
 
 export default function IndustriesPage() {
   return (
-    <main className="bg-[#F8F9FB]">
+    <main className="bg-[#030812]">
       <section className="page-hero-dark"><div className="container-page py-24 md:py-32"><p className="eyebrow mb-4">Industries</p><h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-7xl">Industry-specific funding for operators with real constraints.</h1><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">We consider seasonality, deposits, receivables, equipment needs, and cash-flow patterns to help identify capital structures that fit how your business operates.</p></div></section>
       <section className="container-page grid gap-5 py-16 sm:grid-cols-2 lg:grid-cols-3">
         {industries.map((industry) => (

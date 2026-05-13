@@ -16,7 +16,7 @@ const guide = [
 
 export default function FundingGuidePage() {
   return (
-    <main className="bg-[#F8F9FB]">
+    <main className="bg-[#030812]">
       <section className="container-page py-20 md:py-28">
         <p className="eyebrow mb-4">Funding guide</p>
         <h1 className="max-w-5xl text-4xl font-semibold leading-tight tracking-tight text-[#0A1628] md:text-6xl">How to prepare, compare, and close business funding with fewer surprises.</h1>
@@ -26,7 +26,7 @@ export default function FundingGuidePage() {
         {guide.map(([title, body]) => <article key={title} className="premium-card p-7"><h2 className="text-2xl font-semibold tracking-tight text-[#0A1628]">{title}</h2><p className="mt-3 leading-7 text-[#5A6A85]">{body}</p></article>)}
       </section>
       <section className="container-page pb-20">
-        <div className="rounded-[32px] bg-[#061326] p-8 text-white md:p-10"><h2 className="text-3xl font-semibold tracking-tight">Before you accept funding</h2><div className="mt-6 grid gap-4 md:grid-cols-3">{['Confirm all fees and total repayment.', 'Make sure payment frequency matches revenue timing.', 'Read the full agreement and ask questions before signing.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 text-slate-200">{item}</div>)}</div><Link href="/apply" className="btn-gold mt-8">Start secure application</Link></div>
+        <div className="rounded-[32px] bg-[#061326] p-8 text-white md:p-10"><h2 className="text-3xl font-semibold tracking-tight">Before you accept funding</h2><div className="mt-6 grid gap-4 md:grid-cols-3">{['Confirm all fees and total repayment.', 'Make sure payment frequency matches revenue timing.', 'Read the full agreement and ask questions before signing.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-[#05101d]/[0.045] p-5 text-slate-200">{item}</div>)}</div><Link href="/apply" className="btn-gold mt-8">Start secure application</Link></div>
       </section>
     </main>
   );
