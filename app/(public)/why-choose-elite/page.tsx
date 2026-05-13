@@ -19,7 +19,7 @@ const standards = ['No guaranteed-approval claims', 'No fake lender logos or inv
 
 export default function WhyChooseElitePage() {
   return (
-    <main className="bg-[#F8F9FB]">
+    <main className="bg-[#030812]">
       <section className="page-hero-dark">
         <div className="container-page py-20 md:py-28">
           <p className="eyebrow mb-4">Why choose Elite</p>
@@ -42,7 +42,7 @@ export default function WhyChooseElitePage() {
       <section className="container-page pb-16">
         <div className="grid gap-6 rounded-[32px] bg-[#061326] p-8 text-white md:grid-cols-[0.9fr_1.1fr] md:p-10">
           <div><ShieldCheck className="h-8 w-8 text-[#C9A84C]" /><h2 className="mt-5 text-3xl font-semibold tracking-tight">Trusted funding process</h2><p className="mt-4 leading-7 text-slate-300">We use clear disclosures, documented applicant consents, and a partner-network model so business owners understand who may review their file and why.</p></div>
-          <div className="grid gap-3 sm:grid-cols-2">{standards.map((item) => <div key={item} className="flex gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4"><Handshake className="mt-1 h-4 w-4 shrink-0 text-[#C9A84C]" /><span className="text-sm leading-6 text-slate-200">{item}</span></div>)}</div>
+          <div className="grid gap-3 sm:grid-cols-2">{standards.map((item) => <div key={item} className="flex gap-3 rounded-2xl border border-white/10 bg-[#05101d]/[0.045] p-4"><Handshake className="mt-1 h-4 w-4 shrink-0 text-[#C9A84C]" /><span className="text-sm leading-6 text-slate-200">{item}</span></div>)}</div>
         </div>
       </section>
 

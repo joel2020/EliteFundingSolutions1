@@ -8,13 +8,13 @@ export type LegalSection = {
 
 export function LegalPage({ title, intro, sections }: { title: string; intro: string; sections: LegalSection[] }) {
   return (
-    <section className="section bg-[#F8F9FB]">
+    <section className="section bg-[#030812]">
       <div className="container-page max-w-4xl">
-        <div className="rounded-[24px] border border-[#E4E4E7] bg-white p-6 md:p-10 shadow-sm">
+        <div className="rounded-[24px] border border-[#E4E4E7] bg-[#05101d] p-6 md:p-10 shadow-sm">
           <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#C9A84C] mb-3">Legal Compliance</p>
           <h1 className="text-[34px] md:text-[44px] font-bold tracking-tight text-[#0A1628] mb-4">{title}</h1>
           <p className="text-[#5A6A85] leading-relaxed mb-6">{intro}</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-[16px] bg-[#F8F9FB] border border-[#E4E4E7] p-4 mb-8 text-[14px] text-[#52525B]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-[16px] bg-[#030812] border border-[#E4E4E7] p-4 mb-8 text-[14px] text-[#52525B]">
             <div><strong>Effective date:</strong> {LEGAL_EFFECTIVE_DATE}</div>
             <div><strong>Last updated:</strong> {LEGAL_EFFECTIVE_DATE}</div>
             <div className="md:col-span-2"><strong>Contact:</strong> <a className="text-[#0F2B5B] underline" href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a> · {COMPANY.phone}</div>

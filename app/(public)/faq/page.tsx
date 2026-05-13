@@ -42,7 +42,7 @@ export default function FAQPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <main className="section bg-[#F8F9FB]">
+      <main className="section bg-[#030812]">
         <div className="container-page">
           <div className="mx-auto mb-14 max-w-3xl text-center">
             <p className="eyebrow mb-3">FAQ</p>
@@ -56,8 +56,8 @@ export default function FAQPage() {
                 <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-[#8A6A22]">{section.category}</h2>
                 <div className="space-y-3">
                   {section.questions.map((faq) => (
-                    <details key={faq.q} className="group overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-6 py-5 font-semibold text-[#0A1628] transition hover:bg-[#F8F9FB]">
+                    <details key={faq.q} className="group overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#05101d] shadow-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-6 py-5 font-semibold text-[#0A1628] transition hover:bg-[#030812]">
                         {faq.q}<ChevronDown className="h-5 w-5 shrink-0 text-[#8A6A22] transition group-open:rotate-180" />
                       </summary>
                       <p className="border-t border-[#E5E7EB] px-6 pb-6 pt-4 leading-8 text-[#5A6A85]">{faq.a}</p>

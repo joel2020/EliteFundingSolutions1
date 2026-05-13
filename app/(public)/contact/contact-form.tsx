@@ -29,7 +29,7 @@ export default function ContactForm() {
   };
 
   return (
-    <main className="section bg-[#F8F9FB]">
+    <main className="section bg-[#030812]">
       <div className="container-page">
         <div className="mb-12 max-w-3xl">
           <p className="eyebrow mb-3">Contact</p>
@@ -41,7 +41,7 @@ export default function ContactForm() {
           <div className="premium-card p-6 md:p-8">
             {sent ? (
               <div className="rounded-3xl border border-[#DCFCE7] bg-[#F0FDF4] p-8 text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl text-[#047857]">✓</div>
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#05101d] text-2xl text-[#047857]">✓</div>
                 <h2 className="text-2xl font-semibold text-[#0A1628]">Message received</h2>
                 <p className="mt-2 text-[#5A6A85]">An Elite Funding Solutions advisor will follow up with next steps.</p>
               </div>
@@ -54,7 +54,7 @@ export default function ContactForm() {
                   <label className="block text-sm font-semibold text-[#0A1628]">Email *<input id="contact-email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field mt-2" placeholder="you@company.com" /></label>
                 </div>
                 <label className="block text-sm font-semibold text-[#0A1628]">Phone<input id="contact-phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field mt-2" placeholder="(XXX) XXX-XXXX" /></label>
-                <label className="block text-sm font-semibold text-[#0A1628]">How can we help? *<textarea id="contact-message" rows={6} required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="mt-2 w-full resize-none rounded-[10px] border border-[#DDE3EF] bg-white px-4 py-3 text-[15px] text-[#0A1628] outline-none transition focus:border-[#061326] focus:ring-4 focus:ring-[#061326]/10" placeholder="Tell us about the funding objective, timeline, and questions you want answered." /></label>
+                <label className="block text-sm font-semibold text-[#0A1628]">How can we help? *<textarea id="contact-message" rows={6} required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="mt-2 w-full resize-none rounded-[10px] border border-[#DDE3EF] bg-[#05101d] px-4 py-3 text-[15px] text-[#0A1628] outline-none transition focus:border-[#061326] focus:ring-4 focus:ring-[#061326]/10" placeholder="Tell us about the funding objective, timeline, and questions you want answered." /></label>
                 <button type="submit" disabled={submitting} className="btn-primary h-12 px-7">
                   {submitting ? 'Sending…' : 'Send message'} <ArrowRight className="h-4 w-4" />
                 </button>
