@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOAuth2Client } from '@/lib/gmail';
 import { supabase } from '@/lib/supabase';
+import { google } from 'googleapis';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,5 +52,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/crm?error=auth_failed', request.url));
   }
 }
-
-import { google } from 'googleapis';

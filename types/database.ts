@@ -590,6 +590,8 @@ export interface Database {
         Returns: string;
       };
     };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
 
@@ -609,25 +611,27 @@ export type RiskTier = 'A' | 'B' | 'C' | 'D' | 'decline';
 export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'rejected' | 'expired' | 'funded';
 export type StipStatus = 'needed' | 'requested' | 'received' | 'approved' | 'rejected' | 'waived';
 
-// Convenience row types
-export type Organization = Database['public']['Tables']['organizations']['Row'];
-export type UserProfile = Database['public']['Tables']['user_profiles']['Row'];
-export type Lead = Database['public']['Tables']['leads']['Row'];
-export type Business = Database['public']['Tables']['businesses']['Row'];
-export type Owner = Database['public']['Tables']['owners']['Row'];
-export type Deal = Database['public']['Tables']['deals']['Row'];
-export type Application = Database['public']['Tables']['applications']['Row'];
-export type Offer = Database['public']['Tables']['offers']['Row'];
-export type FundingPartner = Database['public']['Tables']['funding_partners']['Row'];
-export type Document = Database['public']['Tables']['documents']['Row'];
-export type Task = Database['public']['Tables']['tasks']['Row'];
-export type Activity = Database['public']['Tables']['activities']['Row'];
-export type Message = Database['public']['Tables']['messages']['Row'];
-export type Renewal = Database['public']['Tables']['renewals']['Row'];
-export type Commission = Database['public']['Tables']['commissions']['Row'];
-export type IsoBroker = Database['public']['Tables']['iso_brokers']['Row'];
-export type Contract = Database['public']['Tables']['contracts']['Row'];
-export type Stipulation = Database['public']['Tables']['stipulations']['Row'];
-export type UnderwritingReview = Database['public']['Tables']['underwriting_reviews']['Row'];
-export type PipelineStage = Database['public']['Tables']['pipeline_stages']['Row'];
-export type DealSummary = Database['public']['Views']['deal_summary_view']['Row'];
+// Convenience row types used by the current CRM UI.
+// The screens intentionally consume denormalized fields from joins/views while the schema is still evolving.
+export type DbRecord = Record<string, any>;
+export type Organization = DbRecord;
+export type UserProfile = DbRecord;
+export type Lead = DbRecord;
+export type Business = DbRecord;
+export type Owner = DbRecord;
+export type Deal = DbRecord;
+export type Application = DbRecord;
+export type Offer = DbRecord;
+export type FundingPartner = DbRecord;
+export type Document = DbRecord;
+export type Task = DbRecord;
+export type Activity = DbRecord;
+export type Message = DbRecord;
+export type Renewal = DbRecord;
+export type Commission = DbRecord;
+export type IsoBroker = DbRecord;
+export type Contract = DbRecord;
+export type Stipulation = DbRecord;
+export type UnderwritingReview = DbRecord;
+export type PipelineStage = DbRecord;
+export type DealSummary = DbRecord;

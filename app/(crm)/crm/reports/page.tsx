@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -22,11 +22,7 @@ export default function ReportsPage() {
   const [repPerformance, setRepPerformance] = useState<any[]>([]);
   const [monthlyVolume, setMonthlyVolume] = useState<any[]>([]);
 
-  useEffect(() => {
-    loadReports();
-  }, [timeframe]);
-
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       const daysAgo = parseInt(timeframe);
       const startDate = new Date();
@@ -61,7 +57,7 @@ export default function ReportsPage() {
       const totalLeads = leads?.length || 0;
       const totalApps = applications?.length || 0;
       const approvedApps = applications?.filter(a => a.status === 'approved').length || 0;
-      const fundedDeals = deals?.filter(d => d.stage === 'funded').length || 0;
+      const fundedDeals = deals?.filter(d => d.stage_slug === 'funded').length || 0;
       
       setConversionData([
         { stage: 'Leads', count: totalLeads },
@@ -70,20 +66,31 @@ export default function ReportsPage() {
         { stage: 'Funded', count: fundedDeals },
       ]);
 
-      // Rep Performance (mock for now - would need to link deals to reps)
-      const repData = users?.slice(0, 5).map((user, i) => ({
-        name: `${user.first_name} ${user.last_name}`,
-        deals: Math.floor(Math.random() * 20) + 5,
-        volume: Math.floor(Math.random() * 500000) + 100000,
-      })) || [];
+      // Rep Performance
+      const repData = users?.slice(0, 5).map((user) => {
+        const repDeals = deals?.filter((deal) => deal.assigned_user_id === user.user_id) || [];
+        return {
+          name: `${user.first_name} ${user.last_name}`.trim() || user.email || 'Unassigned',
+          deals: repDeals.length,
+          volume: repDeals.reduce((sum, deal) => sum + (deal.funded_amount || deal.approved_amount || 0), 0),
+        };
+      }) || [];
       setRepPerformance(repData);
 
       // Monthly Volume (last 6 months)
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-      const volumeData = months.map(month => ({
-        month,
-        funded: Math.floor(Math.random() * 500000) + 200000,
-      }));
+      const now = new Date();
+      const volumeData = Array.from({ length: 6 }, (_, index) => {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+        const month = monthDate.toLocaleString('en-US', { month: 'short' });
+        const funded = (deals || [])
+          .filter((deal) => {
+            const dealDate = new Date(deal.funded_at || deal.created_at);
+            return dealDate.getFullYear() === monthDate.getFullYear() && dealDate.getMonth() === monthDate.getMonth();
+          })
+          .reduce((sum, deal) => sum + (deal.funded_amount || 0), 0);
+
+        return { month, funded };
+      });
       setMonthlyVolume(volumeData);
 
     } catch (error) {
@@ -91,7 +98,11 @@ export default function ReportsPage() {
       toast.error('Failed to load reports');
     }
     setLoading(false);
-  };
+  }, [timeframe]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
 
   const exportReport = (reportName: string) => {
     toast.success(`${reportName} report exported to CSV`);

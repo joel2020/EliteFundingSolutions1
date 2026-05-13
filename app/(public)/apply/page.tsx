@@ -652,7 +652,6 @@ export default function ApplyPage() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     try {
       // Insert business

@@ -152,7 +152,7 @@ export default function ApplicationsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toast.info('View application details (coming soon)')}>
+                          <DropdownMenuItem onClick={() => toast.info('Application detail workspace is not enabled for this record yet')}>
                             <FileText className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>

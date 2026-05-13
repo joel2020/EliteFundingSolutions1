@@ -2,7 +2,7 @@
   # Core Schema - Phase 1
 
   ## Overview
-  Establishes the foundational tables for Alivio Capital's MCA platform.
+  Establishes the foundational tables for Elite Funding Solutions' MCA platform.
 
   ## New Tables
   1. `organizations` - Multi-tenant organization root
@@ -171,9 +171,9 @@ CREATE TRIGGER set_user_profiles_updated_at
 INSERT INTO organizations (id, name, slug, email, phone, website)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
-  'Alivio Capital',
-  'alivio-capital',
-  'hello@aliviocapital.com',
-  '(888) 400-2580',
-  'https://aliviocapital.com'
+  'Elite Funding Solutions',
+  'elite-funding-solutions',
+  'support@elitefundingsolutions.com',
+  '(888) 400-3780',
+  'https://mdrrcrmowurbrwvdsgnq.supabase.co'
 ) ON CONFLICT (id) DO NOTHING;

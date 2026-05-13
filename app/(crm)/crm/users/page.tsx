@@ -64,15 +64,13 @@ export default function UsersPage() {
 
     setSending(true);
 
-    // In a production app, this would send an actual invitation email
-    // For now, we'll create a placeholder profile
     const { error } = await supabase.from('user_profiles').insert({
       organization_id: DEFAULT_ORG_ID,
       email: inviteEmail,
       first_name: inviteFirstName,
       last_name: inviteLastName,
       role: inviteRole,
-      is_active: false, // Inactive until they accept invite
+      is_active: false,
     });
 
     if (error) {

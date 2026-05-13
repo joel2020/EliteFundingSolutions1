@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
-import { RefreshCw, TrendingUp, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import type { Renewal } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ export default function RenewalsPage() {
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect() => {
+  useEffect(() => {
     loadRenewals();
   }, []);
 

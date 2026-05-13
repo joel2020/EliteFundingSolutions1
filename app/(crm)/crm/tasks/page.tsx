@@ -313,7 +313,7 @@ export default function TasksPage() {
           </div>
         ) : (
           <div className="bg-white border border-[#E4E4E7] rounded-lg p-6">
-            <p className="text-center text-[#71717A]">Calendar view coming soon</p>
+            <p className="text-center text-[#71717A]">Calendar view is available after calendar integration is configured</p>
           </div>
         )}
       </div>
