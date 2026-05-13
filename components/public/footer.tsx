@@ -29,7 +29,7 @@ const footerColumns = [
   {
     title: 'Resources',
     links: [
-      { label: 'FAQs', href: '/faq' },
+      { label: 'FAQ', href: '/faq' },
       { label: 'Funding Guide', href: '/funding-guide' },
       { label: 'Business Resources', href: '/business-resources' },
       { label: 'Industry Insights', href: '/industry-insights' },
@@ -49,7 +49,7 @@ export function PublicFooter() {
               <Image src="/elite-funding-logo.png" alt="Elite Funding Solutions" width={172} height={97} className="h-[82px] w-auto object-contain" />
             </Link>
             <p className="max-w-[260px] text-sm leading-relaxed text-slate-400">
-              Fast, flexible capital for ambitious businesses across the U.S.
+              Institutional business funding guidance, secure intake, and advisor-led offer comparison for U.S. operators.
             </p>
             <div className="mt-5 flex gap-3 text-slate-400">
               <Link href="https://www.linkedin.com" aria-label="LinkedIn" className="transition hover:text-[#e7c579]"><Linkedin className="h-4 w-4" /></Link>
@@ -101,7 +101,7 @@ export function PublicFooter() {
             <Link href="/terms-of-use" className="hover:text-[#e7c579]">Terms of Use</Link>
             <Link href="/sitemap" className="hover:text-[#e7c579]">Sitemap</Link>
           </div>
-          <p>NMLS ID #2345678</p>
+          <p>Commercial funding marketplace; not a bank.</p>
         </div>
       </div>
     </footer>
