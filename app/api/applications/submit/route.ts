@@ -15,7 +15,7 @@ const ownerSchema = z.object({
   phone: z.string().optional().default(''),
   mobile: z.string().optional().default(''),
   dob: z.string().optional().default(''),
-  ssn_last4: z.string().max(4).optional().default(''),
+  ssn: z.string().optional().default(''),
   address: z.string().optional().default(''),
   city: z.string().optional().default(''),
   state: z.string().optional().default(''),
@@ -62,23 +62,15 @@ const applicationSchema = z.object({
   reference1_phone: z.string().optional().default(''),
   reference2_name: z.string().optional().default(''),
   reference2_phone: z.string().optional().default(''),
-  landlord_name: z.string().optional().default(''),
-  landlord_phone: z.string().optional().default(''),
-  mortgage_company: z.string().optional().default(''),
-  rent_amount: z.string().optional().default(''),
   bank_name: z.string().min(1),
   bank_contact: z.string().optional().default(''),
   bank_phone: z.string().optional().default(''),
-  routing_number: z.string().min(1),
-  account_number: z.string().min(1),
   account_last4: z.string().optional().default(''),
   account_type: z.string().optional().default('checking'),
-  average_daily_balance: z.string().optional().default(''),
-  deposit_count: z.string().optional().default(''),
   negative_days: z.string().optional().default('0'),
   nsf_count: z.string().optional().default('0'),
   ending_balance: z.string().optional().default(''),
-  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().min(1), email: z.string().email(), phone: z.string().min(7), dob: z.string().min(1), ssn_last4: z.string().min(4).max(4), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
+  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().min(1), email: z.string().email(), phone: z.string().min(7), mobile: z.string().min(7), dob: z.string().min(1), ssn: z.string().min(9), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
   owner2: ownerSchema.default({}),
   requested_amount: z.string().min(1),
   use_of_funds: z.string().min(1),
@@ -87,7 +79,6 @@ const applicationSchema = z.object({
   average_visa_mc_sales: z.string().optional().default(''),
   monthly_gross_revenue: z.string().min(1),
   has_existing_advances: z.boolean().default(false),
-  payment_frequency: z.string().optional().default(''),
   notes: z.string().optional().default(''),
   existing_advances: z.array(existingAdvanceSchema).default([]),
   certification_accepted: z.literal(true),
@@ -104,16 +95,13 @@ const applicationSchema = z.object({
   bot_field: z.string().optional().default(''),
 });
 
-const documentKeys = ['bank_statements', 'voided_check', 'drivers_license'] as const;
+const documentKeys = ['bank_statements'] as const;
 const documentLabels: Record<(typeof documentKeys)[number], string> = {
-  bank_statements: 'Bank Statements',
-  voided_check: 'Voided Check',
-  drivers_license: 'Driver’s License',
+  bank_statements: 'Last 3 Bank Statements',
 };
 
 const toNumber = (value?: string) => value ? Number(value) : null;
 const emptyToNull = (value?: string) => value && value.trim() ? value.trim() : null;
-const accountLast4 = (accountNumber: string, fallback?: string) => (accountNumber || fallback || '').replace(/\D/g, '').slice(-4) || null;
 const submissionBuckets = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
@@ -192,12 +180,7 @@ export async function POST(request: Request) {
         state: emptyToNull(form.state),
         zip: emptyToNull(form.zip),
         monthly_gross_revenue: toNumber(form.monthly_gross_revenue),
-        average_daily_balance: toNumber(form.average_daily_balance),
-        deposit_count_monthly: toNumber(form.deposit_count),
         current_processor: emptyToNull(form.pos_system),
-        landlord_name: emptyToNull(form.landlord_name || form.mortgage_company),
-        landlord_phone: emptyToNull(form.landlord_phone),
-        rent_amount: toNumber(form.rent_amount),
         has_tax_lien: form.has_tax_lien,
         has_bankruptcy: form.has_bankruptcy,
         risk_flags: [form.has_judgments ? 'judgments' : '', form.is_seasonal ? 'seasonal' : ''].filter(Boolean),
@@ -219,7 +202,7 @@ export async function POST(request: Request) {
           email: emptyToNull(owner.email),
           phone: emptyToNull(owner.phone || owner.mobile),
           dob_encrypted: emptyToNull(owner.dob),
-          ssn_last4: emptyToNull(owner.ssn_last4),
+          ssn_encrypted: emptyToNull(owner.ssn),
           ownership_percentage: toNumber(owner.ownership_pct),
           credit_score_range: emptyToNull(owner.credit_range),
           address: emptyToNull(owner.address),
@@ -240,8 +223,6 @@ export async function POST(request: Request) {
 
     const payloadForCrm = {
       ...form,
-      account_number: accountLast4(form.account_number),
-      routing_number: accountLast4(form.routing_number),
       bot_field: undefined,
       authorization_text_version: CONSENT_VERSION,
       consent_version: form.consent_version,
@@ -258,12 +239,9 @@ export async function POST(request: Request) {
         use_of_funds: emptyToNull(form.use_of_funds),
         desired_timeline: emptyToNull(form.timeline),
         has_existing_advances: form.has_existing_advances,
-        desired_payment_frequency: emptyToNull(form.payment_frequency),
         notes: emptyToNull(form.notes),
         bank_name: emptyToNull(form.bank_name),
         account_type: emptyToNull(form.account_type),
-        routing_number: accountLast4(form.routing_number),
-        account_last4: accountLast4(form.account_number, form.account_last4),
         avg_monthly_deposits: toNumber(form.average_monthly_sales),
         negative_days_count: Number(form.negative_days) || 0,
         nsf_count: Number(form.nsf_count) || 0,

@@ -8,7 +8,7 @@ import { CONSENT_VERSION } from '@/lib/company';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type OwnerKey = 'owner1' | 'owner2';
-type DocumentKey = 'bank_statements' | 'voided_check' | 'drivers_license';
+type DocumentKey = 'bank_statements';
 
 interface OwnerFields {
   first_name: string;
@@ -19,7 +19,7 @@ interface OwnerFields {
   phone: string;
   mobile: string;
   dob: string;
-  ssn_last4: string;
+  ssn: string;
   address: string;
   city: string;
   state: string;
@@ -66,19 +66,11 @@ interface ApplicationFormData {
   reference1_phone: string;
   reference2_name: string;
   reference2_phone: string;
-  landlord_name: string;
-  landlord_phone: string;
-  mortgage_company: string;
-  rent_amount: string;
   bank_name: string;
   bank_contact: string;
   bank_phone: string;
-  routing_number: string;
-  account_number: string;
   account_last4: string;
   account_type: string;
-  average_daily_balance: string;
-  deposit_count: string;
   negative_days: string;
   nsf_count: string;
   ending_balance: string;
@@ -91,7 +83,6 @@ interface ApplicationFormData {
   average_visa_mc_sales: string;
   monthly_gross_revenue: string;
   has_existing_advances: boolean;
-  payment_frequency: string;
   existing_advances: ExistingAdvance[];
   notes: string;
   certification_accepted: boolean;
@@ -108,18 +99,18 @@ interface ApplicationFormData {
 }
 
 const blankOwner: OwnerFields = {
-  first_name: '', last_name: '', title: '', ownership_pct: '', email: '', phone: '', mobile: '', dob: '', ssn_last4: '', address: '', city: '', state: '', zip: '', credit_range: '',
+  first_name: '', last_name: '', title: '', ownership_pct: '', email: '', phone: '', mobile: '', dob: '', ssn: '', address: '', city: '', state: '', zip: '', credit_range: '',
 };
 
 const initialForm: ApplicationFormData = {
   legal_name: '', dba: '', entity_type: '', ein: '', merchant_type: '', industry: '', start_date: '',
   business_phone: '', business_mobile: '', fax: '', business_email: '', website: '', address: '', city: '', state: '', zip: '', business_location: '', products_services: '',
   pos_contact_name: '', pos_contact_phone: '', pos_system: '', has_judgments: false, has_tax_lien: false, has_bankruptcy: false, is_seasonal: false,
-  reference1_name: '', reference1_phone: '', reference2_name: '', reference2_phone: '', landlord_name: '', landlord_phone: '', mortgage_company: '', rent_amount: '',
-  bank_name: '', bank_contact: '', bank_phone: '', routing_number: '', account_number: '', account_last4: '', account_type: 'checking', average_daily_balance: '', deposit_count: '', negative_days: '0', nsf_count: '0', ending_balance: '',
+  reference1_name: '', reference1_phone: '', reference2_name: '', reference2_phone: '',
+  bank_name: '', bank_contact: '', bank_phone: '', account_last4: '', account_type: 'checking', negative_days: '0', nsf_count: '0', ending_balance: '',
   owner1: { ...blankOwner, ownership_pct: '100' }, owner2: { ...blankOwner },
   requested_amount: '', use_of_funds: '', timeline: '', average_monthly_sales: '', average_visa_mc_sales: '', monthly_gross_revenue: '',
-  has_existing_advances: false, payment_frequency: '', existing_advances: [], notes: '', certification_accepted: false, credit_authorization_accepted: false, esign_consent_accepted: false, sms_consent_accepted: false, terms_accepted: false, privacy_policy_accepted: false, authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10), bot_field: '',
+  has_existing_advances: false, existing_advances: [], notes: '', certification_accepted: false, credit_authorization_accepted: false, esign_consent_accepted: false, sms_consent_accepted: false, terms_accepted: false, privacy_policy_accepted: false, authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10), bot_field: '',
 };
 
 const steps = [
@@ -136,9 +127,7 @@ const steps = [
 const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
 const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean; help: string }> = [
-  { key: 'bank_statements', label: 'Bank Statements', required: true, help: 'Upload the most recent business bank statements.' },
-  { key: 'voided_check', label: 'Voided Check', required: true, help: 'The PDF application requires a copy of a voided business check.' },
-  { key: 'drivers_license', label: 'Driver’s License', required: true, help: 'Upload a government-issued ID for the primary owner.' },
+  { key: 'bank_statements', label: 'Last 3 Bank Statements', required: true, help: 'Upload the three most recent business bank statements.' },
 ];
 
 function InputField({ label, value, onChange, type = 'text', required = false, placeholder = '', hint = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; hint?: string }) {
@@ -187,12 +176,12 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         <div className="md:col-span-2"><InputField label="Business Legal Name" value={data.legal_name} onChange={(v) => update('legal_name', v)} required /></div>
         <InputField label="DBA Name" value={data.dba} onChange={(v) => update('dba', v)} />
         <SelectField label="Legal Entity Type" value={data.entity_type} onChange={(v) => update('entity_type', v)} required options={[{ value: 'llc', label: 'LLC' }, { value: 'corporation', label: 'Corporation' }, { value: 'sole_proprietor', label: 'Sole Proprietor' }, { value: 'partnership', label: 'Partnership' }, { value: 'other', label: 'Other' }]} />
-        <InputField label="Federal Tax ID / EIN" value={data.ein} onChange={(v) => update('ein', v)} required placeholder="XX-XXXXXXX" />
+        <InputField label="Federal Tax ID / EIN" value={data.ein} onChange={(v) => update('ein', v)} required placeholder="12-3456789" />
         <SelectField label="Merchant Type" value={data.merchant_type} onChange={(v) => update('merchant_type', v)} required options={[{ value: 'retail', label: 'Retail' }, { value: 'restaurant', label: 'Restaurant' }, { value: 'service', label: 'Service' }, { value: 'ecommerce', label: 'E-commerce' }, { value: 'other', label: 'Other' }]} />
         <InputField label="Date Business Started" value={data.start_date} onChange={(v) => update('start_date', v)} type="date" required />
         <SelectField label="Business Location" value={data.business_location} onChange={(v) => update('business_location', v)} required options={[{ value: 'leased', label: 'Leased' }, { value: 'owned', label: 'Owned' }, { value: 'home_based', label: 'Home Based' }, { value: 'online', label: 'Online' }]} />
         <InputField label="Business Phone" value={data.business_phone} onChange={(v) => update('business_phone', v)} required />
-        <InputField label="Mobile" value={data.business_mobile} onChange={(v) => update('business_mobile', v)} />
+        <InputField label="Mobile Phone" value={data.business_mobile} onChange={(v) => update('business_mobile', v)} />
         <InputField label="Fax" value={data.fax} onChange={(v) => update('fax', v)} />
         <InputField label="Business Email" value={data.business_email} onChange={(v) => update('business_email', v)} type="email" required />
         <InputField label="Website" value={data.website} onChange={(v) => update('website', v)} />
@@ -218,24 +207,16 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
 function StepReferencesBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
-      <SectionIntro title="References & Banking" text="Provide references, landlord or mortgage information, and bank reference details." />
+      <SectionIntro title="References & Banking" text="Provide business references and bank reference details." />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <InputField label="Business Reference 1" value={data.reference1_name} onChange={(v) => update('reference1_name', v)} />
         <InputField label="Reference 1 Phone" value={data.reference1_phone} onChange={(v) => update('reference1_phone', v)} />
         <InputField label="Business Reference 2" value={data.reference2_name} onChange={(v) => update('reference2_name', v)} />
         <InputField label="Reference 2 Phone" value={data.reference2_phone} onChange={(v) => update('reference2_phone', v)} />
-        <InputField label="Landlord Name" value={data.landlord_name} onChange={(v) => update('landlord_name', v)} />
-        <InputField label="Landlord Phone" value={data.landlord_phone} onChange={(v) => update('landlord_phone', v)} />
-        <InputField label="Mortgage Company" value={data.mortgage_company} onChange={(v) => update('mortgage_company', v)} />
-        <InputField label="Rent / Mortgage Payment" value={data.rent_amount} onChange={(v) => update('rent_amount', v)} type="number" />
         <InputField label="Bank Name" value={data.bank_name} onChange={(v) => update('bank_name', v)} required />
         <InputField label="Bank Contact" value={data.bank_contact} onChange={(v) => update('bank_contact', v)} />
         <InputField label="Bank Phone" value={data.bank_phone} onChange={(v) => update('bank_phone', v)} />
         <SelectField label="Account Type" value={data.account_type} onChange={(v) => update('account_type', v)} options={[{ value: 'checking', label: 'Checking' }, { value: 'savings', label: 'Savings' }]} />
-        <InputField label="Routing Number" value={data.routing_number} onChange={(v) => update('routing_number', v)} required />
-        <InputField label="Account Number" value={data.account_number} onChange={(v) => update('account_number', v)} required hint="Stored through a secure server-side endpoint." />
-        <InputField label="Average Daily Balance" value={data.average_daily_balance} onChange={(v) => update('average_daily_balance', v)} type="number" />
-        <InputField label="Monthly Deposit Count" value={data.deposit_count} onChange={(v) => update('deposit_count', v)} type="number" />
       </div>
     </div>
   );
@@ -252,9 +233,9 @@ function OwnerCard({ title, owner, required, update }: { title: string; owner: O
         <InputField label="Ownership %" value={owner.ownership_pct} onChange={(v) => update('ownership_pct', v)} type="number" required={required} />
         <InputField label="Email" value={owner.email} onChange={(v) => update('email', v)} type="email" required={required} />
         <InputField label="Phone" value={owner.phone} onChange={(v) => update('phone', v)} required={required} />
-        <InputField label="Mobile" value={owner.mobile} onChange={(v) => update('mobile', v)} />
+        <InputField label="Mobile Phone" value={owner.mobile} onChange={(v) => update('mobile', v)} required={required} />
         <InputField label="Date of Birth" value={owner.dob} onChange={(v) => update('dob', v)} type="date" required={required} />
-        <InputField label="SSN Last 4" value={owner.ssn_last4} onChange={(v) => update('ssn_last4', v.slice(0, 4))} required={required} />
+        <InputField label="Social Security Number" value={owner.ssn} onChange={(v) => update('ssn', v)} type="password" required={required} placeholder="XXX-XX-XXXX" hint="Encrypted and stored securely." />
         <SelectField label="Credit Score Range" value={owner.credit_range} onChange={(v) => update('credit_range', v)} options={[{ value: '720+', label: '720+' }, { value: '680-719', label: '680–719' }, { value: '640-679', label: '640–679' }, { value: '600-639', label: '600–639' }, { value: '<600', label: 'Below 600' }]} />
         <div className="md:col-span-2"><InputField label="Home Address" value={owner.address} onChange={(v) => update('address', v)} required={required} /></div>
         <InputField label="City" value={owner.city} onChange={(v) => update('city', v)} required={required} />
@@ -285,7 +266,6 @@ function StepFunding({ data, update }: { data: ApplicationFormData; update: <K e
         <InputField label="Average Visa/MasterCard Monthly Sales" value={data.average_visa_mc_sales} onChange={(v) => update('average_visa_mc_sales', v)} type="number" />
         <InputField label="Monthly Gross Revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" required />
         <SelectField label="Desired Funding Timeline" value={data.timeline} onChange={(v) => update('timeline', v)} options={[{ value: 'asap', label: 'As soon as possible' }, { value: '1_week', label: 'Within 1 week' }, { value: '2_4_weeks', label: '2–4 weeks' }, { value: 'exploring', label: 'Exploring options' }]} />
-        <SelectField label="Preferred Payment Frequency" value={data.payment_frequency} onChange={(v) => update('payment_frequency', v)} options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'bi_weekly', label: 'Bi-weekly' }, { value: 'monthly', label: 'Monthly' }]} />
       </div>
       <textarea value={data.notes} onChange={(event) => update('notes', event.target.value)} rows={4} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-[14px] py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#0F2B5B]" placeholder="Additional context for underwriting…" />
     </div>
@@ -339,9 +319,9 @@ function StepReview({ data, files, update }: { data: ApplicationFormData; files:
     <div className="space-y-6">
       <SectionIntro title="Authorization & Final Review" text="Review the application and complete the required certification, authorization, e-signature, and consent fields before submission." />
       <div className="rounded-[16px] bg-[#F8F9FB] border border-[#E4E4E7] p-5 space-y-3 text-[14px] text-[#52525B] leading-relaxed">
-        <p><strong className="text-[#09090B]">Application certification.</strong> I certify that all information and documents submitted are accurate, true, correct, and complete, including business information, owner/principal information, financial records, bank statements, processor statements, uploaded documents, IDs, and the required voided check.</p>
+        <p><strong className="text-[#09090B]">Application certification.</strong> I certify that all information and documents submitted are accurate, true, correct, and complete, including business information, owner/principal information, financial records, uploaded bank statements, and other submitted materials.</p>
         <p><strong className="text-[#09090B]">Credit and background authorization.</strong> I authorize Elite Funding Solutions and its recipients, partners, successors, assigns, agents, affiliates, service providers, lenders, funding partners, banks, processors, credit bureaus, and underwriting partners to obtain consumer, personal, business, investigative, credit, processor, bank statement, bank, and financial reports for underwriting, funding, renewal, servicing, verification, fraud-prevention, and compliance purposes.</p>
-        <p><strong className="text-[#09090B]">Sharing authorization.</strong> I authorize Elite Funding Solutions to share application information, owner/principal information, authorization data, bank and processor information, financial records, and uploaded documents with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.</p>
+        <p><strong className="text-[#09090B]">Sharing authorization.</strong> I authorize Elite Funding Solutions to share application information, owner/principal information, authorization data, bank reference information, financial records, and uploaded bank statements with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.</p>
         <p><strong className="text-[#09090B]">E-signature consent.</strong> I consent to use electronic records and electronic signatures. My typed name, checkbox selections, timestamp, IP address, user agent, and consent version may be stored with this submission.</p>
         <p><strong className="text-[#09090B]">SMS/text consent.</strong> By checking the SMS consent box, I consent to receive text messages from Elite Funding Solutions. Message and data rates may apply. Reply STOP to opt out and HELP for help. Consent is not a condition of purchase where legally required.</p>
         <p className="text-[12px] text-[#71717A]">Consent version: {CONSENT_VERSION}</p>
@@ -374,7 +354,7 @@ function StepConfirmation({ data }: { data: ApplicationFormData }) {
 export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [form, setForm] = useState<ApplicationFormData>(initialForm);
-  const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [], voided_check: [], drivers_license: [] });
+  const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [] });
   const [submitting, setSubmitting] = useState(false);
 
 
