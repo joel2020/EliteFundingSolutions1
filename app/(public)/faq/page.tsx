@@ -1,99 +1,83 @@
-import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { ChevronDown } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'Business Funding FAQ | Elite Funding Solutions', description: 'Answers to common questions about business funding, merchant cash advances, working capital eligibility, application documents, and repayment.', alternates: { canonical: '/faq' } };
+export const metadata: Metadata = {
+  title: 'FAQ | Elite Funding Solutions',
+  description: 'Answers about business funding eligibility, documents, timelines, credit review, costs, and the secure Elite Funding Solutions application process.',
+  alternates: { canonical: '/faq' },
+};
 
 const faqs = [
   {
-    category: 'About Merchant Cash Advances',
+    category: 'Funding options',
     questions: [
-      { q: 'What is a merchant cash advance?', a: 'A merchant cash advance (MCA) is a financing arrangement where a funding company purchases a portion of your future receivables at a discounted rate. Unlike a traditional loan, there are no fixed monthly payments — you repay as a percentage of your daily revenue.' },
-      { q: 'Is an MCA a loan?', a: 'No. An MCA is legally structured as a sale of future receivables, not a loan. This means it\'s not subject to state usury laws that govern interest rates on loans. The cost is expressed as a "factor rate," not an interest rate.' },
-      { q: 'How is the cost calculated?', a: 'MCA cost is expressed as a factor rate, typically between 1.10 and 1.50. If you receive $50,000 with a 1.35 factor rate, you repay $67,500. The factor rate depends on your revenue, time in business, credit profile, and industry.' },
+      { q: 'What is a merchant cash advance?', a: 'A merchant cash advance is a revenue-based funding structure where a funding company purchases a portion of your future receivables. It can be useful for short-term working capital needs, but repayment frequency, total payback, and cash-flow impact should be reviewed carefully before accepting an offer.' },
+      { q: 'What funding products does Elite Funding Solutions support?', a: 'We help businesses evaluate working capital, revenue-based financing, merchant cash advances, business lines of credit, equipment financing, invoice factoring, SBA options, and commercial real estate financing. Product availability depends on underwriting, revenue, business history, collateral, and partner requirements.' },
+      { q: 'How much funding can a business request?', a: 'Program ranges typically start around $10,000 and may extend to $5,000,000 or more for qualified requests. Actual availability is based on deposits, revenue consistency, time in business, credit profile, industry, existing obligations, and the requested product.' },
+      { q: 'Is approval guaranteed?', a: 'No. We do not guarantee approval, terms, rates, or funding speed. All offers are subject to underwriting, documentation, verification, partner criteria, and final agreement execution.' },
     ],
   },
   {
-    category: 'Eligibility and Qualification',
+    category: 'Application process',
     questions: [
-      { q: 'What are the minimum qualifications?', a: 'Most approvals require: 6+ months in business, $10,000+ in monthly revenue, a 500+ personal credit score, and a valid business bank account. We fund most industries, with some restrictions for high-risk sectors.' },
-      { q: 'Can I qualify with bad credit?', a: 'Yes. Credit is one factor, but not the primary one. We focus heavily on your business\'s revenue performance and banking activity. Businesses with credit scores as low as 500 can and do get approved.' },
-      { q: 'Can a new business qualify?', a: 'Businesses with 6+ months of operating history and a track record of consistent deposits are generally eligible. Businesses under 6 months old typically do not qualify for our standard products.' },
-      { q: 'What industries do you fund?', a: 'We fund most industries including restaurants, retail, healthcare, construction, transportation, automotive, professional services, and more. We have restrictions on adult entertainment, gambling, cannabis, and a few other high-risk sectors.' },
+      { q: 'What documents should I prepare?', a: 'Most applications begin with business and owner information, full EIN, owner identity details, full SSN authorization, owner mobile phone, and the last 3 business bank statements. Product-specific requests may require tax returns, equipment quotes, invoices, A/R aging, financial statements, or property documents.' },
+      { q: 'How should I upload bank statements?', a: 'Upload one combined PDF with the last 3 business bank statements, or upload each statement separately. Include all pages and make sure the business name and statement dates are visible.' },
+      { q: 'How fast can the file be reviewed?', a: 'Some working-capital requests can be reviewed within 24–72 hours after a complete file is received. SBA, equipment, receivables, and commercial real estate requests usually require more documentation and longer underwriting timelines.' },
     ],
   },
   {
-    category: 'The Application Process',
+    category: 'Credit, cost, and repayment',
     questions: [
-      { q: 'What documents do I need?', a: 'For most approvals, you only need: your last 3 months of complete bank statements (all pages), a voided business check, and a copy of your government-issued ID. Larger amounts or certain industries may require additional documentation.' },
-      { q: 'Does applying hurt my credit score?', a: 'No. We perform a soft credit pull during the application review, which does not impact your credit score. A hard pull is only conducted if and when you formally accept a funded offer.' },
-      { q: 'How long does the process take?', a: 'Most applicants receive a funding decision within 4 business hours of submitting a complete application. Funding is wired to your account within 1–3 business days of contract signing. Many clients receive same-day funding.' },
-      { q: 'Can I have more than one advance?', a: 'We can work with stacking situations depending on your current balance and revenue levels. Any existing advances must be disclosed on your application. Our underwriting team will review your total payment burden and structure an offer accordingly.' },
-    ],
-  },
-  {
-    category: 'Repayment',
-    questions: [
-      { q: 'How does repayment work?', a: 'Repayment is typically made through a fixed daily or weekly ACH debit from your business checking account. The amount is set when you sign your contract and does not fluctuate based on your actual revenue (unlike true revenue-based financing).' },
-      { q: 'What if my business has a slow period?', a: 'Standard MCA repayments are fixed and will continue during slow periods. Some of our funding partners offer modified holdback structures tied to credit card processing volume, which do flex with your sales. Ask your advisor about this option.' },
-      { q: 'Can I pay off early?', a: 'Yes. Most of our funding partners allow early payoff. Some will offer a discount on the remaining balance for early settlement. Ask your advisor to confirm the prepayment terms for any offer you receive.' },
+      { q: 'Does applying affect my credit?', a: 'Credit review depends on the program and authorization provided. Some partners may begin with soft-pull review while others may require additional consumer or business credit reports before final approval or closing.' },
+      { q: 'How are repayment terms structured?', a: 'Repayment varies by product. Lines of credit, term loans, equipment financing, factoring, and revenue-based structures all work differently. Your advisor will help compare payment frequency, total cost, term, collateral, and cash-flow fit.' },
+      { q: 'Can existing advances or loans be considered?', a: 'Yes, but they must be disclosed. Underwriters review existing balances and payment burden to determine responsible capacity and whether a new structure is appropriate.' },
     ],
   },
 ];
 
 export default function FAQPage() {
   const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.flatMap((section) => section.questions.map((faq) => ({ '@type': 'Question', name: faq.q, acceptedAnswer: { '@type': 'Answer', text: faq.a } }))) };
+
   return (
     <>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-    <div className="section">
-      <div className="container-page">
-        <div className="text-center mb-14">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#A1A1AA] mb-3">FAQs</p>
-          <h1 className="text-[40px] font-bold text-[#09090B] tracking-tight mb-4">Frequently Asked Questions</h1>
-          <p className="text-[17px] text-[#71717A] max-w-[480px] mx-auto">
-            Everything you need to know about our funding process. Can&apos;t find your answer?{' '}
-            <Link href="/contact" className="text-[#2563EB] hover:underline">Contact us.</Link>
-          </p>
-        </div>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      <main className="section bg-[#F8F9FB]">
+        <div className="container-page">
+          <div className="mx-auto mb-14 max-w-3xl text-center">
+            <p className="eyebrow mb-3">FAQ</p>
+            <h1 className="text-4xl font-semibold tracking-tight text-[#0A1628] md:text-6xl">Straight answers about business funding.</h1>
+            <p className="mt-5 text-lg leading-8 text-[#5A6A85]">Understand eligibility, documents, timelines, and repayment mechanics before submitting a secure application.</p>
+          </div>
 
-        <div className="max-w-[760px] mx-auto space-y-10">
-          {faqs.map((section) => (
-            <div key={section.category}>
-              <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-[#2563EB] mb-4">
-                {section.category}
-              </h2>
-              <div className="space-y-2">
-                {section.questions.map((faq) => (
-                  <details
-                    key={faq.q}
-                    className="group border border-[#E4E4E7] rounded-[12px] bg-white overflow-hidden"
-                    style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
-                  >
-                    <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none hover:bg-[#FAFAFA] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] transition-colors" aria-controls={faq.q.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-answer'}>
-                      <span className="text-[15px] font-medium text-[#09090B] pr-4">{faq.q}</span>
-                      <ChevronDown className="w-4 h-4 text-[#71717A] shrink-0 transition-transform group-open:rotate-180" />
-                    </summary>
-                    <div id={faq.q.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-answer'} className="px-5 pb-5">
-                      <p className="text-[14px] text-[#71717A] leading-relaxed">{faq.a}</p>
-                    </div>
-                  </details>
-                ))}
-              </div>
+          <div className="mx-auto max-w-4xl space-y-10">
+            {faqs.map((section) => (
+              <section key={section.category}>
+                <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-[#8A6A22]">{section.category}</h2>
+                <div className="space-y-3">
+                  {section.questions.map((faq) => (
+                    <details key={faq.q} className="group overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-6 py-5 font-semibold text-[#0A1628] transition hover:bg-[#F8F9FB]">
+                        {faq.q}<ChevronDown className="h-5 w-5 shrink-0 text-[#8A6A22] transition group-open:rotate-180" />
+                      </summary>
+                      <p className="border-t border-[#E5E7EB] px-6 pb-6 pt-4 leading-8 text-[#5A6A85]">{faq.a}</p>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <div className="mx-auto mt-14 max-w-3xl rounded-[28px] bg-[#061326] p-8 text-center text-white md:p-10">
+            <h2 className="text-3xl font-semibold tracking-tight">Need help choosing a path?</h2>
+            <p className="mt-3 text-slate-300">Talk with an advisor or submit one secure application for review.</p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/contact" className="btn-dark-outline">Contact us</Link>
+              <Link href="/apply" className="btn-gold">Start application</Link>
             </div>
-          ))}
-        </div>
-
-        <div className="mt-14 text-center bg-[#FAFAFA] border border-[#E4E4E7] rounded-[20px] p-10 max-w-[600px] mx-auto">
-          <h2 className="text-[22px] font-bold text-[#09090B] mb-3">Still have questions?</h2>
-          <p className="text-[15px] text-[#71717A] mb-6">Our advisors are available Mon – Fri, 8am – 8pm ET.</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/contact" className="btn-primary">Contact Us</Link>
-            <Link href="/apply" className="btn-secondary">Apply Now</Link>
           </div>
         </div>
-      </div>
-    </div>
+      </main>
     </>
   );
 }

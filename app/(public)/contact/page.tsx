@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Phone, Mail, MapPin, Clock, ArrowRight } from 'lucide-react';
+import { ArrowRight, Clock, Mail, MapPin, Phone } from 'lucide-react';
+import { COMPANY } from '@/lib/company';
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', type: 'general', bot_field: '' });
@@ -17,94 +18,63 @@ export default function ContactPage() {
       return;
     }
     setSubmitting(true);
-
-    const response = await fetch('/api/contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
+    const response = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
     const result = await response.json();
-
     setSubmitting(false);
     if (!response.ok || !result.success) {
       setError(result.error || 'We could not send your message. Please call us directly.');
       return;
     }
-
     setSent(true);
   };
 
   return (
-    <div className="section">
+    <main className="section bg-[#F8F9FB]">
       <div className="container-page">
-        <div className="max-w-[600px] mb-12">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#A1A1AA] mb-3">Get in Touch</p>
-          <h1 className="text-[40px] font-bold text-[#09090B] tracking-tight mb-4">
-            Speak with a funding advisor
-          </h1>
-          <p className="text-[17px] text-[#71717A] leading-relaxed">
-            Have questions about your options? Our team is available Monday through Friday, 8am to 8pm ET.
-          </p>
+        <div className="mb-12 max-w-3xl">
+          <p className="eyebrow mb-3">Contact</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-[#0A1628] md:text-6xl">Speak with a funding advisor.</h1>
+          <p className="mt-5 text-lg leading-8 text-[#5A6A85]">Ask questions about documentation, program fit, timelines, or an active funding request. We keep the conversation practical and pressure-free.</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          <div className="lg:col-span-2">
+        <div className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr]">
+          <div className="premium-card p-6 md:p-8">
             {sent ? (
-              <div className="bg-[#F0FDF4] border border-[#DCFCE7] rounded-[16px] p-8 text-center">
-                <div className="text-[28px] mb-3">✓</div>
-                <h2 className="text-[20px] font-bold text-[#09090B] mb-2">Message Received</h2>
-                <p className="text-[14px] text-[#71717A]">We&apos;ll be in touch within 2 business hours.</p>
+              <div className="rounded-3xl border border-[#DCFCE7] bg-[#F0FDF4] p-8 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white text-2xl text-[#047857]">✓</div>
+                <h2 className="text-2xl font-semibold text-[#0A1628]">Message received</h2>
+                <p className="mt-2 text-[#5A6A85]">An Elite Funding Solutions advisor will follow up with next steps.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+              <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                 <input type="text" tabIndex={-1} autoComplete="off" value={form.bot_field} onChange={(e) => setForm({ ...form, bot_field: e.target.value })} className="hidden" aria-hidden="true" />
-                {error && <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700">{error}</div>}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Full Name *</label>
-                    <input id="contact-name" type="text" required aria-required="true" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field w-full" placeholder="Your name" />
-                  </div>
-                  <div>
-                    <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Email *</label>
-                    <input id="contact-email" type="email" required aria-required="true" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field w-full" placeholder="you@company.com" />
-                  </div>
+                {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block text-sm font-semibold text-[#0A1628]">Full name *<input id="contact-name" type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field mt-2" placeholder="Your name" /></label>
+                  <label className="block text-sm font-semibold text-[#0A1628]">Email *<input id="contact-email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field mt-2" placeholder="you@company.com" /></label>
                 </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Phone</label>
-                  <input id="contact-phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field w-full" placeholder="(XXX) XXX-XXXX" />
-                </div>
-                <div>
-                  <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">How can we help?</label>
-                  <textarea id="contact-message" rows={5} required aria-required="true" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-4 py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#EFF6FF] transition-all" placeholder="Tell us about your funding needs, questions, or concerns…" />
-                </div>
-                <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#2563EB] text-white font-semibold text-[15px] h-11 px-6 hover:bg-[#1D4ED8] transition-all">
-                  {submitting ? 'Sending…' : 'Send Message'} <ArrowRight className="w-4 h-4" />
+                <label className="block text-sm font-semibold text-[#0A1628]">Phone<input id="contact-phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field mt-2" placeholder="(XXX) XXX-XXXX" /></label>
+                <label className="block text-sm font-semibold text-[#0A1628]">How can we help? *<textarea id="contact-message" rows={6} required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="mt-2 w-full resize-none rounded-[10px] border border-[#DDE3EF] bg-white px-4 py-3 text-[15px] text-[#0A1628] outline-none transition focus:border-[#061326] focus:ring-4 focus:ring-[#061326]/10" placeholder="Tell us about the funding objective, timeline, and questions you want answered." /></label>
+                <button type="submit" disabled={submitting} className="btn-primary h-12 px-7">
+                  {submitting ? 'Sending…' : 'Send message'} <ArrowRight className="h-4 w-4" />
                 </button>
               </form>
             )}
           </div>
 
-          <div className="flex flex-col gap-5">
+          <aside className="space-y-4">
             {[
-              { icon: <Phone className="w-4 h-4" />, label: 'Phone', value: '(888) 400-2580', sub: 'Mon – Fri, 8am – 8pm ET' },
-              { icon: <Mail className="w-4 h-4" />, label: 'Email', value: 'info@elitefundingsolution.com', sub: 'Typically reply within 2 hours' },
-              { icon: <MapPin className="w-4 h-4" />, label: 'Headquarters', value: '2202 N Westshore Blvd.', sub: 'Tampa, FL 33607' },
-              { icon: <Clock className="w-4 h-4" />, label: 'Hours', value: 'Mon – Fri: 8am – 8pm ET', sub: 'Sat: 9am – 2pm ET' },
-            ].map((item) => (
-              <div key={item.label} className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-[9px] bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0 mt-0.5">
-                  {item.icon}
-                </div>
-                <div>
-                  <div className="text-[12px] text-[#A1A1AA] mb-0.5">{item.label}</div>
-                  <div className="text-[14px] font-medium text-[#09090B]">{item.value}</div>
-                  <div className="text-[12px] text-[#71717A]">{item.sub}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+              { icon: Phone, label: 'Phone', value: COMPANY.phone, sub: 'Mon – Fri, 8am – 8pm ET', href: `tel:${COMPANY.phoneHref}` },
+              { icon: Mail, label: 'Email', value: COMPANY.email, sub: 'Funding and application support', href: `mailto:${COMPANY.email}` },
+              { icon: MapPin, label: 'Headquarters', value: COMPANY.street, sub: `${COMPANY.city}, ${COMPANY.state} ${COMPANY.zip}` },
+              { icon: Clock, label: 'Hours', value: 'Mon – Fri: 8am – 8pm ET', sub: 'Advisor availability may vary' },
+            ].map(({ icon: Icon, label, value, sub, href }) => {
+              const content = <><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#061326] text-[#C9A84C]"><Icon className="h-4 w-4" /></div><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8A6A22]">{label}</p><p className="mt-1 font-semibold text-[#0A1628]">{value}</p><p className="mt-1 text-sm text-[#5A6A85]">{sub}</p></div></>;
+              return href ? <a key={label} href={href} className="premium-card flex gap-4 p-5 transition hover:border-[#C9A84C]/60">{content}</a> : <div key={label} className="premium-card flex gap-4 p-5">{content}</div>;
+            })}
+          </aside>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

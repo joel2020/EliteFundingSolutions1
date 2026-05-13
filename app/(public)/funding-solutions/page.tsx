@@ -5,40 +5,40 @@ import { fundingSolutions } from '@/lib/content/site';
 
 export const metadata: Metadata = {
   title: 'Funding Solutions | Elite Funding Solutions',
-  description: 'Compare working capital, equipment financing, SBA loans, business lines of credit, invoice factoring, commercial real estate financing, and merchant cash advances.',
+  description: 'Compare working capital, equipment financing, SBA loans, business lines of credit, invoice factoring, commercial real estate financing, and revenue-based funding options.',
   alternates: { canonical: '/funding-solutions' },
 };
 
 export default function FundingSolutionsPage() {
   return (
-    <div className="bg-[#040B16] text-white">
-      <section className="container-page py-20">
-        <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#C9A45C]">Funding Solutions</p>
-        <div className="max-w-3xl">
-          <h1 className="mb-5 font-display text-[44px] font-semibold leading-tight tracking-tight md:text-[64px]">Capital products built around your growth plan.</h1>
-          <p className="text-[18px] leading-relaxed text-[#B9C2D0]">Elite Funding Solutions structures fast, flexible funding across an institutional network of lending partners so founders can compare options without slowing down operations.</p>
+    <main className="bg-[#F8F9FB]">
+      <section className="page-hero-dark">
+        <div className="container-page py-24 md:py-32">
+          <p className="eyebrow mb-4">Funding solutions</p>
+          <h1 className="max-w-5xl text-4xl font-semibold leading-tight tracking-tight text-white md:text-7xl">Capital products built around your growth plan.</h1>
+          <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">Elite Funding Solutions helps established businesses compare available funding structures with clear guidance on speed, documentation, repayment mechanics, and use-case fit.</p>
         </div>
       </section>
-      <section className="container-page grid grid-cols-1 gap-5 pb-20 md:grid-cols-2 lg:grid-cols-3">
+      <section className="container-page grid gap-5 py-16 md:grid-cols-2 lg:grid-cols-3">
         {fundingSolutions.map((solution) => (
-          <article id={solution.anchor} key={solution.slug} className="rounded-[22px] border border-white/10 bg-[#07111f] p-7 shadow-[0_20px_70px_rgba(0,0,0,0.28)]">
-            <div className="mb-5 inline-flex rounded-full border border-[#C9A45C]/30 px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#E3C77A]">{solution.range}</div>
-            <h2 className="mb-3 font-display text-[26px] font-semibold">{solution.title}</h2>
-            <p className="mb-5 text-[15px] leading-relaxed text-[#B9C2D0]">{solution.summary}</p>
-            <dl className="mb-6 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-white/[0.04] p-3"><dt className="text-[#B9C2D0]">Speed</dt><dd className="font-semibold text-white">{solution.speed}</dd></div>
-              <div className="rounded-xl bg-white/[0.04] p-3"><dt className="text-[#B9C2D0]">Documents</dt><dd className="font-semibold text-white">{solution.documents.length}+ items</dd></div>
+          <article id={solution.anchor} key={solution.slug} className="premium-card flex min-h-[360px] flex-col p-7">
+            <div className="mb-5 inline-flex w-fit rounded-full bg-[#FBF6E9] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#8A6A22]">{solution.range}</div>
+            <h2 className="text-2xl font-semibold tracking-tight text-[#0A1628]">{solution.title}</h2>
+            <p className="mt-3 flex-1 leading-7 text-[#5A6A85]">{solution.summary}</p>
+            <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-2xl bg-[#F8F9FB] p-4"><dt className="text-[#5A6A85]">Typical review</dt><dd className="mt-1 font-semibold text-[#0A1628]">{solution.speed}</dd></div>
+              <div className="rounded-2xl bg-[#F8F9FB] p-4"><dt className="text-[#5A6A85]">Starting docs</dt><dd className="mt-1 font-semibold text-[#0A1628]">{solution.documents.length}+ items</dd></div>
             </dl>
-            <Link href={`/funding-solutions/${solution.slug}`} className="inline-flex items-center gap-2 text-[#E3C77A] font-semibold text-[14px]">View product details <ArrowRight className="h-4 w-4" /></Link>
+            <Link href={`/funding-solutions/${solution.slug}`} className="mt-6 inline-flex items-center gap-2 font-semibold text-[#0A1628]">View product details <ArrowRight className="h-4 w-4" /></Link>
           </article>
         ))}
       </section>
-      <section className="container-page pb-20">
-        <div className="rounded-[28px] border border-[#C9A45C]/20 bg-[#101D2F] p-8 md:flex md:items-center md:justify-between">
-          <div><h2 className="font-display text-3xl font-semibold">Not sure which product fits?</h2><p className="mt-2 text-[#B9C2D0]">Submit one secure application and compare available structures with an advisor.</p></div>
-          <Link href="/apply" className="mt-6 inline-flex rounded-sm bg-[#C9A45C] px-7 py-4 text-sm font-bold uppercase tracking-[0.14em] text-[#07111F] md:mt-0">Apply securely</Link>
+      <section className="container-page pb-16">
+        <div className="rounded-[32px] bg-[#061326] p-8 text-white md:flex md:items-center md:justify-between md:p-10">
+          <div><h2 className="text-3xl font-semibold tracking-tight">Not sure which product fits?</h2><p className="mt-3 text-slate-300">Submit one secure application and compare available structures with an advisor.</p></div>
+          <Link href="/apply" className="btn-gold mt-6 md:mt-0">Apply securely</Link>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

@@ -66,6 +66,11 @@ interface ApplicationFormData {
   bank_contact: string;
   bank_phone: string;
   account_type: string;
+  reference1_name: string;
+  reference1_phone: string;
+  reference2_name: string;
+  reference2_phone: string;
+  account_last4: string;
   owner1: OwnerFields;
   owner2: OwnerFields;
   requested_amount: string;
@@ -119,7 +124,7 @@ const steps = [
 const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
 const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean; help: string }> = [
-  { key: 'bank_statements', label: 'Last 3 Business Bank Statements', required: true, help: 'Upload all pages of the three most recent business bank statements. PDF preferred; images are accepted when clear and complete.' },
+  { key: 'bank_statements', label: 'Last 3 Business Bank Statements', required: true, help: 'Upload one combined PDF with the last 3 business bank statements, or upload each statement separately.' },
 ];
 
 function InputField({ label, value, onChange, type = 'text', required = false, placeholder = '', hint = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; hint?: string }) {
@@ -375,7 +380,7 @@ export default function ApplyPage() {
     if (!form.sms_consent_accepted) return toast.error('Please accept the SMS consent disclosure.');
     if (!form.terms_accepted || !form.privacy_policy_accepted) return toast.error('Please accept the legal policies and disclosures.');
     if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
-    if (missingRequiredDocs.length > 0) return toast.error('Please upload all three recent business bank statement files.');
+    if (missingRequiredDocs.length > 0) return toast.error('Please upload one combined PDF with the last 3 business bank statements, or upload each statement separately.');
 
     setSubmitting(true);
     try {
@@ -396,11 +401,11 @@ export default function ApplyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FB] pt-8 pb-20">
-      <div className="max-w-[860px] mx-auto px-6">
-        <div className="text-center mb-10"><h1 className="text-[28px] font-bold text-[#0A1628] tracking-tight mb-2">Secure Elite Funding Solutions Application</h1><p className="text-[15px] text-[#5A6A85]">Complete one encrypted funding request. We ask for full EIN, full SSN, owner mobile phone, and the last three business bank statements; we do not ask for routing numbers, full account numbers, rent/landlord details, average daily balance, or NSF count.</p></div>
-        {currentStep < 8 && <div className="mb-8"><div className="flex items-center justify-between mb-2"><span className="text-[13px] font-medium text-[#52525B]">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="text-[13px] text-[#A1A1AA]">{Math.round(progressPct)}% complete</span></div><div className="h-1.5 bg-[#E4E4E7] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ background: 'linear-gradient(90deg, #0F2B5B, #C9A84C)', width: `${progressPct}%` }} /></div></div>}
-        <div className="bg-white border border-[#E4E4E7] rounded-[20px] p-6 md:p-8" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+    <div className="min-h-screen bg-[#F8F9FB] pt-10 pb-20">
+      <div className="mx-auto max-w-[980px] px-5 md:px-8">
+        <div className="mx-auto mb-10 max-w-3xl text-center"><p className="eyebrow mb-3">Secure funding intake</p><h1 className="mb-4 text-4xl font-semibold tracking-tight text-[#0A1628] md:text-5xl">Complete one protected application.</h1><p className="text-[16px] leading-7 text-[#5A6A85]">We ask for full EIN, full SSN, owner mobile phone, and the last 3 business bank statements for authorized underwriting. We do not ask for routing numbers, full account numbers, rent/landlord details, average daily balance, or NSF count.</p></div>
+        {currentStep < 8 && <div className="mb-8"><div className="flex items-center justify-between mb-2"><span className="text-[13px] font-medium text-[#52525B]">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="text-[13px] text-[#A1A1AA]">{Math.round(progressPct)}% complete</span></div><div className="h-1.5 bg-[#E4E4E7] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} /></div></div>}
+        <div className="premium-card p-5 md:p-8" >
           {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
           {currentStep === 2 && <StepBanking data={form} update={updateField} />}
           {currentStep === 3 && <StepOwners data={form} updateOwner={updateOwner} />}
@@ -409,7 +414,7 @@ export default function ApplyPage() {
           {currentStep === 6 && <StepDocuments files={files} setFiles={setFiles} />}
           {currentStep === 7 && <StepReview data={form} files={files} update={updateField} />}
           {currentStep === 8 && <StepConfirmation data={form} />}
-          {currentStep < 8 && <div className="flex items-center justify-between mt-8 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#10B981] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#059669] disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div>}
+          {currentStep < 8 && <div className="flex items-center justify-between mt-8 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#061326] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#0A1730] disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div>}
         </div>
         {currentStep < 8 && <div className="mt-6 flex items-center justify-center gap-6 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span></div>}
       </div>

@@ -43,7 +43,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'linear-gradient(160deg, #040B16 0%, #060F1E 50%, #0A1628 100%)' }}>
+    <div className="flex min-h-screen items-center justify-center bg-[#061326] p-6">
       <div className="w-full max-w-[420px]">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -125,7 +125,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628', boxShadow: '0 4px 16px rgba(201,168,76,0.25)' }}
+              style={{ background: '#C9A84C', color: '#0A1628', boxShadow: '0 4px 16px rgba(201,168,76,0.25)' }}
             >
               {loading ? 'Signing in…' : 'Sign In'}
               {!loading && <ArrowRight className="w-4 h-4" />}
@@ -144,7 +144,7 @@ export default function LoginPage() {
 
         <div className="mt-5 flex items-center justify-center gap-2 text-[12px]" style={{ color: '#2A3A55' }}>
           <Shield className="w-3.5 h-3.5" />
-          <span>256-bit SSL encrypted. SOC 2 Type II compliant.</span>
+          <span>Secure CRM access for authorized Elite Funding Solutions users.</span>
         </div>
       </div>
     </div>

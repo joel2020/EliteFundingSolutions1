@@ -7,7 +7,7 @@
   --bg-primary: #F8F9FB;
   --bg-elevated: #FFFFFF;
   --bg-subtle: #F1F3F7;
-  --bg-dark: #070E1A;
+  --bg-dark: #061326;
 
   /* Text */
   --text-primary: #0A1628;
@@ -21,10 +21,10 @@
   --border-subtle: #EDF0F7;
 
   /* Brand — Deep Navy + Gold */
-  --brand: #0F2B5B;
-  --brand-hover: #0A1E42;
-  --brand-light: #E8EDF8;
-  --brand-text: #0F2B5B;
+  --brand: #061326;
+  --brand-hover: #0A1730;
+  --brand-light: #EEF2F7;
+  --brand-text: #061326;
 
   /* Gold accent */
   --gold: #C9A84C;
@@ -120,11 +120,11 @@
   /* Button primitives */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-[10px] text-white font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in;
-    background-color: #0F2B5B;
+    background-color: #061326;
     box-shadow: var(--shadow-sm);
   }
   .btn-primary:hover {
-    background-color: #0A1E42;
+    background-color: #0A1730;
     box-shadow: var(--shadow-md);
   }
   .btn-primary:disabled {
@@ -154,10 +154,10 @@
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-transparent font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in;
-    color: #0F2B5B;
+    color: #061326;
   }
   .btn-ghost:hover {
-    background-color: #E8EDF8;
+    background-color: #EEF2F7;
   }
 
   /* Card */
@@ -182,8 +182,8 @@
   }
   .input-field:focus {
     outline: none;
-    border-color: #0F2B5B;
-    box-shadow: 0 0 0 3px rgba(15,43,91,0.08);
+    border-color: #061326;
+    box-shadow: 0 0 0 3px rgba(6,19,38,0.10);
   }
 
   /* Badge */
@@ -253,4 +253,34 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #8C9BB5;
+}
+
+
+@layer components {
+  .eyebrow {
+    @apply text-[12px] font-bold uppercase tracking-[0.22em] text-[#8A6A22];
+  }
+
+  .premium-card {
+    @apply rounded-[24px] border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(10,22,40,0.04),0_12px_30px_rgba(10,22,40,0.04)];
+  }
+
+  .dark-card {
+    @apply rounded-[24px] border border-white/10 bg-white/[0.045];
+  }
+
+  .btn-dark-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-white/20 bg-white/[0.04] px-6 text-[15px] font-semibold text-white transition hover:border-[#C9A84C]/60 hover:bg-white/[0.08];
+  }
+
+  .h-13 { height: 3.25rem; }
+  .h-18 { height: 4.5rem; }
+
+  .page-hero-dark {
+    @apply bg-[#061326] text-white;
+  }
+
+  .page-hero-light {
+    @apply bg-[#F8F9FB] text-[#0A1628];
+  }
 }
