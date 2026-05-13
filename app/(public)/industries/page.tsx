@@ -1,28 +1,6 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'Industries Served | Elite Funding Solutions',
-  description: 'Business funding for construction, healthcare, restaurants, trucking, retail, professional services, and more.',
-};
-
-const industries = ['Construction', 'Healthcare', 'Restaurants', 'Trucking & Logistics', 'Retail', 'Professional Services', 'Manufacturing', 'Automotive', 'E-commerce', 'Commercial Real Estate'];
-
-export default function IndustriesPage() {
-  return (
-    <section className="section bg-[#040B16] text-white min-h-screen">
-      <div className="container-page">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#C9A84C] mb-4">Industries We Serve</p>
-        <h1 className="text-[44px] md:text-[60px] font-bold tracking-tight max-w-3xl mb-5">Industry-specific funding for operators who move fast.</h1>
-        <p className="text-[#8C9BB5] text-[18px] leading-relaxed max-w-3xl mb-12">We evaluate business performance, seasonality, cash-flow patterns, and use of funds to help match companies with the right capital structure.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {industries.map((industry) => (
-            <div key={industry} className="rounded-[16px] border border-[#1A2B4A] bg-[#07111f] p-6">
-              <div className="text-[#C9A84C] text-[13px] uppercase tracking-[0.14em] mb-2">Funding ready</div>
-              <h2 className="text-[22px] font-semibold">{industry}</h2>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+import { ArrowRight } from 'lucide-react';
+import { industries } from '@/lib/content/site';
+export const metadata: Metadata = { title: 'Industries Served | Elite Funding Solutions', description: 'Industry-specific business funding for construction, healthcare, restaurants, trucking, retail, professional services, manufacturing, automotive, ecommerce, and commercial real estate.', alternates: { canonical: '/industries' } };
+export default function IndustriesPage() { return <section className="section bg-[#040B16] text-white min-h-screen"><div className="container-page"><p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#C9A45C]">Industries We Serve</p><h1 className="mb-5 max-w-3xl font-display text-[44px] font-semibold tracking-tight md:text-[60px]">Industry-specific funding for operators who move fast.</h1><p className="mb-12 max-w-3xl text-[18px] leading-relaxed text-[#B9C2D0]">We evaluate business performance, seasonality, cash-flow patterns, and use of funds to help match companies with the right capital structure.</p><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{industries.map((industry) => <article key={industry.slug} className="rounded-[20px] border border-white/10 bg-[#07111f] p-6"><div className="mb-2 text-[13px] uppercase tracking-[0.14em] text-[#C9A45C]">Funding ready</div><h2 className="font-display text-[26px] font-semibold">{industry.title}</h2><p className="mt-3 text-sm text-[#B9C2D0]">Common needs include {industry.needs.slice(0, 2).join(' and ').toLowerCase()}.</p><Link href={`/industries/${industry.slug}`} className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#E3C77A]">Explore industry <ArrowRight className="h-4 w-4" /></Link></article>)}</div></div></section>; }

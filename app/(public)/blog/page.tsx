@@ -1,31 +1,5 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'Business Funding Blog | Elite Funding Solutions',
-  description: 'Business funding insights, underwriting preparation tips, and capital strategy articles from Elite Funding Solutions.',
-};
-
-const posts = [
-  'How to prepare for a working capital application',
-  'Merchant cash advance vs. business line of credit',
-  'Documents lenders review before issuing an offer',
-];
-
-export default function BlogPage() {
-  return (
-    <section className="section">
-      <div className="container-page">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#B8962E] mb-4">Blog</p>
-        <h1 className="text-[44px] font-bold tracking-tight mb-8">Business funding insights.</h1>
-        <div className="grid gap-4">
-          {posts.map((post) => (
-            <article key={post} className="rounded-[16px] border border-[#E4E4E7] p-6">
-              <h2 className="text-[22px] font-semibold mb-2">{post}</h2>
-              <p className="text-[#71717A]">Practical guidance from the Elite Funding Solutions advisory team.</p>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+import { blogPosts } from '@/lib/content/site';
+export const metadata: Metadata = { title: 'Business Funding Blog | Elite Funding Solutions', description: 'Business funding insights, underwriting preparation tips, and capital strategy articles from Elite Funding Solutions.', alternates: { canonical: '/blog' } };
+export default function BlogPage() { return <section className="section"><div className="container-page"><p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.18em] text-[#B8962E]">Blog</p><h1 className="mb-4 font-display text-[48px] font-semibold tracking-tight">Business funding insights.</h1><p className="mb-8 max-w-2xl text-[#71717A]">Actionable guides for preparing applications, comparing funding structures, and reducing underwriting friction.</p><div className="grid gap-4">{blogPosts.map((post) => <article key={post.slug} className="rounded-[18px] border border-[#E4E4E7] p-6"><p className="mb-2 text-xs uppercase tracking-[0.14em] text-[#B8962E]">{post.minutes} min read · Updated {post.updated}</p><h2 className="mb-2 text-[24px] font-semibold"><Link href={`/blog/${post.slug}`} className="hover:text-[#B8962E]">{post.title}</Link></h2><p className="mb-4 text-[#71717A]">{post.description}</p><Link href={`/blog/${post.slug}`} className="font-semibold text-[#0A1628] underline decoration-[#C9A45C] decoration-2 underline-offset-4">Read article</Link></article>)}</div></div></section>; }

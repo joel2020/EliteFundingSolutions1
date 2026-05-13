@@ -7,12 +7,12 @@ const footerColumns = [
   {
     title: 'Funding Solutions',
     links: [
-      { label: 'Working Capital', href: '/funding-solutions#working-capital' },
-      { label: 'Equipment Financing', href: '/funding-solutions#equipment-financing' },
-      { label: 'SBA Loans', href: '/funding-solutions#sba-loans' },
-      { label: 'Lines of Credit', href: '/funding-solutions#lines-of-credit' },
-      { label: 'Invoice Factoring', href: '/funding-solutions#invoice-factoring' },
-      { label: 'Commercial Real Estate Financing', href: '/funding-solutions#commercial-real-estate' },
+      { label: 'Working Capital', href: '/funding-solutions/working-capital' },
+      { label: 'Equipment Financing', href: '/funding-solutions/equipment-financing' },
+      { label: 'SBA Loans', href: '/funding-solutions/sba-loans' },
+      { label: 'Lines of Credit', href: '/funding-solutions/business-lines-of-credit' },
+      { label: 'Invoice Factoring', href: '/funding-solutions/invoice-factoring' },
+      { label: 'Commercial Real Estate Financing', href: '/funding-solutions/commercial-real-estate' },
     ],
   },
   {
@@ -20,8 +20,8 @@ const footerColumns = [
     links: [
       { label: 'About Us', href: '/about' },
       { label: 'Our Process', href: '/how-it-works' },
-      { label: 'Why Choose Elite', href: '/about#why-elite' },
-      { label: 'Careers', href: '/contact' },
+      { label: 'Why Choose Elite', href: '/why-choose-elite' },
+      { label: 'Careers', href: '/careers' },
       { label: 'Blog', href: '/blog' },
       { label: 'Contact', href: '/contact' },
     ],
@@ -30,10 +30,11 @@ const footerColumns = [
     title: 'Resources',
     links: [
       { label: 'FAQs', href: '/faq' },
-      { label: 'Funding Guide', href: '/resources' },
-      { label: 'Business Resources', href: '/blog' },
-      { label: 'Industry Insights', href: '/industries' },
-      { label: 'Case Studies', href: '/resources#case-studies' },
+      { label: 'Funding Guide', href: '/funding-guide' },
+      { label: 'Business Resources', href: '/business-resources' },
+      { label: 'Industry Insights', href: '/industry-insights' },
+      { label: 'Case Studies', href: '/case-studies' },
+      { label: 'Sitemap', href: '/sitemap' },
     ],
   },
 ];
@@ -98,7 +99,7 @@ export function PublicFooter() {
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <Link href="/privacy-policy" className="hover:text-[#e7c579]">Privacy Policy</Link>
             <Link href="/terms-of-use" className="hover:text-[#e7c579]">Terms of Use</Link>
-            <Link href="/sitemap.xml" className="hover:text-[#e7c579]">Sitemap</Link>
+            <Link href="/sitemap" className="hover:text-[#e7c579]">Sitemap</Link>
           </div>
           <p>NMLS ID #2345678</p>
         </div>

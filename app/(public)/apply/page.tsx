@@ -306,7 +306,7 @@ function StepDocuments({ files, setFiles }: { files: Record<DocumentKey, File[]>
       {documentConfig.map((doc) => (
         <div key={doc.key} className="rounded-[16px] border border-[#E4E4E7] p-5 flex flex-col md:flex-row md:items-center gap-4">
           <div className="flex-1"><div className="font-semibold text-[#09090B]">{doc.label} {doc.required && <span className="text-[#EF4444]">*</span>}</div><p className="text-[13px] text-[#71717A] mt-1">{doc.help}</p><p className="text-[12px] text-[#A1A1AA] mt-2">{files[doc.key]?.map((file) => file.name).join(', ') || 'No files selected'}</p></div>
-          <label className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#DDE3EF] px-4 h-10 text-[14px] font-semibold cursor-pointer hover:bg-[#F8F9FB]"><UploadCloud className="w-4 h-4" />Choose File<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic" className="hidden" onChange={(event) => setFiles(doc.key, Array.from(event.target.files || []))} /></label>
+          <label className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#DDE3EF] px-4 h-10 text-[14px] font-semibold cursor-pointer hover:bg-[#F8F9FB]"><UploadCloud className="w-4 h-4" />Choose Files<input aria-label={doc.label} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" className="hidden" onChange={(event) => setFiles(doc.key, Array.from(event.target.files || []))} /></label>
         </div>
       ))}
     </div>
@@ -365,16 +365,29 @@ export default function ApplyPage() {
   const next = () => setCurrentStep((step) => Math.min(step + 1, 8) as Step);
   const back = () => setCurrentStep((step) => Math.max(step - 1, 1) as Step);
 
-  const missingRequiredDocs = documentConfig.filter((doc) => doc.required && files[doc.key].length === 0).map((doc) => doc.label);
+  const digitsOnly = (value: string) => value.replace(/\D/g, '');
+  const invalidUpload = files.bank_statements.find((file) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    return file.size > 10 * 1024 * 1024 || !['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif'].includes(extension);
+  });
+  const missingRequiredDocs = files.bank_statements.length < 3 ? ['Last 3 Bank Statements'] : [];
 
   const handleSubmit = async () => {
+    if (digitsOnly(form.ein).length !== 9) return toast.error('EIN must be exactly 9 digits.');
+    if (digitsOnly(form.owner1.ssn).length !== 9) return toast.error('Owner SSN must be exactly 9 digits.');
+    if (digitsOnly(form.owner1.mobile).length < 10 || digitsOnly(form.owner1.phone).length < 10 || digitsOnly(form.business_phone).length < 10) return toast.error('Please provide valid phone and mobile numbers.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.business_email) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.owner1.email)) return toast.error('Please provide valid business and owner email addresses.');
+    const ownership = Number(form.owner1.ownership_pct);
+    if (!Number.isFinite(ownership) || ownership < 0 || ownership > 100) return toast.error('Ownership percentage must be between 0 and 100.');
+    if (Number(form.requested_amount) <= 0 || Number(form.monthly_gross_revenue) <= 0 || Number(form.average_monthly_sales) <= 0) return toast.error('Revenue and requested funding amounts must be positive.');
+    if (invalidUpload) return toast.error('Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.');
     if (!form.certification_accepted) return toast.error('Please accept the certification of accuracy.');
     if (!form.credit_authorization_accepted || !form.authorization_consent) return toast.error('Please accept the required credit/background authorization.');
     if (!form.esign_consent_accepted) return toast.error('Please accept the e-signature consent.');
     if (!form.sms_consent_accepted) return toast.error('Please accept the SMS consent disclosure.');
     if (!form.terms_accepted || !form.privacy_policy_accepted) return toast.error('Please accept the legal policies and disclosures.');
     if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
-    if (missingRequiredDocs.length > 0) return toast.error(`Please upload: ${missingRequiredDocs.join(', ')}`);
+    if (missingRequiredDocs.length > 0) return toast.error('Please upload at least 3 recent bank statement files.');
 
     setSubmitting(true);
     try {
