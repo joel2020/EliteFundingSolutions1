@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Shield, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { CONSENT_VERSION } from '@/lib/company';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type OwnerKey = 'owner1' | 'owner2';
@@ -92,10 +94,17 @@ interface ApplicationFormData {
   payment_frequency: string;
   existing_advances: ExistingAdvance[];
   notes: string;
+  certification_accepted: boolean;
+  credit_authorization_accepted: boolean;
+  esign_consent_accepted: boolean;
+  sms_consent_accepted: boolean;
+  terms_accepted: boolean;
+  privacy_policy_accepted: boolean;
   authorization_consent: boolean;
   sms_consent: boolean;
   signature: string;
   signature_date: string;
+  bot_field: string;
 }
 
 const blankOwner: OwnerFields = {
@@ -110,7 +119,7 @@ const initialForm: ApplicationFormData = {
   bank_name: '', bank_contact: '', bank_phone: '', routing_number: '', account_number: '', account_last4: '', account_type: 'checking', average_daily_balance: '', deposit_count: '', negative_days: '0', nsf_count: '0', ending_balance: '',
   owner1: { ...blankOwner, ownership_pct: '100' }, owner2: { ...blankOwner },
   requested_amount: '', use_of_funds: '', timeline: '', average_monthly_sales: '', average_visa_mc_sales: '', monthly_gross_revenue: '',
-  has_existing_advances: false, payment_frequency: '', existing_advances: [], notes: '', authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10),
+  has_existing_advances: false, payment_frequency: '', existing_advances: [], notes: '', certification_accepted: false, credit_authorization_accepted: false, esign_consent_accepted: false, sms_consent_accepted: false, terms_accepted: false, privacy_policy_accepted: false, authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10), bot_field: '',
 };
 
 const steps = [
@@ -154,10 +163,10 @@ function SelectField({ label, value, onChange, options, required = false }: { la
   );
 }
 
-function CheckboxField({ checked, onChange, label, help }: { checked: boolean; onChange: (checked: boolean) => void; label: string; help?: string }) {
+function CheckboxField({ checked, onChange, label, help, required = false }: { checked: boolean; onChange: (checked: boolean) => void; label: ReactNode; help?: ReactNode; required?: boolean }) {
   return (
     <label className="flex items-start gap-3 rounded-[12px] border border-[#E4E4E7] bg-white p-4 cursor-pointer">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-4 w-4 rounded border-[#D4D4D8]" />
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} required={required} className="mt-1 h-4 w-4 rounded border-[#D4D4D8]" />
       <span>
         <span className="block text-[14px] font-medium text-[#09090B]">{label}</span>
         {help && <span className="block text-[12px] text-[#71717A] mt-1 leading-relaxed">{help}</span>}
@@ -325,25 +334,28 @@ function StepDocuments({ files, setFiles }: { files: Record<DocumentKey, File[]>
 }
 
 function StepReview({ data, files, update }: { data: ApplicationFormData; files: Record<DocumentKey, File[]>; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
-  const rows = [
-    ['Business', data.legal_name], ['DBA', data.dba || '—'], ['Address', `${data.address}, ${data.city}, ${data.state} ${data.zip}`], ['Phone / Mobile / Fax', [data.business_phone, data.business_mobile, data.fax].filter(Boolean).join(' / ') || '—'],
-    ['Products / Services', data.products_services], ['Owner 1', `${data.owner1.first_name} ${data.owner1.last_name}`], ['Owner 2', `${data.owner2.first_name} ${data.owner2.last_name}`.trim() || '—'], ['Requested Amount', data.requested_amount ? `$${Number(data.requested_amount).toLocaleString()}` : '—'],
-    ['Average Monthly Sales', data.average_monthly_sales ? `$${Number(data.average_monthly_sales).toLocaleString()}` : '—'], ['Bank', data.bank_name], ['Documents', documentConfig.map((doc) => `${doc.label}: ${files[doc.key]?.length || 0}`).join(' • ')],
-  ];
-
+  const uploaded = documentConfig.map((doc) => `${doc.label}: ${files[doc.key].length ? files[doc.key].map((file) => file.name).join(', ') : 'Missing'}`);
   return (
     <div className="space-y-6">
-      <SectionIntro title="Authorization & Final Review" text="Review the application and complete the required authorization, signature, and date fields before submission." />
-      <div className="rounded-[14px] border border-[#E4E4E7] overflow-hidden">
-        {rows.map(([label, value]) => <div key={label} className="grid grid-cols-1 md:grid-cols-3 gap-2 border-b last:border-b-0 border-[#F4F4F5] px-4 py-3"><div className="text-[12px] uppercase tracking-[0.06em] text-[#A1A1AA]">{label}</div><div className="md:col-span-2 text-[14px] font-medium text-[#09090B]">{value}</div></div>)}
+      <SectionIntro title="Authorization & Final Review" text="Review the application and complete the required certification, authorization, e-signature, and consent fields before submission." />
+      <div className="rounded-[16px] bg-[#F8F9FB] border border-[#E4E4E7] p-5 space-y-3 text-[14px] text-[#52525B] leading-relaxed">
+        <p><strong className="text-[#09090B]">Application certification.</strong> I certify that all information and documents submitted are accurate, true, correct, and complete, including business information, owner/principal information, financial records, bank statements, processor statements, uploaded documents, IDs, and the required voided check.</p>
+        <p><strong className="text-[#09090B]">Credit and background authorization.</strong> I authorize Elite Funding Solutions and its recipients, partners, successors, assigns, agents, affiliates, service providers, lenders, funding partners, banks, processors, credit bureaus, and underwriting partners to obtain consumer, personal, business, investigative, credit, processor, bank statement, bank, and financial reports for underwriting, funding, renewal, servicing, verification, fraud-prevention, and compliance purposes.</p>
+        <p><strong className="text-[#09090B]">Sharing authorization.</strong> I authorize Elite Funding Solutions to share application information, owner/principal information, authorization data, bank and processor information, financial records, and uploaded documents with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.</p>
+        <p><strong className="text-[#09090B]">E-signature consent.</strong> I consent to use electronic records and electronic signatures. My typed name, checkbox selections, timestamp, IP address, user agent, and consent version may be stored with this submission.</p>
+        <p><strong className="text-[#09090B]">SMS/text consent.</strong> By checking the SMS consent box, I consent to receive text messages from Elite Funding Solutions. Message and data rates may apply. Reply STOP to opt out and HELP for help. Consent is not a condition of purchase where legally required.</p>
+        <p className="text-[12px] text-[#71717A]">Consent version: {CONSENT_VERSION}</p>
       </div>
-      <div className="rounded-[16px] border border-[#DDE3EF] bg-[#FAFAFA] p-5 text-[13px] leading-relaxed text-[#52525B] space-y-3">
-        <p><strong className="text-[#09090B]">Credit/background authorization.</strong> By submitting this application, each signer authorizes Elite Funding Solutions, its representatives, funding partners, lenders, recipients, successors, and assigns to obtain consumer, personal, business, investigative, credit, processor, and bank statement reports and other information from credit bureaus, banks, processors, landlords, references, and other sources for underwriting, verification, servicing, renewal, collection, and funding purposes.</p>
-        <p><strong className="text-[#09090B]">SMS consent.</strong> If selected, you agree that Elite Funding Solutions may contact you by SMS/text message regarding your application and funding options. Message and data rates may apply. Consent is not required as a condition of funding. See the privacy policy at www.elitefundingsolution.com.</p>
+      <div className="rounded-[14px] border border-[#E4E4E7] p-4 text-[13px] text-[#71717A] space-y-1"><p className="font-semibold text-[#09090B]">Required uploads</p>{uploaded.map((item) => <p key={item}>{item}</p>)}</div>
+      <div className="space-y-3">
+        <CheckboxField required checked={data.certification_accepted} onChange={(v) => update('certification_accepted', v)} label="I certify that all information and documents submitted are accurate, true, correct, and complete." />
+        <CheckboxField required checked={data.credit_authorization_accepted} onChange={(v) => { update('credit_authorization_accepted', v); update('authorization_consent', v); }} label="I authorize Elite Funding Solutions and its funding partners, affiliates, service providers, and recipients to obtain consumer, personal, business, investigative, credit, bank, processor, and financial reports for underwriting and funding purposes." />
+        <CheckboxField required checked={data.esign_consent_accepted} onChange={(v) => update('esign_consent_accepted', v)} label="I consent to use electronic records and electronic signatures." />
+        <CheckboxField required checked={data.sms_consent_accepted} onChange={(v) => { update('sms_consent_accepted', v); update('sms_consent', v); }} label="By checking this box, I consent to receive text messages from Elite Funding Solutions. Message and data rates may apply. Reply STOP to opt out. Consent is not a condition of purchase." />
+        <CheckboxField required checked={data.terms_accepted && data.privacy_policy_accepted} onChange={(v) => { update('terms_accepted', v); update('privacy_policy_accepted', v); }} label={<span>I agree to the <a className="text-[#0F2B5B] underline" href="/privacy-policy" target="_blank">Privacy Policy</a>, <a className="text-[#0F2B5B] underline" href="/terms-of-use" target="_blank">Terms of Use</a>, <a className="text-[#0F2B5B] underline" href="/application-consent" target="_blank">Application Consent</a>, <a className="text-[#0F2B5B] underline" href="/esign-consent" target="_blank">E-Sign Consent</a>, <a className="text-[#0F2B5B] underline" href="/sms-terms" target="_blank">SMS Terms</a>, and <a className="text-[#0F2B5B] underline" href="/disclosures" target="_blank">Compliance Disclosures</a>.</span>} />
       </div>
-      <CheckboxField checked={data.authorization_consent} onChange={(v) => update('authorization_consent', v)} label="I authorize Elite Funding Solutions and its partners to obtain and review the reports and information described above." help="Required to submit." />
-      <CheckboxField checked={data.sms_consent} onChange={(v) => update('sms_consent', v)} label="I consent to receive SMS/text messages about my application." help="Optional. Consent may be revoked at any time." />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><InputField label="E-Signature" value={data.signature} onChange={(v) => update('signature', v)} required hint="Type your full legal name." /><InputField label="Signature Date" value={data.signature_date} onChange={(v) => update('signature_date', v)} type="date" required /></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><InputField label="Signed Name" value={data.signature} onChange={(v) => update('signature', v)} required hint="Type your full legal name." /><InputField label="Signature Date" value={data.signature_date} onChange={(v) => update('signature_date', v)} type="date" required /></div>
+      <input type="text" value={data.bot_field} onChange={(event) => update('bot_field', event.target.value)} tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
     </div>
   );
 }
@@ -365,16 +377,6 @@ export default function ApplyPage() {
   const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [], voided_check: [], drivers_license: [] });
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem('elite-application-progress');
-    if (saved) {
-      try { setForm({ ...initialForm, ...JSON.parse(saved) }); } catch { window.localStorage.removeItem('elite-application-progress'); }
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem('elite-application-progress', JSON.stringify(form));
-  }, [form]);
 
   const progressPct = useMemo(() => ((currentStep - 1) / 7) * 100, [currentStep]);
   const updateField = <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -386,24 +388,26 @@ export default function ApplyPage() {
   const missingRequiredDocs = documentConfig.filter((doc) => doc.required && files[doc.key].length === 0).map((doc) => doc.label);
 
   const handleSubmit = async () => {
-    if (!form.authorization_consent) return toast.error('Please accept the required credit/background authorization.');
+    if (!form.certification_accepted) return toast.error('Please accept the certification of accuracy.');
+    if (!form.credit_authorization_accepted || !form.authorization_consent) return toast.error('Please accept the required credit/background authorization.');
+    if (!form.esign_consent_accepted) return toast.error('Please accept the e-signature consent.');
+    if (!form.sms_consent_accepted) return toast.error('Please accept the SMS consent disclosure.');
+    if (!form.terms_accepted || !form.privacy_policy_accepted) return toast.error('Please accept the legal policies and disclosures.');
     if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
     if (missingRequiredDocs.length > 0) return toast.error(`Please upload: ${missingRequiredDocs.join(', ')}`);
 
     setSubmitting(true);
     try {
       const body = new globalThis.FormData();
-      body.append('payload', JSON.stringify(form));
+      body.append('payload', JSON.stringify({ ...form, consent_version: CONSENT_VERSION }));
       documentConfig.forEach((doc) => files[doc.key].forEach((file) => body.append(doc.key, file)));
 
       const response = await fetch('/api/applications/submit', { method: 'POST', body });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Application submission failed.');
 
-      window.localStorage.removeItem('elite-application-progress');
       setCurrentStep(8);
     } catch (err) {
-      console.error(err);
       toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again or contact support.');
     } finally {
       setSubmitting(false);
@@ -426,7 +430,7 @@ export default function ApplyPage() {
           {currentStep === 8 && <StepConfirmation data={form} />}
           {currentStep < 8 && <div className="flex items-center justify-between mt-8 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#10B981] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#059669] disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div>}
         </div>
-        {currentStep < 8 && <div className="mt-6 flex items-center justify-center gap-6 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Progress saved locally</span></div>}
+        {currentStep < 8 && <div className="mt-6 flex items-center justify-center gap-6 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span></div>}
       </div>
     </div>
   );

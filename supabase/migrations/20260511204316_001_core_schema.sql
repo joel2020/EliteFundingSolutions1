@@ -168,12 +168,16 @@ CREATE TRIGGER set_user_profiles_updated_at
 -- ============================================================
 -- SEED: Default organization
 -- ============================================================
-INSERT INTO organizations (id, name, slug, email, phone, website)
+INSERT INTO organizations (id, name, slug, email, phone, website, address, city, state, zip)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Elite Funding Solutions',
   'elite-funding-solutions',
   'info@elitefundingsolution.com',
-  '(888) 400-3780',
-  'https://mdrrcrmowurbrwvdsgnq.supabase.co'
+  '(888) 400-2580',
+  'https://elitefundingsolution.com',
+  '2202 N Westshore Blvd.',
+  'Tampa',
+  'FL',
+  '33607'
 ) ON CONFLICT (id) DO NOTHING;

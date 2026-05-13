@@ -83,7 +83,7 @@ export default function ContactPage() {
             {[
               { icon: <Phone className="w-4 h-4" />, label: 'Phone', value: '(888) 400-2580', sub: 'Mon – Fri, 8am – 8pm ET' },
               { icon: <Mail className="w-4 h-4" />, label: 'Email', value: 'info@elitefundingsolution.com', sub: 'Typically reply within 2 hours' },
-              { icon: <MapPin className="w-4 h-4" />, label: 'Headquarters', value: '590 Madison Avenue', sub: 'New York, NY 10022' },
+              { icon: <MapPin className="w-4 h-4" />, label: 'Headquarters', value: '2202 N Westshore Blvd.', sub: 'Tampa, FL 33607' },
               { icon: <Clock className="w-4 h-4" />, label: 'Hours', value: 'Mon – Fri: 8am – 8pm ET', sub: 'Sat: 9am – 2pm ET' },
             ].map((item) => (
               <div key={item.label} className="flex items-start gap-3">

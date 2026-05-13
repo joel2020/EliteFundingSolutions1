@@ -1,3 +1,1 @@
-import type { Metadata } from 'next';
-export const metadata: Metadata = { title: 'Terms of Use | Elite Funding Solutions', description: 'Terms governing use of the Elite Funding Solutions website and application.' };
-export default function TermsPage(){return <section className="section"><div className="container-page prose max-w-3xl"><h1>Terms of Use</h1><p>By using this website or submitting an application, you authorize Elite Funding Solutions to review the information provided and share it with appropriate funding partners for business financing evaluation.</p><p>Pre-qualification is not a commitment to lend. Final approvals, pricing, and terms are subject to underwriting, documentation, and funding partner requirements.</p><p>Elite Funding Solutions is a commercial funding company and is not a bank.</p></div></section>}
+export { metadata, default } from '../terms-of-use/page';

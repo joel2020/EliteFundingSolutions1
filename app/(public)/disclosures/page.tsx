@@ -1,0 +1,11 @@
+import type { Metadata } from 'next';
+import { LegalPage } from '@/components/public/legal-page';
+export const metadata: Metadata = { title: 'Compliance Disclosures | Elite Funding Solutions' };
+export default function DisclosuresPage() { return <LegalPage title="Compliance Disclosures" intro="Important disclosures for business funding applicants and website users." sections={[
+  { title: 'No guarantee and no funding obligation', body: ['Elite Funding Solutions is not guaranteeing approval, funding, rates, terms, or availability. Submitting an application does not create a funding obligation by Elite Funding Solutions or any third-party funding partner.'] },
+  { title: 'Underwriting and final agreements', body: ['Offers are subject to underwriting, partner approval, document verification, risk review, bank and processor verification, identity verification, and final agreement execution. Rates, terms, fees, repayment structures, and availability vary by applicant, funding product, partner, risk profile, and documentation.'] },
+  { title: 'Commercial-purpose funding', body: ['Business funding products are intended for business and commercial purposes only. Merchant cash advances are commercial transactions and may not be loans depending on their structure and applicable law.'] },
+  { title: 'Credit authorization disclosure', body: ['By applying and checking the required authorization box, applicants authorize Elite Funding Solutions and its funding partners, affiliates, service providers, and recipients to obtain consumer, personal, business, investigative, credit, bank, processor, and financial reports for underwriting and funding purposes.'] },
+  { title: 'Third-party funding partners', body: ['Funding products may be offered, originated, purchased, serviced, or underwritten by third-party funding partners, lenders, funders, banks, affiliates, or service providers. Elite Funding Solutions may receive compensation for referrals, packaging, servicing, renewals, or funded transactions.'] },
+  { title: 'No professional advice', body: ['Elite Funding Solutions does not provide tax, accounting, legal, investment, or financial advice. Applicants should consult their own attorneys, accountants, tax professionals, and financial advisors before entering any funding transaction.'] },
+]}/>; }

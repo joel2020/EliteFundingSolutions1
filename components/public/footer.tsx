@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import { COMPANY } from '@/lib/company';
 
 const footerLinks = {
   'Funding': [
@@ -23,9 +24,13 @@ const footerLinks = {
     { label: 'Partner With Us', href: '/partners' },
   ],
   'Legal': [
-    { label: 'Privacy Policy', href: '/privacy' },
-    { label: 'Terms of Service', href: '/terms' },
-    { label: 'Security', href: '/security' },
+    { label: 'Privacy Policy', href: '/privacy-policy' },
+    { label: 'Terms of Use', href: '/terms-of-use' },
+    { label: 'Application Consent', href: '/application-consent' },
+    { label: 'E-Sign Consent', href: '/esign-consent' },
+    { label: 'SMS Terms', href: '/sms-terms' },
+    { label: 'Cookie Policy', href: '/cookie-policy' },
+    { label: 'Compliance Disclosures', href: '/disclosures' },
   ],
 };
 
@@ -56,18 +61,23 @@ export function PublicFooter() {
             </p>
             <div className="flex flex-col gap-2">
               <a
-                href="tel:+18884002580"
+                href={`tel:${COMPANY.phoneHref}`}
                 className="text-[14px] text-[#5A6A85] hover:text-[#C9A84C] transition-colors"
               >
-                (888) 400-2580
+                {COMPANY.phone}
               </a>
               <a
-                href="mailto:info@elitefundingsolution.com"
+                href={`mailto:${COMPANY.email}`}
                 className="text-[14px] text-[#5A6A85] hover:text-[#C9A84C] transition-colors"
               >
-                info@elitefundingsolution.com
+                {COMPANY.email}
               </a>
             </div>
+            <address className="not-italic text-[13px] text-[#5A6A85] leading-relaxed mt-5">
+              <strong className="block text-[#8C9BB5] mb-1">{COMPANY.name}</strong>
+              {COMPANY.street}<br />
+              {COMPANY.city}, {COMPANY.state} {COMPANY.zip}
+            </address>
           </div>
 
           {/* Link columns */}

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
+import { CONSENT_VERSION } from '@/lib/company';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,10 +90,18 @@ const applicationSchema = z.object({
   payment_frequency: z.string().optional().default(''),
   notes: z.string().optional().default(''),
   existing_advances: z.array(existingAdvanceSchema).default([]),
+  certification_accepted: z.literal(true),
+  credit_authorization_accepted: z.literal(true),
+  esign_consent_accepted: z.literal(true),
+  sms_consent_accepted: z.literal(true),
+  terms_accepted: z.literal(true),
+  privacy_policy_accepted: z.literal(true),
   authorization_consent: z.literal(true),
   sms_consent: z.boolean().default(false),
   signature: z.string().min(2),
   signature_date: z.string().min(1),
+  consent_version: z.string().optional().default(CONSENT_VERSION),
+  bot_field: z.string().optional().default(''),
 });
 
 const documentKeys = ['bank_statements', 'voided_check', 'drivers_license'] as const;
@@ -105,6 +114,20 @@ const documentLabels: Record<(typeof documentKeys)[number], string> = {
 const toNumber = (value?: string) => value ? Number(value) : null;
 const emptyToNull = (value?: string) => value && value.trim() ? value.trim() : null;
 const accountLast4 = (accountNumber: string, fallback?: string) => (accountNumber || fallback || '').replace(/\D/g, '').slice(-4) || null;
+const submissionBuckets = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 5;
+const getClientIp = (request: Request) => request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
+function isRateLimited(ip: string) {
+  const now = Date.now();
+  const bucket = submissionBuckets.get(ip);
+  if (!bucket || bucket.resetAt < now) {
+    submissionBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > RATE_LIMIT_MAX;
+}
 
 async function readPayloadAndFiles(request: Request) {
   const contentType = request.headers.get('content-type') || '';
@@ -120,6 +143,12 @@ async function readPayloadAndFiles(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request);
+  const userAgent = request.headers.get('user-agent') || 'unknown';
+  if (isRateLimited(clientIp)) {
+    return NextResponse.json({ success: false, error: 'Too many submission attempts. Please wait and try again.' }, { status: 429 });
+  }
+
   let parsedBody: Awaited<ReturnType<typeof readPayloadAndFiles>>;
 
   try {
@@ -139,6 +168,9 @@ export async function POST(request: Request) {
   }
 
   const form = parsed.data;
+  if (form.bot_field) {
+    return NextResponse.json({ success: true });
+  }
   const supabase = createServiceSupabaseClient();
 
   try {
@@ -209,7 +241,10 @@ export async function POST(request: Request) {
     const payloadForCrm = {
       ...form,
       account_number: accountLast4(form.account_number),
-      authorization_text_version: 'elite_pdf_credit_background_sms_authorization_2026-05-13',
+      routing_number: accountLast4(form.routing_number),
+      bot_field: undefined,
+      authorization_text_version: CONSENT_VERSION,
+      consent_version: form.consent_version,
       uploaded_document_types: parsedBody.files.map((item) => item.key),
     };
 
@@ -227,17 +262,30 @@ export async function POST(request: Request) {
         notes: emptyToNull(form.notes),
         bank_name: emptyToNull(form.bank_name),
         account_type: emptyToNull(form.account_type),
-        routing_number: emptyToNull(form.routing_number),
+        routing_number: accountLast4(form.routing_number),
         account_last4: accountLast4(form.account_number, form.account_last4),
         avg_monthly_deposits: toNumber(form.average_monthly_sales),
         negative_days_count: Number(form.negative_days) || 0,
         nsf_count: Number(form.nsf_count) || 0,
         ending_balance_estimate: toNumber(form.ending_balance),
         application_payload: payloadForCrm,
+        certification_accepted: form.certification_accepted,
+        credit_authorization_accepted: form.credit_authorization_accepted,
+        esign_consent_accepted: form.esign_consent_accepted,
+        sms_consent_accepted: form.sms_consent_accepted,
+        terms_accepted: form.terms_accepted,
+        privacy_policy_accepted: form.privacy_policy_accepted,
         authorization_consent: form.authorization_consent,
-        sms_consent: form.sms_consent,
+        sms_consent: form.sms_consent_accepted,
         e_signature: form.signature,
+        signed_name: form.signature,
         signature_date: form.signature_date,
+        signed_at: new Date().toISOString(),
+        signer_ip: clientIp,
+        signer_user_agent: userAgent,
+        consent_version: form.consent_version,
+        ip_address: clientIp,
+        user_agent: userAgent,
         submitted_at: new Date().toISOString(),
       })
       .select('id')
@@ -266,7 +314,7 @@ export async function POST(request: Request) {
 
     await supabase.from('funding_requests').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, requested_amount: Number(form.requested_amount), use_of_funds: form.use_of_funds, credit_score_range: emptyToNull(form.owner1.credit_range), desired_timeline: emptyToNull(form.timeline), status: 'new' });
     await supabase.from('status_history').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, previous_status: null, new_status: 'submitted', notes: 'Submitted through the secure public digital PDF application endpoint.' });
-    await supabase.from('activity_logs').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, metadata: { source: 'digital_pdf_application', business_name: form.legal_name, documents: uploadedDocuments } });
+    await supabase.from('activity_logs').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, metadata: { source: 'digital_pdf_application', business_name: form.legal_name, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version, signer_ip: clientIp, signer_user_agent: userAgent } });
 
     if (form.existing_advances.length > 0) {
       await supabase.from('existing_advances').insert(form.existing_advances.map((advance) => ({ organization_id: DEFAULT_ORG_ID, application_id: app.id, funder_name: emptyToNull(advance.funder_name), original_funded_amount: toNumber(advance.original_amount), current_balance: toNumber(advance.current_balance), daily_payment: toNumber(advance.daily_payment), payment_frequency: emptyToNull(advance.payment_frequency), notes: emptyToNull(advance.notes) })));
@@ -281,7 +329,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, applicationId: app.id });
   } catch (error: any) {
-    console.error('Application submission failed:', error);
+    console.error('Application submission failed. See server logs and Supabase audit records for details.');
     return NextResponse.json({ success: false, error: 'Application submission failed. Please contact support if this continues.' }, { status: 500 });
   }
 }

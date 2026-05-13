@@ -1,0 +1,19 @@
+import type { Metadata } from 'next';
+import { LegalPage } from '@/components/public/legal-page';
+import { COMPANY } from '@/lib/company';
+
+export const metadata: Metadata = { title: 'Terms of Use | Elite Funding Solutions', description: 'Terms governing use of the Elite Funding Solutions website and application.' };
+export default function TermsOfUsePage() {
+  return <LegalPage title="Terms of Use" intro={`These Terms govern your use of ${COMPANY.domain}, our application pages, CRM portal, forms, communications, and related services.`} sections={[
+    { title: 'Acceptance of terms', body: ['By accessing the website, submitting information, uploading documents, communicating with us, or using our services, you agree to these Terms. If you do not agree, do not use the website or submit an application.'] },
+    { title: 'Website use rules', body: ['You agree not to misuse the website, interfere with security, submit malicious code, scrape without permission, impersonate others, violate law, or use the website for any fraudulent, abusive, or unauthorized purpose.'] },
+    { title: 'No guarantee of approval; third-party products', body: ['Elite Funding Solutions does not guarantee approval, funding, rates, terms, renewal, or availability. Submitting an application does not create a funding obligation.', 'Elite Funding Solutions is a commercial funding company and is not a bank or lender unless expressly stated in a final written agreement. Funding products may be provided by third-party partners, lenders, funders, banks, affiliates, or underwriting partners.'] },
+    { title: 'Accuracy of submitted information', body: ['You certify that information and documents submitted are accurate, true, correct, current, and complete. You agree to promptly update inaccurate information and understand that inaccurate submissions may result in denial, termination, or other remedies.'] },
+    { title: 'Electronic communications and e-signature consent', body: ['You consent to receive electronic communications about your inquiry, application, documents, offers, agreements, servicing, compliance notices, and related matters. You agree that electronic records and signatures may satisfy legal writing and signature requirements.'] },
+    { title: 'Limitation of liability', body: ['To the maximum extent permitted by law, Elite Funding Solutions and its owners, employees, affiliates, vendors, and partners will not be liable for indirect, incidental, special, consequential, punitive, or lost-profit damages arising from website use, application submission, third-party partner decisions, unavailable systems, or funding outcomes.'] },
+    { title: 'Indemnification', body: ['You agree to indemnify and hold Elite Funding Solutions harmless from claims, losses, liabilities, damages, costs, and expenses arising from your misuse of the website, breach of these Terms, violation of law, fraud, or inaccurate information.'] },
+    { title: 'Third-party links and partners', body: ['The website may link to third-party websites or involve third-party funding partners, service providers, processors, banks, credit bureaus, and underwriting partners. We are not responsible for third-party content, policies, offers, underwriting decisions, or practices.'] },
+    { title: 'Intellectual property', body: ['The website, content, brand assets, logos, designs, software, workflows, and materials are owned by or licensed to Elite Funding Solutions and may not be copied, modified, or exploited without permission.'] },
+    { title: 'Governing law and venue', body: ['These Terms are governed by Florida law, without regard to conflicts-of-law principles. Venue for disputes will be in the state or federal courts located in Hillsborough County, Florida, unless applicable law requires otherwise.'] },
+  ]} />;
+}
