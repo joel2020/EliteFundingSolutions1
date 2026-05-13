@@ -42,6 +42,7 @@ const metrics = [
 ];
 
 const fundingSolutions = [
+  { icon: BadgeDollarSign, title: 'Merchant Cash Advance', text: 'Revenue-based funding for urgent needs with responsible cost and cash-flow review.', href: '/funding-solutions/merchant-cash-advance' },
   { icon: Building2, title: 'Working Capital', text: 'Operating capital for payroll, inventory, marketing, expansion, and timing gaps.', href: '/funding-solutions/working-capital' },
   { icon: Factory, title: 'Equipment Financing', text: 'Finance revenue-producing assets while preserving liquidity for the business.', href: '/funding-solutions/equipment-financing' },
   { icon: CreditCard, title: 'Business Lines of Credit', text: 'Revolving access for recurring purchases, vendor payments, and reserve planning.', href: '/funding-solutions/business-lines-of-credit' },
@@ -96,12 +97,12 @@ export default function HomePage() {
     <main className="overflow-hidden bg-[#F8F9FB]">
       <section className="relative bg-[#061326] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(201,168,76,0.16),transparent_28%),radial-gradient(circle_at_82%_12%,rgba(90,106,133,0.24),transparent_30%)]" />
-        <div className="container-page relative grid min-h-[780px] items-center gap-12 py-24 md:py-32 lg:grid-cols-[1.04fr_0.96fr]">
+        <div className="container-page relative grid min-h-[650px] items-center gap-10 py-16 md:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(420px,0.82fr)] lg:gap-14 xl:gap-20">
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#C9A84C]/30 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#E9D391]">
               <Sparkles className="h-4 w-4" /> Private-credit style funding guidance
             </div>
-            <h1 className="max-w-5xl text-5xl font-semibold leading-[0.96] tracking-[-0.055em] md:text-7xl lg:text-[86px]">
+            <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] tracking-[-0.045em] sm:text-5xl md:text-6xl lg:text-[64px] xl:text-[72px]">
               Fast, flexible business funding built for serious operators.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 md:text-xl">
@@ -111,7 +112,7 @@ export default function HomePage() {
               <Link href="/apply" className="btn-gold h-13 px-7">Start secure application <ArrowRight className="h-4 w-4" /></Link>
               <Link href="/funding-solutions" className="btn-dark-outline h-13 px-7">Compare funding options</Link>
             </div>
-            <div className="mt-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {trustBadges.map(({ icon: Icon, label, sublabel }) => (
                 <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur">
                   <Icon className="mb-3 h-5 w-5 text-[#C9A84C]" />
@@ -122,13 +123,13 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative w-full max-w-[520px] justify-self-center lg:justify-self-end">
             <div className="rounded-[32px] border border-white/10 bg-white/[0.06] p-4 shadow-[0_30px_100px_rgba(0,0,0,0.35)] backdrop-blur-xl">
               <div className="rounded-[24px] border border-white/10 bg-[#08182d] p-6 md:p-8">
                 <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-6">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#C9A84C]">Funding desk</p>
-                    <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">One application. Multiple capital paths.</h2>
+                    <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white md:text-3xl">One application. Multiple capital paths.</h2>
                   </div>
                   <div className="rounded-full bg-[#C9A84C] px-3 py-1 text-xs font-bold text-[#061326]">Secure</div>
                 </div>
@@ -154,7 +155,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section bg-white">
+      <section className="bg-white py-14 md:py-16 lg:py-20">
         <div className="container-page">
           <SectionHeading eyebrow="How it works" title="A disciplined funding process from intake to decision." subtitle="Elite Funding Solutions brings order to a fragmented market with secure data collection, complete-file packaging, and clear offer comparison." />
           <div className="grid gap-5 md:grid-cols-3">
