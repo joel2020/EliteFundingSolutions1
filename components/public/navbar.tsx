@@ -1,25 +1,35 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronDown, Menu, X } from 'lucide-react';
 
 const navLinks = [
   {
     label: 'Funding Solutions',
     href: '/funding-solutions',
     children: [
-      { label: 'Merchant Cash Advance', href: '/funding-solutions#mca' },
-      { label: 'Working Capital Line', href: '/funding-solutions#wcl' },
-      { label: 'Equipment Financing', href: '/funding-solutions#equipment' },
-      { label: 'Invoice Factoring', href: '/funding-solutions#invoice' },
+      { label: 'Working Capital', href: '/funding-solutions#working-capital' },
+      { label: 'Equipment Financing', href: '/funding-solutions#equipment-financing' },
+      { label: 'SBA Loans', href: '/funding-solutions#sba-loans' },
+      { label: 'Lines of Credit', href: '/funding-solutions#lines-of-credit' },
+      { label: 'Invoice Factoring', href: '/funding-solutions#invoice-factoring' },
+      { label: 'Commercial Real Estate', href: '/funding-solutions#commercial-real-estate' },
     ],
   },
-  { label: 'How It Works', href: '/how-it-works' },
   { label: 'Industries', href: '/industries' },
-  { label: 'About', href: '/about' },
-  { label: 'Resources', href: '/resources' },
+  { label: 'About Us', href: '/about' },
+  {
+    label: 'Resources',
+    href: '/resources',
+    children: [
+      { label: 'Funding Guide', href: '/resources' },
+      { label: 'Business Resources', href: '/blog' },
+      { label: 'Calculator', href: '/calculator' },
+      { label: 'Partner Program', href: '/partners' },
+    ],
+  },
   { label: 'FAQ', href: '/faq' },
   { label: 'Contact', href: '/contact' },
 ];
@@ -30,145 +40,152 @@ export function PublicNavbar() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 16);
+    const handleScroll = () => setScrolled(window.scrollY > 12);
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? 'bg-[#070E1A] border-b border-[#1A2B4A]'
-          : 'bg-[#070E1A]/95 backdrop-blur-sm border-b border-[#1A2B4A]/50'
+      className={`fixed inset-x-0 top-0 z-50 border-b transition-all duration-300 ${
+        scrolled ? 'border-[#c7a45a]/20 bg-[#030812]/95 shadow-[0_12px_35px_rgba(0,0,0,0.42)]' : 'border-white/5 bg-[#030812]/72 backdrop-blur-md'
       }`}
-      style={{ boxShadow: scrolled ? '0 1px 16px rgba(0,0,0,0.3)' : 'none' }}
     >
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-0">
-        <div className="flex items-center justify-between h-[68px]">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 shrink-0">
-            <div className="relative w-9 h-9 rounded-[8px] overflow-hidden bg-[#0F1E35] flex items-center justify-center">
-              <Image
-                src="/elite-funding-logo.png"
-                alt="Elite Funding Solutions"
-                width={36}
-                height={36}
-                className="object-cover"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-[15px] text-white tracking-tight leading-tight">Elite Funding</span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#C9A84C] leading-tight">Solutions</span>
-            </div>
-          </Link>
+      <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-5 md:h-[86px] md:px-8 xl:px-0">
+        <Link href="/" className="group flex items-center" aria-label="Elite Funding Solutions home">
+          <Image
+            src="/elite-funding-logo.png"
+            alt="Elite Funding Solutions"
+            width={148}
+            height={84}
+            priority
+            className="h-[56px] w-auto object-contain md:h-[74px]"
+          />
+        </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden lg:flex items-center gap-1">
-            {navLinks.map((link) =>
-              link.children ? (
-                <div
-                  key={link.label}
-                  className="relative"
-                  onMouseEnter={() => setOpenDropdown(link.label)}
-                  onMouseLeave={() => setOpenDropdown(null)}
+        <nav className="hidden items-center gap-7 xl:flex" aria-label="Primary navigation">
+          {navLinks.map((link) =>
+            link.children ? (
+              <div
+                key={link.label}
+                className="relative"
+                onMouseEnter={() => setOpenDropdown(link.label)}
+                onMouseLeave={() => setOpenDropdown(null)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === link.label ? null : link.label)}
+                  className="flex items-center gap-1.5 py-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-200 transition hover:text-[#e7c579]"
+                  aria-expanded={openDropdown === link.label}
                 >
-                  <button className="flex items-center gap-1 px-3 py-2 text-[14px] font-medium text-[#8C9BB5] hover:text-white transition-colors rounded-[8px] hover:bg-[#1A2B4A]">
-                    {link.label}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform duration-200 ${openDropdown === link.label ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                  {openDropdown === link.label && (
-                    <div
-                      className="absolute top-full left-0 mt-1 w-60 bg-[#0D1E35] border border-[#1A2B4A] rounded-[12px] py-2 z-50"
-                      style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.4)' }}
-                    >
+                  {link.label}
+                  <ChevronDown className={`h-3.5 w-3.5 transition ${openDropdown === link.label ? 'rotate-180 text-[#e7c579]' : ''}`} />
+                </button>
+                {openDropdown === link.label && (
+                  <div className="absolute left-1/2 top-full w-72 -translate-x-1/2 pt-3">
+                    <div className="rounded-sm border border-[#c7a45a]/25 bg-[#06101f]/95 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.65)] backdrop-blur-xl">
+                      <Link
+                        href={link.href}
+                        className="mb-1 block border-b border-white/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#e7c579]"
+                      >
+                        View All {link.label}
+                      </Link>
                       {link.children.map((child) => (
                         <Link
                           key={child.label}
                           href={child.href}
-                          className="block px-4 py-2.5 text-[14px] text-[#8C9BB5] hover:text-white hover:bg-[#1A2B4A] transition-colors"
+                          className="block rounded-sm px-4 py-3 text-[13px] text-slate-300 transition hover:bg-[#c7a45a]/10 hover:text-white"
                         >
                           {child.label}
                         </Link>
                       ))}
                     </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                key={link.label}
+                href={link.href}
+                className="py-3 text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-200 transition hover:text-[#e7c579]"
+              >
+                {link.label}
+              </Link>
+            )
+          )}
+        </nav>
+
+        <div className="hidden xl:block">
+          <Link
+            href="/apply"
+            className="inline-flex h-11 items-center justify-center rounded-sm border border-[#d6af62] px-7 text-[11px] font-bold uppercase tracking-[0.14em] text-[#f1d08a] transition hover:bg-[#d6af62] hover:text-[#050912]"
+          >
+            Get Pre-Qualified
+          </Link>
+        </div>
+
+        <button
+          type="button"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-sm border border-[#c7a45a]/30 text-[#e7c579] xl:hidden"
+          onClick={() => setMenuOpen((value) => !value)}
+          aria-label="Toggle mobile navigation"
+          aria-expanded={menuOpen}
+        >
+          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {menuOpen && (
+        <nav className="border-t border-[#c7a45a]/15 bg-[#030812]/98 px-5 py-5 shadow-[0_25px_60px_rgba(0,0,0,0.55)] xl:hidden" aria-label="Mobile navigation">
+          <div className="mx-auto flex max-w-[1280px] flex-col gap-1">
+            {navLinks.map((link) => (
+              <div key={link.label} className="border-b border-white/8 py-1 last:border-b-0">
+                <div className="flex items-center justify-between gap-3">
+                  <Link
+                    href={link.href}
+                    className="flex-1 py-3 text-[13px] font-semibold uppercase tracking-[0.14em] text-slate-100"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                  {link.children && (
+                    <button
+                      type="button"
+                      className="p-3 text-[#e7c579]"
+                      onClick={() => setOpenDropdown(openDropdown === link.label ? null : link.label)}
+                      aria-label={`Toggle ${link.label} links`}
+                      aria-expanded={openDropdown === link.label}
+                    >
+                      <ChevronDown className={`h-4 w-4 transition ${openDropdown === link.label ? 'rotate-180' : ''}`} />
+                    </button>
                   )}
                 </div>
-              ) : (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  className="px-3 py-2 text-[14px] font-medium text-[#8C9BB5] hover:text-white transition-colors rounded-[8px] hover:bg-[#1A2B4A]"
-                >
-                  {link.label}
-                </Link>
-              )
-            )}
-          </nav>
-
-          {/* CTA buttons */}
-          <div className="hidden lg:flex items-center gap-3">
-            <Link
-              href="/login"
-              className="px-4 py-2 text-[14px] font-medium text-[#8C9BB5] hover:text-white transition-colors"
-            >
-              Sign In
-            </Link>
+                {link.children && openDropdown === link.label && (
+                  <div className="grid gap-1 pb-3 pl-4">
+                    {link.children.map((child) => (
+                      <Link
+                        key={child.label}
+                        href={child.href}
+                        className="py-2 text-sm text-slate-400 hover:text-[#e7c579]"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
             <Link
               href="/apply"
-              className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[14px] h-10 px-5 transition-all duration-150"
-              style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628', boxShadow: '0 2px 8px rgba(201,168,76,0.3)' }}
+              className="mt-4 inline-flex h-12 items-center justify-center rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-6 text-[12px] font-bold uppercase tracking-[0.15em] text-[#050912]"
+              onClick={() => setMenuOpen(false)}
             >
               Get Pre-Qualified
             </Link>
           </div>
-
-          {/* Mobile menu toggle */}
-          <button
-            className="lg:hidden p-2 rounded-[8px] text-[#8C9BB5] hover:text-white hover:bg-[#1A2B4A] transition-colors"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle navigation"
-          >
-            {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="lg:hidden border-t border-[#1A2B4A] bg-[#070E1A]">
-          <nav className="max-w-[1200px] mx-auto px-6 py-4 flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="px-3 py-2.5 text-[15px] font-medium text-[#8C9BB5] hover:text-white rounded-[8px] hover:bg-[#1A2B4A] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-            <div className="pt-3 mt-2 border-t border-[#1A2B4A] flex flex-col gap-2">
-              <Link
-                href="/login"
-                className="px-3 py-2.5 text-[15px] font-medium text-[#8C9BB5] hover:text-white rounded-[8px] hover:bg-[#1A2B4A] transition-colors"
-                onClick={() => setMenuOpen(false)}
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/apply"
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all w-full text-center"
-                style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628' }}
-                onClick={() => setMenuOpen(false)}
-              >
-                Get Pre-Qualified
-              </Link>
-            </div>
-          </nav>
-        </div>
+        </nav>
       )}
     </header>
   );
