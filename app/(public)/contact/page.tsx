@@ -6,9 +6,27 @@ import { Phone, Mail, MapPin, Clock, ArrowRight } from 'lucide-react';
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', type: 'general' });
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    const response = await fetch('/api/contact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    });
+    const result = await response.json();
+
+    setSubmitting(false);
+    if (!response.ok || !result.success) {
+      setError(result.error || 'We could not send your message. Please call us directly.');
+      return;
+    }
+
     setSent(true);
   };
 
@@ -35,6 +53,7 @@ export default function ContactPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {error && <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700">{error}</div>}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Full Name *</label>
@@ -54,7 +73,7 @@ export default function ContactPage() {
                   <textarea rows={5} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-4 py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#EFF6FF] transition-all" placeholder="Tell us about your funding needs, questions, or concerns…" />
                 </div>
                 <button type="submit" className="inline-flex items-center gap-2 rounded-[10px] bg-[#2563EB] text-white font-semibold text-[15px] h-11 px-6 hover:bg-[#1D4ED8] transition-all">
-                  Send Message <ArrowRight className="w-4 h-4" />
+                  {submitting ? 'Sending…' : 'Send Message'} <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
             )}
@@ -63,8 +82,8 @@ export default function ContactPage() {
           <div className="flex flex-col gap-5">
             {[
               { icon: <Phone className="w-4 h-4" />, label: 'Phone', value: '(888) 400-2580', sub: 'Mon – Fri, 8am – 8pm ET' },
-              { icon: <Mail className="w-4 h-4" />, label: 'Email', value: 'hello@aliviocapital.com', sub: 'Typically reply within 2 hours' },
-              { icon: <MapPin className="w-4 h-4" />, label: 'Headquarters', value: '1234 Capital Ave, Suite 500', sub: 'New York, NY 10001' },
+              { icon: <Mail className="w-4 h-4" />, label: 'Email', value: 'info@elitefundingsolution.com', sub: 'Typically reply within 2 hours' },
+              { icon: <MapPin className="w-4 h-4" />, label: 'Headquarters', value: '590 Madison Avenue', sub: 'New York, NY 10022' },
               { icon: <Clock className="w-4 h-4" />, label: 'Hours', value: 'Mon – Fri: 8am – 8pm ET', sub: 'Sat: 9am – 2pm ET' },
             ].map((item) => (
               <div key={item.label} className="flex items-start gap-3">

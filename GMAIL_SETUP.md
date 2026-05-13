@@ -1,7 +1,7 @@
 # Gmail Integration Setup Guide
 
 ## Overview
-Your Elite Funding Solutions CRM now includes Gmail integration for Google Workspace. Each team member can connect their professional email (e.g., name@elitefundingsolutions.com) to send and receive emails directly through the CRM.
+Your Elite Funding Solutions CRM now includes Gmail integration for Google Workspace. Each team member can connect their professional email (e.g., name@elitefundingsolution.com) to send and receive emails directly through the CRM.
 
 ## Setup Steps
 
@@ -25,7 +25,7 @@ Visit: https://console.cloud.google.com
    - App name: `Elite Funding Solutions CRM`
    - User support email: your admin email
    - Developer contact email: your admin email
-   - Authorized domains: `elitefundingsolutions.com` (your workspace domain)
+   - Authorized domains: `elitefundingsolution.com` (your workspace domain)
 4. Click "Save and Continue"
 5. Add Scopes:
    - `https://www.googleapis.com/auth/gmail.send`
@@ -86,7 +86,7 @@ The Gmail tables need to be created in Supabase:
 1. Log into your CRM
 2. Go to "Settings" page (should be in sidebar)
 3. Click "Connect Google Workspace"
-4. Sign in with your work email (name@elitefundingsolutions.com)
+4. Sign in with your work email (name@elitefundingsolution.com)
 5. Grant permissions
 6. You should be redirected back with "Gmail connected successfully!"
 
