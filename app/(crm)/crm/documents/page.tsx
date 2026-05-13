@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { Upload, FileText, Download, Trash2, File, Image as ImageIcon, FileArchive } from 'lucide-react';
 import type { Document } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [docType, setDocType] = useState('bank_statement');
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [description, setDescription] = useState('');
 
   useEffect(() => {
@@ -45,10 +46,33 @@ export default function DocumentsPage() {
   }, []);
 
   const loadDocuments = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please sign in to view CRM documents.');
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single();
+
+    if (profileError || !profile?.organization_id) {
+      toast.error('Your CRM profile is not active.');
+      setLoading(false);
+      return;
+    }
+
+    setOrganizationId(profile.organization_id);
+
     const { data, error } = await supabase
       .from('documents')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', profile.organization_id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -67,6 +91,11 @@ export default function DocumentsPage() {
   };
 
   const uploadDocument = async () => {
+    if (!organizationId) {
+      toast.error('Your CRM profile is not active.');
+      return;
+    }
+
     if (!file) {
       toast.error('Please select a file');
       return;
@@ -84,7 +113,7 @@ export default function DocumentsPage() {
       // Upload to Supabase Storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${DEFAULT_ORG_ID}/${fileName}`;
+      const filePath = `${organizationId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('application-documents')
@@ -96,7 +125,7 @@ export default function DocumentsPage() {
       const { error: dbError } = await supabase
         .from('documents')
         .insert({
-          organization_id: DEFAULT_ORG_ID,
+          organization_id: organizationId,
           document_type: docType,
           file_name: file.name,
           label: docTypes.find((type) => type.value === docType)?.label || docType,

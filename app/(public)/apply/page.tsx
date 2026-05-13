@@ -62,14 +62,9 @@ interface ApplicationFormData {
   has_tax_lien: boolean;
   has_bankruptcy: boolean;
   is_seasonal: boolean;
-  reference1_name: string;
-  reference1_phone: string;
-  reference2_name: string;
-  reference2_phone: string;
   bank_name: string;
   bank_contact: string;
   bank_phone: string;
-  account_last4: string;
   account_type: string;
   owner1: OwnerFields;
   owner2: OwnerFields;
@@ -112,7 +107,7 @@ const initialForm: ApplicationFormData = {
 
 const steps = [
   'Business Information',
-  'References & Banking',
+  'Bank Reference',
   'Owner / Principal Information',
   'Funding Request',
   'Existing Financing',
@@ -201,15 +196,11 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
   );
 }
 
-function StepReferencesBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+function StepBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
       <SectionIntro title="References & Banking" text="Provide your current business bank relationship. We do not request routing numbers or full account numbers in this application." />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="Business Reference 1" value={data.reference1_name} onChange={(v) => update('reference1_name', v)} />
-        <InputField label="Reference 1 Phone" value={data.reference1_phone} onChange={(v) => update('reference1_phone', v)} />
-        <InputField label="Business Reference 2" value={data.reference2_name} onChange={(v) => update('reference2_name', v)} />
-        <InputField label="Reference 2 Phone" value={data.reference2_phone} onChange={(v) => update('reference2_phone', v)} />
         <InputField label="Bank Name" value={data.bank_name} onChange={(v) => update('bank_name', v)} required />
         <InputField label="Bank Contact" value={data.bank_contact} onChange={(v) => update('bank_contact', v)} />
         <InputField label="Bank Phone" value={data.bank_phone} onChange={(v) => update('bank_phone', v)} />
@@ -411,7 +402,7 @@ export default function ApplyPage() {
         {currentStep < 8 && <div className="mb-8"><div className="flex items-center justify-between mb-2"><span className="text-[13px] font-medium text-[#52525B]">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="text-[13px] text-[#A1A1AA]">{Math.round(progressPct)}% complete</span></div><div className="h-1.5 bg-[#E4E4E7] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ background: 'linear-gradient(90deg, #0F2B5B, #C9A84C)', width: `${progressPct}%` }} /></div></div>}
         <div className="bg-white border border-[#E4E4E7] rounded-[20px] p-6 md:p-8" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
           {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
-          {currentStep === 2 && <StepReferencesBanking data={form} update={updateField} />}
+          {currentStep === 2 && <StepBanking data={form} update={updateField} />}
           {currentStep === 3 && <StepOwners data={form} updateOwner={updateOwner} />}
           {currentStep === 4 && <StepFunding data={form} update={updateField} />}
           {currentStep === 5 && <StepExistingAdvances data={form} update={updateField} />}
