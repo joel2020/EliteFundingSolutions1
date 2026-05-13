@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
-import { Search, Plus, MoreVertical, FileText, Edit, Trash2, ExternalLink } from 'lucide-react';
+import { Search, MoreVertical, FileText, Edit, ExternalLink, X } from 'lucide-react';
 import type { Application } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,9 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedApplication, setSelectedApplication] = useState<any>(null);
+  const [selectedDocuments, setSelectedDocuments] = useState<any[]>([]);
+  const [selectedHistory, setSelectedHistory] = useState<any[]>([]);
 
   useEffect(() => {
     loadApplications();
@@ -60,6 +63,21 @@ export default function ApplicationsPage() {
       loadApplications();
     }
   };
+
+
+  const viewApplicationDetails = async (application: any) => {
+    setSelectedApplication(application);
+    const [{ data: docs }, { data: history }] = await Promise.all([
+      supabase.from('documents').select('*').eq('application_id', application.id).order('created_at', { ascending: false }),
+      supabase.from('status_history').select('*').eq('application_id', application.id).order('changed_at', { ascending: false }),
+    ]);
+    setSelectedDocuments(docs || []);
+    setSelectedHistory(history || []);
+  };
+
+  const payloadEntries = selectedApplication?.application_payload
+    ? Object.entries(selectedApplication.application_payload).filter(([_, value]) => !['authorization_text_version'].includes(_))
+    : [];
 
   const filtered = applications.filter((app) => {
     if (!search) return true;
@@ -152,7 +170,7 @@ export default function ApplicationsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toast.info('Application detail workspace is not enabled for this record yet')}>
+                          <DropdownMenuItem onClick={() => viewApplicationDetails(app as any)}>
                             <FileText className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>
@@ -169,6 +187,58 @@ export default function ApplicationsPage() {
             </tbody>
           </table>
         </div>
+
+        {selectedApplication && (
+          <div className="mt-6 bg-white border border-[#E4E4E7] rounded-[16px] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#F4F4F5]">
+              <div>
+                <h2 className="text-[18px] font-semibold text-[#09090B]">Application Details</h2>
+                <p className="text-[13px] text-[#71717A]">Complete digital PDF payload, uploaded files, and activity for CRM review.</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedApplication(null)}><X className="w-4 h-4" /></Button>
+            </div>
+            <div className="p-5 grid grid-cols-1 xl:grid-cols-3 gap-5">
+              <div className="xl:col-span-2">
+                <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A] mb-3">Submitted Fields</h3>
+                <div className="max-h-[460px] overflow-auto border border-[#F4F4F5] rounded-[12px]">
+                  {payloadEntries.length === 0 ? (
+                    <p className="p-4 text-[14px] text-[#A1A1AA]">No digital payload fields are available for this application.</p>
+                  ) : payloadEntries.map(([key, value]) => (
+                    <div key={key} className="grid grid-cols-1 md:grid-cols-3 gap-2 border-b last:border-b-0 border-[#F4F4F5] px-4 py-3">
+                      <div className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[#71717A]">{key.replaceAll('_', ' ')}</div>
+                      <pre className="md:col-span-2 whitespace-pre-wrap break-words text-[12px] text-[#09090B] font-sans">{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A] mb-3">Uploaded Files</h3>
+                  <div className="space-y-2">
+                    {selectedDocuments.length === 0 ? <p className="text-[14px] text-[#A1A1AA]">No files found.</p> : selectedDocuments.map((doc) => (
+                      <div key={doc.id} className="rounded-[10px] border border-[#F4F4F5] p-3">
+                        <div className="text-[14px] font-medium text-[#09090B]">{doc.label}</div>
+                        <div className="text-[12px] text-[#71717A]">{doc.file_name}</div>
+                        <div className="text-[11px] text-[#A1A1AA] break-all">{doc.storage_path}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A] mb-3">Status History</h3>
+                  <div className="space-y-2">
+                    {selectedHistory.length === 0 ? <p className="text-[14px] text-[#A1A1AA]">No status history found.</p> : selectedHistory.map((item) => (
+                      <div key={item.id} className="rounded-[10px] border border-[#F4F4F5] p-3">
+                        <div className="text-[14px] font-medium text-[#09090B]">{item.previous_status || 'New'} → {item.new_status}</div>
+                        <div className="text-[12px] text-[#71717A]">{item.notes}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

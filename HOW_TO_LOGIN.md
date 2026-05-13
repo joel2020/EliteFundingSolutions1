@@ -13,7 +13,7 @@
 1. Click **"Add user"** button
 2. Choose **"Create new user"**
 3. Fill in:
-   - **Email:** your_admin@elitefundingsolutions.com
+   - **Email:** your_admin@elitefundingsolution.com
    - **Password:** Choose a strong password (min 6 characters)
    - **Auto Confirm User:** ✅ Check this box (important!)
 4. Click **"Create user"**
@@ -36,7 +36,7 @@ INSERT INTO user_profiles (
 ) VALUES (
     'paste-user-id-here',  -- Replace with the User ID from step 2
     '00000000-0000-0000-0000-000000000001',  -- Default org ID
-    'your_admin@elitefundingsolutions.com',  -- Your email
+    'your_admin@elitefundingsolution.com',  -- Your email
     'Admin',  -- First name
     'User',   -- Last name
     'super_admin',  -- Role
@@ -64,7 +64,7 @@ Run this complete SQL script in Supabase SQL Editor:
 DO $$
 DECLARE
     v_user_id UUID;
-    v_email TEXT := 'admin@elitefundingsolutions.com';  -- CHANGE THIS
+    v_email TEXT := 'admin@elitefundingsolution.com';  -- CHANGE THIS
     v_password TEXT := 'Admin123!';  -- CHANGE THIS
 BEGIN
     -- Create auth user
@@ -123,7 +123,7 @@ END $$;
 ```
 
 **Then log in with:**
-- Email: admin@elitefundingsolutions.com
+- Email: admin@elitefundingsolution.com
 - Password: Admin123!
 
 ---
@@ -149,7 +149,7 @@ They'll receive login credentials and can access the CRM.
 
 - **Development:** http://localhost:3000/login
 - **Production:** https://your-vercel-app.vercel.app/login
-- **Custom Domain:** https://crm.elitefundingsolutions.com/login (if set up)
+- **Custom Domain:** https://crm.elitefundingsolution.com/login (if set up)
 
 ---
 
@@ -202,7 +202,7 @@ When creating users, you can assign these roles:
 
 For quick testing, you can create a test account:
 
-**Email:** test@elitefundingsolutions.com  
+**Email:** test@elitefundingsolution.com  
 **Password:** Test123!  
 **Role:** super_admin  
 

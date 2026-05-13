@@ -1,888 +1,432 @@
 'use client';
 
-import { useState } from 'react';
-import { CircleCheck as CheckCircle2, ArrowRight, ArrowLeft, Shield, Lock } from 'lucide-react';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Shield, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-// ─── Step types ────────────────────────────────────────────────────────────
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type OwnerKey = 'owner1' | 'owner2';
+type DocumentKey = 'bank_statements' | 'voided_check' | 'drivers_license';
 
-interface FormData {
-  // Step 1 – Business
+interface OwnerFields {
+  first_name: string;
+  last_name: string;
+  title: string;
+  ownership_pct: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  dob: string;
+  ssn_last4: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  credit_range: string;
+}
+
+interface ExistingAdvance {
+  funder_name: string;
+  original_amount: string;
+  current_balance: string;
+  daily_payment: string;
+  payment_frequency: string;
+  notes: string;
+}
+
+interface ApplicationFormData {
   legal_name: string;
   dba: string;
   entity_type: string;
   ein: string;
+  merchant_type: string;
   industry: string;
-  naics_code: string;
   start_date: string;
   business_phone: string;
+  business_mobile: string;
+  fax: string;
   business_email: string;
   website: string;
   address: string;
   city: string;
   state: string;
   zip: string;
-  monthly_gross_revenue: string;
-  average_daily_balance: string;
-  deposit_count: string;
-  current_processor: string;
-  landlord_name: string;
-  landlord_phone: string;
-  rent_amount: string;
+  business_location: string;
+  products_services: string;
+  pos_contact_name: string;
+  pos_contact_phone: string;
+  pos_system: string;
+  has_judgments: boolean;
   has_tax_lien: boolean;
   has_bankruptcy: boolean;
-
-  // Step 2 – Owner
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  dob: string;
-  ssn_last4: string;
-  ownership_pct: string;
-  credit_range: string;
-  home_address: string;
-  home_city: string;
-  home_state: string;
-  home_zip: string;
-
-  // Step 3 – Funding Request
-  requested_amount: string;
-  use_of_funds: string;
-  timeline: string;
-  has_existing_advances: boolean;
-  payment_frequency: string;
-  notes: string;
-
-  // Step 4 – Existing Advances
-  existing_advances: Array<{
-    funder_name: string;
-    original_amount: string;
-    current_balance: string;
-    daily_payment: string;
-    payment_frequency: string;
-    notes: string;
-  }>;
-
-  // Step 5 – Bank Info
+  is_seasonal: boolean;
+  reference1_name: string;
+  reference1_phone: string;
+  reference2_name: string;
+  reference2_phone: string;
+  landlord_name: string;
+  landlord_phone: string;
+  mortgage_company: string;
+  rent_amount: string;
   bank_name: string;
-  account_type: string;
+  bank_contact: string;
+  bank_phone: string;
   routing_number: string;
+  account_number: string;
   account_last4: string;
-  avg_monthly_deposits: string;
+  account_type: string;
+  average_daily_balance: string;
+  deposit_count: string;
   negative_days: string;
   nsf_count: string;
   ending_balance: string;
+  owner1: OwnerFields;
+  owner2: OwnerFields;
+  requested_amount: string;
+  use_of_funds: string;
+  timeline: string;
+  average_monthly_sales: string;
+  average_visa_mc_sales: string;
+  monthly_gross_revenue: string;
+  has_existing_advances: boolean;
+  payment_frequency: string;
+  existing_advances: ExistingAdvance[];
+  notes: string;
+  authorization_consent: boolean;
+  sms_consent: boolean;
+  signature: string;
+  signature_date: string;
 }
 
-const initialForm: FormData = {
-  legal_name: '', dba: '', entity_type: '', ein: '', industry: '',
-  naics_code: '', start_date: '', business_phone: '', business_email: '',
-  website: '', address: '', city: '', state: '', zip: '',
-  monthly_gross_revenue: '', average_daily_balance: '', deposit_count: '',
-  current_processor: '', landlord_name: '', landlord_phone: '', rent_amount: '',
-  has_tax_lien: false, has_bankruptcy: false,
-  first_name: '', last_name: '', email: '', phone: '', dob: '', ssn_last4: '',
-  ownership_pct: '100', credit_range: '',
-  home_address: '', home_city: '', home_state: '', home_zip: '',
-  requested_amount: '', use_of_funds: '', timeline: '',
-  has_existing_advances: false, payment_frequency: '', notes: '',
-  existing_advances: [],
-  bank_name: '', account_type: '', routing_number: '', account_last4: '',
-  avg_monthly_deposits: '', negative_days: '0', nsf_count: '0', ending_balance: '',
+const blankOwner: OwnerFields = {
+  first_name: '', last_name: '', title: '', ownership_pct: '', email: '', phone: '', mobile: '', dob: '', ssn_last4: '', address: '', city: '', state: '', zip: '', credit_range: '',
+};
+
+const initialForm: ApplicationFormData = {
+  legal_name: '', dba: '', entity_type: '', ein: '', merchant_type: '', industry: '', start_date: '',
+  business_phone: '', business_mobile: '', fax: '', business_email: '', website: '', address: '', city: '', state: '', zip: '', business_location: '', products_services: '',
+  pos_contact_name: '', pos_contact_phone: '', pos_system: '', has_judgments: false, has_tax_lien: false, has_bankruptcy: false, is_seasonal: false,
+  reference1_name: '', reference1_phone: '', reference2_name: '', reference2_phone: '', landlord_name: '', landlord_phone: '', mortgage_company: '', rent_amount: '',
+  bank_name: '', bank_contact: '', bank_phone: '', routing_number: '', account_number: '', account_last4: '', account_type: 'checking', average_daily_balance: '', deposit_count: '', negative_days: '0', nsf_count: '0', ending_balance: '',
+  owner1: { ...blankOwner, ownership_pct: '100' }, owner2: { ...blankOwner },
+  requested_amount: '', use_of_funds: '', timeline: '', average_monthly_sales: '', average_visa_mc_sales: '', monthly_gross_revenue: '',
+  has_existing_advances: false, payment_frequency: '', existing_advances: [], notes: '', authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10),
 };
 
 const steps = [
-  { number: 1, title: 'Business Information' },
-  { number: 2, title: 'Owner Information' },
-  { number: 3, title: 'Funding Request' },
-  { number: 4, title: 'Existing Advances' },
-  { number: 5, title: 'Bank Information' },
-  { number: 6, title: 'Document Upload' },
-  { number: 7, title: 'Review & Submit' },
-  { number: 8, title: 'Confirmation' },
+  'Business Information',
+  'References & Banking',
+  'Owner / Principal Information',
+  'Funding Request',
+  'Prior Cash Advances',
+  'Document Uploads',
+  'Authorization & Review',
+  'Confirmation',
 ];
 
 const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
-// ─── Input helpers ─────────────────────────────────────────────────────────
-function InputField({
-  label, name, value, onChange, type = 'text', placeholder = '', required = false, hint = ''
-}: {
-  label: string; name: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string; required?: boolean; hint?: string;
-}) {
+const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean; help: string }> = [
+  { key: 'bank_statements', label: 'Bank Statements', required: true, help: 'Upload the most recent business bank statements.' },
+  { key: 'voided_check', label: 'Voided Check', required: true, help: 'The PDF application requires a copy of a voided business check.' },
+  { key: 'drivers_license', label: 'Driver’s License', required: true, help: 'Upload a government-issued ID for the primary owner.' },
+];
+
+function InputField({ label, value, onChange, type = 'text', required = false, placeholder = '', hint = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; hint?: string }) {
   return (
     <div>
-      <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">
-        {label} {required && <span className="text-[#EF4444]">*</span>}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="input-field w-full"
-        required={required}
-      />
+      <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">{label} {required && <span className="text-[#EF4444]">*</span>}</label>
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className="input-field w-full" />
       {hint && <p className="text-[12px] text-[#A1A1AA] mt-1">{hint}</p>}
     </div>
   );
 }
 
-function SelectField({
-  label, name, value, onChange, options, required = false
-}: {
-  label: string; name: string; value: string; onChange: (v: string) => void;
-  options: Array<{ value: string; label: string }>; required?: boolean;
-}) {
+function SelectField({ label, value, onChange, options, required = false }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }>; required?: boolean }) {
   return (
     <div>
-      <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">
-        {label} {required && <span className="text-[#EF4444]">*</span>}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="input-field w-full appearance-none bg-white"
-        required={required}
-      >
+      <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">{label} {required && <span className="text-[#EF4444]">*</span>}</label>
+      <select value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field w-full appearance-none bg-white">
         <option value="">Select…</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </div>
   );
 }
 
-// ─── Step 1 – Business ─────────────────────────────────────────────────────
-function StepBusiness({ data, update }: { data: FormData; update: (k: keyof FormData, v: string | boolean) => void }) {
+function CheckboxField({ checked, onChange, label, help }: { checked: boolean; onChange: (checked: boolean) => void; label: string; help?: string }) {
+  return (
+    <label className="flex items-start gap-3 rounded-[12px] border border-[#E4E4E7] bg-white p-4 cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-1 h-4 w-4 rounded border-[#D4D4D8]" />
+      <span>
+        <span className="block text-[14px] font-medium text-[#09090B]">{label}</span>
+        {help && <span className="block text-[12px] text-[#71717A] mt-1 leading-relaxed">{help}</span>}
+      </span>
+    </label>
+  );
+}
+
+function SectionIntro({ title, text }: { title: string; text: string }) {
+  return <div><h2 className="text-[22px] font-bold text-[#09090B] mb-1">{title}</h2><p className="text-[14px] text-[#71717A]">{text}</p></div>;
+}
+
+function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Business Information</h2>
-        <p className="text-[14px] text-[#71717A]">Tell us about the business seeking funding.</p>
-      </div>
-
+      <SectionIntro title="Business Information" text="Digitized from the Elite Funding Solutions paper application." />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <InputField label="Legal Business Name" name="legal_name" value={data.legal_name} onChange={(v) => update('legal_name', v)} required placeholder="Acme Restaurant LLC" />
-        </div>
-        <InputField label="DBA (Doing Business As)" name="dba" value={data.dba} onChange={(v) => update('dba', v)} placeholder="If different from legal name" />
-        <SelectField label="Entity Type" name="entity_type" value={data.entity_type} onChange={(v) => update('entity_type', v)} required options={[
-          { value: 'llc', label: 'LLC' },
-          { value: 'sole_proprietor', label: 'Sole Proprietorship' },
-          { value: 's_corp', label: 'S Corporation' },
-          { value: 'c_corp', label: 'C Corporation' },
-          { value: 'partnership', label: 'Partnership' },
-          { value: 'non_profit', label: 'Non-Profit' },
-          { value: 'other', label: 'Other' },
-        ]} />
-        <InputField label="EIN (Federal Tax ID)" name="ein" value={data.ein} onChange={(v) => update('ein', v)} placeholder="XX-XXXXXXX" hint="Kept confidential and encrypted" />
-        <SelectField label="Industry" name="industry" value={data.industry} onChange={(v) => update('industry', v)} required options={[
-          { value: 'Restaurant', label: 'Restaurant / Food Service' },
-          { value: 'Retail', label: 'Retail' },
-          { value: 'Healthcare', label: 'Healthcare' },
-          { value: 'Construction', label: 'Construction' },
-          { value: 'Transportation', label: 'Transportation / Logistics' },
-          { value: 'Automotive', label: 'Automotive' },
-          { value: 'Technology', label: 'Technology' },
-          { value: 'Professional Services', label: 'Professional Services' },
-          { value: 'Manufacturing', label: 'Manufacturing' },
-          { value: 'Other', label: 'Other' },
-        ]} />
-        <InputField label="Business Start Date" name="start_date" value={data.start_date} onChange={(v) => update('start_date', v)} type="date" required />
-        <InputField label="Business Phone" name="business_phone" value={data.business_phone} onChange={(v) => update('business_phone', v)} type="tel" placeholder="(XXX) XXX-XXXX" required />
-        <InputField label="Business Email" name="business_email" value={data.business_email} onChange={(v) => update('business_email', v)} type="email" placeholder="owner@yourbusiness.com" required />
-        <InputField label="Website" name="website" value={data.website} onChange={(v) => update('website', v)} placeholder="https://yourbusiness.com" />
-        <div className="md:col-span-2">
-          <InputField label="Business Address" name="address" value={data.address} onChange={(v) => update('address', v)} placeholder="123 Main Street" required />
-        </div>
-        <InputField label="City" name="city" value={data.city} onChange={(v) => update('city', v)} required />
-        <div className="grid grid-cols-2 gap-4">
-          <SelectField label="State" name="state" value={data.state} onChange={(v) => update('state', v)} required options={usStates.map(s => ({ value: s, label: s }))} />
-          <InputField label="ZIP Code" name="zip" value={data.zip} onChange={(v) => update('zip', v)} required />
-        </div>
+        <div className="md:col-span-2"><InputField label="Business Legal Name" value={data.legal_name} onChange={(v) => update('legal_name', v)} required /></div>
+        <InputField label="DBA Name" value={data.dba} onChange={(v) => update('dba', v)} />
+        <SelectField label="Legal Entity Type" value={data.entity_type} onChange={(v) => update('entity_type', v)} required options={[{ value: 'llc', label: 'LLC' }, { value: 'corporation', label: 'Corporation' }, { value: 'sole_proprietor', label: 'Sole Proprietor' }, { value: 'partnership', label: 'Partnership' }, { value: 'other', label: 'Other' }]} />
+        <InputField label="Federal Tax ID / EIN" value={data.ein} onChange={(v) => update('ein', v)} required placeholder="XX-XXXXXXX" />
+        <SelectField label="Merchant Type" value={data.merchant_type} onChange={(v) => update('merchant_type', v)} required options={[{ value: 'retail', label: 'Retail' }, { value: 'restaurant', label: 'Restaurant' }, { value: 'service', label: 'Service' }, { value: 'ecommerce', label: 'E-commerce' }, { value: 'other', label: 'Other' }]} />
+        <InputField label="Date Business Started" value={data.start_date} onChange={(v) => update('start_date', v)} type="date" required />
+        <SelectField label="Business Location" value={data.business_location} onChange={(v) => update('business_location', v)} required options={[{ value: 'leased', label: 'Leased' }, { value: 'owned', label: 'Owned' }, { value: 'home_based', label: 'Home Based' }, { value: 'online', label: 'Online' }]} />
+        <InputField label="Business Phone" value={data.business_phone} onChange={(v) => update('business_phone', v)} required />
+        <InputField label="Mobile" value={data.business_mobile} onChange={(v) => update('business_mobile', v)} />
+        <InputField label="Fax" value={data.fax} onChange={(v) => update('fax', v)} />
+        <InputField label="Business Email" value={data.business_email} onChange={(v) => update('business_email', v)} type="email" required />
+        <InputField label="Website" value={data.website} onChange={(v) => update('website', v)} />
+        <div className="md:col-span-2"><InputField label="Address" value={data.address} onChange={(v) => update('address', v)} required /></div>
+        <InputField label="City" value={data.city} onChange={(v) => update('city', v)} required />
+        <div className="grid grid-cols-2 gap-4"><SelectField label="State" value={data.state} onChange={(v) => update('state', v)} required options={usStates.map((state) => ({ value: state, label: state }))} /><InputField label="Zip" value={data.zip} onChange={(v) => update('zip', v)} required /></div>
+        <div className="md:col-span-2"><InputField label="Products / Services Sold" value={data.products_services} onChange={(v) => update('products_services', v)} required /></div>
+        <InputField label="POS Company Contact" value={data.pos_contact_name} onChange={(v) => update('pos_contact_name', v)} />
+        <InputField label="POS Company Phone" value={data.pos_contact_phone} onChange={(v) => update('pos_contact_phone', v)} />
+        <InputField label="Terminal / POS System" value={data.pos_system} onChange={(v) => update('pos_system', v)} />
+        <InputField label="Industry" value={data.industry} onChange={(v) => update('industry', v)} required />
       </div>
-
-      <div className="border-t border-[#F4F4F5] pt-5">
-        <h3 className="text-[15px] font-semibold text-[#09090B] mb-4">Revenue & Banking Snapshot</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InputField label="Monthly Gross Revenue" name="monthly_gross_revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" placeholder="0" required hint="Average over last 3 months" />
-          <InputField label="Average Daily Balance" name="average_daily_balance" value={data.average_daily_balance} onChange={(v) => update('average_daily_balance', v)} type="number" placeholder="0" />
-          <InputField label="Monthly Deposit Count" name="deposit_count" value={data.deposit_count} onChange={(v) => update('deposit_count', v)} type="number" placeholder="0" />
-        </div>
-      </div>
-
-      <div className="border-t border-[#F4F4F5] pt-5">
-        <h3 className="text-[15px] font-semibold text-[#09090B] mb-4">Landlord Information (if applicable)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InputField label="Landlord Name" name="landlord_name" value={data.landlord_name} onChange={(v) => update('landlord_name', v)} />
-          <InputField label="Landlord Phone" name="landlord_phone" value={data.landlord_phone} onChange={(v) => update('landlord_phone', v)} type="tel" />
-          <InputField label="Monthly Rent" name="rent_amount" value={data.rent_amount} onChange={(v) => update('rent_amount', v)} type="number" placeholder="0" />
-        </div>
-      </div>
-
-      <div className="border-t border-[#F4F4F5] pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={data.has_tax_lien} onChange={(e) => update('has_tax_lien', e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-[#E4E4E7] text-[#2563EB]" />
-          <span className="text-[14px] text-[#52525B]">The business has an open tax lien</span>
-        </label>
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={data.has_bankruptcy} onChange={(e) => update('has_bankruptcy', e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-[#E4E4E7] text-[#2563EB]" />
-          <span className="text-[14px] text-[#52525B]">The business has open or recent bankruptcy</span>
-        </label>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <CheckboxField checked={data.has_judgments} onChange={(v) => update('has_judgments', v)} label="Business has judgments" />
+        <CheckboxField checked={data.has_tax_lien} onChange={(v) => update('has_tax_lien', v)} label="Business has tax liens" />
+        <CheckboxField checked={data.has_bankruptcy} onChange={(v) => update('has_bankruptcy', v)} label="Business has bankruptcy history" />
+        <CheckboxField checked={data.is_seasonal} onChange={(v) => update('is_seasonal', v)} label="Seasonal business" />
       </div>
     </div>
   );
 }
 
-// ─── Step 2 – Owner ────────────────────────────────────────────────────────
-function StepOwner({ data, update }: { data: FormData; update: (k: keyof FormData, v: string) => void }) {
+function StepReferencesBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Owner Information</h2>
-        <p className="text-[14px] text-[#71717A]">Information about the primary business owner.</p>
-      </div>
-
+      <SectionIntro title="References & Banking" text="Provide references, landlord or mortgage information, and bank reference details." />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="First Name" name="first_name" value={data.first_name} onChange={(v) => update('first_name', v)} required />
-        <InputField label="Last Name" name="last_name" value={data.last_name} onChange={(v) => update('last_name', v)} required />
-        <InputField label="Email Address" name="email" value={data.email} onChange={(v) => update('email', v)} type="email" required />
-        <InputField label="Mobile Phone" name="phone" value={data.phone} onChange={(v) => update('phone', v)} type="tel" required />
-        <InputField label="Date of Birth" name="dob" value={data.dob} onChange={(v) => update('dob', v)} type="date" required hint="Kept confidential and encrypted" />
-        <InputField label="SSN Last 4 Digits" name="ssn_last4" value={data.ssn_last4} onChange={(v) => update('ssn_last4', v)} placeholder="XXXX" hint="We never store your full SSN" />
-        <InputField label="Ownership Percentage" name="ownership_pct" value={data.ownership_pct} onChange={(v) => update('ownership_pct', v)} type="number" placeholder="100" hint="Enter 100 if sole owner" />
-        <SelectField label="Credit Score Range" name="credit_range" value={data.credit_range} onChange={(v) => update('credit_range', v)} options={[
-          { value: 'below_500', label: 'Below 500' },
-          { value: '500_549', label: '500 – 549' },
-          { value: '550_599', label: '550 – 599' },
-          { value: '600_649', label: '600 – 649' },
-          { value: '650_699', label: '650 – 699' },
-          { value: '700_749', label: '700 – 749' },
-          { value: '750_plus', label: '750+' },
-        ]} />
-        <div className="md:col-span-2">
-          <InputField label="Home Address" name="home_address" value={data.home_address} onChange={(v) => update('home_address', v)} required />
-        </div>
-        <InputField label="City" name="home_city" value={data.home_city} onChange={(v) => update('home_city', v)} required />
-        <div className="grid grid-cols-2 gap-4">
-          <SelectField label="State" name="home_state" value={data.home_state} onChange={(v) => update('home_state', v)} required options={usStates.map(s => ({ value: s, label: s }))} />
-          <InputField label="ZIP" name="home_zip" value={data.home_zip} onChange={(v) => update('home_zip', v)} required />
-        </div>
+        <InputField label="Business Reference 1" value={data.reference1_name} onChange={(v) => update('reference1_name', v)} />
+        <InputField label="Reference 1 Phone" value={data.reference1_phone} onChange={(v) => update('reference1_phone', v)} />
+        <InputField label="Business Reference 2" value={data.reference2_name} onChange={(v) => update('reference2_name', v)} />
+        <InputField label="Reference 2 Phone" value={data.reference2_phone} onChange={(v) => update('reference2_phone', v)} />
+        <InputField label="Landlord Name" value={data.landlord_name} onChange={(v) => update('landlord_name', v)} />
+        <InputField label="Landlord Phone" value={data.landlord_phone} onChange={(v) => update('landlord_phone', v)} />
+        <InputField label="Mortgage Company" value={data.mortgage_company} onChange={(v) => update('mortgage_company', v)} />
+        <InputField label="Rent / Mortgage Payment" value={data.rent_amount} onChange={(v) => update('rent_amount', v)} type="number" />
+        <InputField label="Bank Name" value={data.bank_name} onChange={(v) => update('bank_name', v)} required />
+        <InputField label="Bank Contact" value={data.bank_contact} onChange={(v) => update('bank_contact', v)} />
+        <InputField label="Bank Phone" value={data.bank_phone} onChange={(v) => update('bank_phone', v)} />
+        <SelectField label="Account Type" value={data.account_type} onChange={(v) => update('account_type', v)} options={[{ value: 'checking', label: 'Checking' }, { value: 'savings', label: 'Savings' }]} />
+        <InputField label="Routing Number" value={data.routing_number} onChange={(v) => update('routing_number', v)} required />
+        <InputField label="Account Number" value={data.account_number} onChange={(v) => update('account_number', v)} required hint="Stored through a secure server-side endpoint." />
+        <InputField label="Average Daily Balance" value={data.average_daily_balance} onChange={(v) => update('average_daily_balance', v)} type="number" />
+        <InputField label="Monthly Deposit Count" value={data.deposit_count} onChange={(v) => update('deposit_count', v)} type="number" />
       </div>
     </div>
   );
 }
 
-// ─── Step 3 – Funding Request ──────────────────────────────────────────────
-function StepFunding({ data, update }: { data: FormData; update: (k: keyof FormData, v: string | boolean) => void }) {
+function OwnerCard({ title, owner, required, update }: { title: string; owner: OwnerFields; required?: boolean; update: <K extends keyof OwnerFields>(key: K, value: OwnerFields[K]) => void }) {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Funding Request</h2>
-        <p className="text-[14px] text-[#71717A]">Tell us how much you need and how you plan to use it.</p>
-      </div>
-
+    <div className="rounded-[16px] border border-[#E4E4E7] p-5 space-y-4">
+      <h3 className="text-[16px] font-semibold text-[#09090B]">{title}</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="Requested Funding Amount" name="requested_amount" value={data.requested_amount} onChange={(v) => update('requested_amount', v)} type="number" required placeholder="50000" hint="Minimum $10,000 • Maximum $5,000,000" />
-        <SelectField label="Preferred Payment Frequency" name="payment_frequency" value={data.payment_frequency} onChange={(v) => update('payment_frequency', v)} options={[
-          { value: 'daily', label: 'Daily' },
-          { value: 'weekly', label: 'Weekly' },
-          { value: 'bi_weekly', label: 'Bi-Weekly' },
-          { value: 'monthly', label: 'Monthly' },
-        ]} />
-        <SelectField label="Use of Funds" name="use_of_funds" value={data.use_of_funds} onChange={(v) => update('use_of_funds', v)} required options={[
-          { value: 'Working Capital', label: 'Working Capital' },
-          { value: 'Inventory Purchase', label: 'Inventory Purchase' },
-          { value: 'Equipment Purchase', label: 'Equipment Purchase' },
-          { value: 'Payroll', label: 'Payroll' },
-          { value: 'Marketing & Advertising', label: 'Marketing & Advertising' },
-          { value: 'Expansion / Renovation', label: 'Expansion / Renovation' },
-          { value: 'Debt Consolidation', label: 'Debt Consolidation' },
-          { value: 'Tax Payment', label: 'Tax Payment' },
-          { value: 'Other', label: 'Other' },
-        ]} />
-        <SelectField label="Desired Funding Timeline" name="timeline" value={data.timeline} onChange={(v) => update('timeline', v)} options={[
-          { value: 'ASAP', label: 'As soon as possible' },
-          { value: '1_week', label: 'Within 1 week' },
-          { value: '2_weeks', label: 'Within 2 weeks' },
-          { value: '30_days', label: 'Within 30 days' },
-        ]} />
-        <div className="md:col-span-2">
-          <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Additional Notes</label>
-          <textarea
-            value={data.notes}
-            onChange={(e) => update('notes', e.target.value)}
-            placeholder="Any context that would help your advisor..."
-            rows={3}
-            className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-[14px] py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#EFF6FF] transition-all"
-          />
-        </div>
-      </div>
-
-      <div className="border border-[#E4E4E7] rounded-[12px] p-4">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={data.has_existing_advances}
-            onChange={(e) => update('has_existing_advances', e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded border-[#E4E4E7] text-[#2563EB]"
-          />
-          <div>
-            <span className="text-[14px] font-medium text-[#09090B]">I have existing merchant cash advances or business loans</span>
-            <p className="text-[13px] text-[#71717A] mt-0.5">Check this if you currently have any outstanding advances, business loans, or lines of credit.</p>
-          </div>
-        </label>
+        <InputField label="First Name" value={owner.first_name} onChange={(v) => update('first_name', v)} required={required} />
+        <InputField label="Last Name" value={owner.last_name} onChange={(v) => update('last_name', v)} required={required} />
+        <InputField label="Title" value={owner.title} onChange={(v) => update('title', v)} />
+        <InputField label="Ownership %" value={owner.ownership_pct} onChange={(v) => update('ownership_pct', v)} type="number" required={required} />
+        <InputField label="Email" value={owner.email} onChange={(v) => update('email', v)} type="email" required={required} />
+        <InputField label="Phone" value={owner.phone} onChange={(v) => update('phone', v)} required={required} />
+        <InputField label="Mobile" value={owner.mobile} onChange={(v) => update('mobile', v)} />
+        <InputField label="Date of Birth" value={owner.dob} onChange={(v) => update('dob', v)} type="date" required={required} />
+        <InputField label="SSN Last 4" value={owner.ssn_last4} onChange={(v) => update('ssn_last4', v.slice(0, 4))} required={required} />
+        <SelectField label="Credit Score Range" value={owner.credit_range} onChange={(v) => update('credit_range', v)} options={[{ value: '720+', label: '720+' }, { value: '680-719', label: '680–719' }, { value: '640-679', label: '640–679' }, { value: '600-639', label: '600–639' }, { value: '<600', label: 'Below 600' }]} />
+        <div className="md:col-span-2"><InputField label="Home Address" value={owner.address} onChange={(v) => update('address', v)} required={required} /></div>
+        <InputField label="City" value={owner.city} onChange={(v) => update('city', v)} required={required} />
+        <div className="grid grid-cols-2 gap-4"><SelectField label="State" value={owner.state} onChange={(v) => update('state', v)} required={required} options={usStates.map((state) => ({ value: state, label: state }))} /><InputField label="Zip" value={owner.zip} onChange={(v) => update('zip', v)} required={required} /></div>
       </div>
     </div>
   );
 }
 
-// ─── Step 4 – Existing Advances ────────────────────────────────────────────
-function StepExistingAdvances({ data, update }: { data: FormData; update: (k: keyof FormData, v: FormData['existing_advances']) => void }) {
-  const advances = data.existing_advances;
+function StepOwners({ data, updateOwner }: { data: ApplicationFormData; updateOwner: (ownerKey: OwnerKey, key: keyof OwnerFields, value: string) => void }) {
+  return (
+    <div className="space-y-6">
+      <SectionIntro title="Owner / Principal Information" text="The PDF application includes principal information for two owners. Owner 1 is required; Owner 2 is optional unless applicable." />
+      <OwnerCard title="Owner / Principal 1" owner={data.owner1} required update={(key, value) => updateOwner('owner1', key, value)} />
+      <OwnerCard title="Owner / Principal 2" owner={data.owner2} update={(key, value) => updateOwner('owner2', key, value)} />
+    </div>
+  );
+}
 
-  const addAdvance = () => {
-    update('existing_advances', [...advances, {
-      funder_name: '', original_amount: '', current_balance: '',
-      daily_payment: '', payment_frequency: '', notes: ''
-    }]);
-  };
+function StepFunding({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+  return (
+    <div className="space-y-6">
+      <SectionIntro title="Funding Information" text="Tell us how much funding you need and the sales volume shown on the PDF application." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <InputField label="Amount Requested" value={data.requested_amount} onChange={(v) => update('requested_amount', v)} type="number" required />
+        <InputField label="Use of Funds" value={data.use_of_funds} onChange={(v) => update('use_of_funds', v)} required />
+        <InputField label="Average Monthly Sales" value={data.average_monthly_sales} onChange={(v) => update('average_monthly_sales', v)} type="number" required />
+        <InputField label="Average Visa/MasterCard Monthly Sales" value={data.average_visa_mc_sales} onChange={(v) => update('average_visa_mc_sales', v)} type="number" />
+        <InputField label="Monthly Gross Revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" required />
+        <SelectField label="Desired Funding Timeline" value={data.timeline} onChange={(v) => update('timeline', v)} options={[{ value: 'asap', label: 'As soon as possible' }, { value: '1_week', label: 'Within 1 week' }, { value: '2_4_weeks', label: '2–4 weeks' }, { value: 'exploring', label: 'Exploring options' }]} />
+        <SelectField label="Preferred Payment Frequency" value={data.payment_frequency} onChange={(v) => update('payment_frequency', v)} options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'bi_weekly', label: 'Bi-weekly' }, { value: 'monthly', label: 'Monthly' }]} />
+      </div>
+      <textarea value={data.notes} onChange={(event) => update('notes', event.target.value)} rows={4} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-[14px] py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#0F2B5B]" placeholder="Additional context for underwriting…" />
+    </div>
+  );
+}
 
-  const removeAdvance = (i: number) => {
-    update('existing_advances', advances.filter((_, idx) => idx !== i));
-  };
-
-  const updateAdvance = (i: number, field: string, value: string) => {
-    const updated = advances.map((a, idx) => idx === i ? { ...a, [field]: value } : a);
-    update('existing_advances', updated);
-  };
+function StepExistingAdvances({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+  const addAdvance = () => update('existing_advances', [...data.existing_advances, { funder_name: '', original_amount: '', current_balance: '', daily_payment: '', payment_frequency: '', notes: '' }]);
+  const updateAdvance = (index: number, key: keyof ExistingAdvance, value: string) => update('existing_advances', data.existing_advances.map((advance, i) => i === index ? { ...advance, [key]: value } : advance));
+  const removeAdvance = (index: number) => update('existing_advances', data.existing_advances.filter((_, i) => i !== index));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Existing Advances</h2>
-        <p className="text-[14px] text-[#71717A]">
-          {data.has_existing_advances
-            ? 'List all current outstanding advances, loans, or lines of credit.'
-            : 'You indicated no existing advances. Skip to the next step or add one below.'}
-        </p>
-      </div>
-
-      {advances.length === 0 && (
-        <div className="border-2 border-dashed border-[#E4E4E7] rounded-[12px] p-8 text-center">
-          <p className="text-[14px] text-[#A1A1AA] mb-3">No existing advances added</p>
-          <button
-            type="button"
-            onClick={addAdvance}
-            className="inline-flex items-center gap-2 text-[14px] font-medium text-[#2563EB] hover:underline"
-          >
-            + Add an existing advance
-          </button>
-        </div>
-      )}
-
-      {advances.map((adv, i) => (
-        <div key={i} className="border border-[#E4E4E7] rounded-[12px] p-5 relative">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-semibold text-[#09090B]">Advance #{i + 1}</h3>
-            <button
-              type="button"
-              onClick={() => removeAdvance(i)}
-              className="text-[13px] text-[#EF4444] hover:underline"
-            >
-              Remove
-            </button>
-          </div>
+      <SectionIntro title="Prior Cash Advance Information" text="Disclose any current or prior merchant cash advance balances from the paper application." />
+      <CheckboxField checked={data.has_existing_advances} onChange={(v) => update('has_existing_advances', v)} label="Business has existing or prior cash advances" />
+      {data.existing_advances.map((advance, index) => (
+        <div key={index} className="rounded-[16px] border border-[#E4E4E7] p-5 space-y-4">
+          <div className="flex items-center justify-between"><h3 className="font-semibold">Advance {index + 1}</h3><button type="button" onClick={() => removeAdvance(index)} className="text-[#EF4444]"><X className="w-4 h-4" /></button></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField label="Funder Name" name={`funder_${i}`} value={adv.funder_name} onChange={(v) => updateAdvance(i, 'funder_name', v)} placeholder="e.g. Rapid Capital Funding" />
-            <InputField label="Original Funded Amount" name={`orig_${i}`} value={adv.original_amount} onChange={(v) => updateAdvance(i, 'original_amount', v)} type="number" />
-            <InputField label="Current Balance" name={`bal_${i}`} value={adv.current_balance} onChange={(v) => updateAdvance(i, 'current_balance', v)} type="number" />
-            <InputField label="Daily / Weekly Payment" name={`pmt_${i}`} value={adv.daily_payment} onChange={(v) => updateAdvance(i, 'daily_payment', v)} type="number" />
-            <SelectField label="Payment Frequency" name={`freq_${i}`} value={adv.payment_frequency} onChange={(v) => updateAdvance(i, 'payment_frequency', v)} options={[
-              { value: 'daily', label: 'Daily' },
-              { value: 'weekly', label: 'Weekly' },
-              { value: 'bi_weekly', label: 'Bi-Weekly' },
-            ]} />
+            <InputField label="Funder Name" value={advance.funder_name} onChange={(v) => updateAdvance(index, 'funder_name', v)} />
+            <InputField label="Original Amount" value={advance.original_amount} onChange={(v) => updateAdvance(index, 'original_amount', v)} type="number" />
+            <InputField label="Current Balance" value={advance.current_balance} onChange={(v) => updateAdvance(index, 'current_balance', v)} type="number" />
+            <InputField label="Daily / Regular Payment" value={advance.daily_payment} onChange={(v) => updateAdvance(index, 'daily_payment', v)} type="number" />
+            <SelectField label="Payment Frequency" value={advance.payment_frequency} onChange={(v) => updateAdvance(index, 'payment_frequency', v)} options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'bi_weekly', label: 'Bi-weekly' }]} />
+            <InputField label="Notes" value={advance.notes} onChange={(v) => updateAdvance(index, 'notes', v)} />
           </div>
         </div>
       ))}
-
-      {advances.length > 0 && (
-        <button
-          type="button"
-          onClick={addAdvance}
-          className="text-[14px] font-medium text-[#2563EB] hover:underline"
-        >
-          + Add another advance
-        </button>
-      )}
+      <button type="button" onClick={addAdvance} className="btn-secondary">Add Cash Advance</button>
     </div>
   );
 }
 
-// ─── Step 5 – Bank Info ────────────────────────────────────────────────────
-function StepBank({ data, update }: { data: FormData; update: (k: keyof FormData, v: string) => void }) {
+function StepDocuments({ files, setFiles }: { files: Record<DocumentKey, File[]>; setFiles: (key: DocumentKey, files: File[]) => void }) {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Bank Information</h2>
-        <p className="text-[14px] text-[#71717A]">Tell us about your primary business checking account.</p>
-      </div>
-
-      <div className="bg-[#EFF6FF] border border-[#DBEAFE] rounded-[10px] px-4 py-3 flex items-center gap-3">
-        <Lock className="w-4 h-4 text-[#2563EB] shrink-0" />
-        <p className="text-[13px] text-[#2563EB]">Your bank information is encrypted and only used to verify account ownership. We never store full account numbers.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="Bank Name" name="bank_name" value={data.bank_name} onChange={(v) => update('bank_name', v)} required placeholder="Chase, Bank of America, etc." />
-        <SelectField label="Account Type" name="account_type" value={data.account_type} onChange={(v) => update('account_type', v)} options={[
-          { value: 'checking', label: 'Business Checking' },
-          { value: 'savings', label: 'Business Savings' },
-        ]} />
-        <InputField label="Routing Number" name="routing_number" value={data.routing_number} onChange={(v) => update('routing_number', v)} placeholder="9-digit routing number" />
-        <InputField label="Account Last 4 Digits" name="account_last4" value={data.account_last4} onChange={(v) => update('account_last4', v)} placeholder="XXXX" hint="Last 4 digits only" />
-        <InputField label="Average Monthly Deposits" name="avg_monthly_deposits" value={data.avg_monthly_deposits} onChange={(v) => update('avg_monthly_deposits', v)} type="number" placeholder="0" />
-        <InputField label="Estimated Ending Balance" name="ending_balance" value={data.ending_balance} onChange={(v) => update('ending_balance', v)} type="number" placeholder="0" hint="Current approximate balance" />
-        <InputField label="Negative Days (last 3 months)" name="negative_days" value={data.negative_days} onChange={(v) => update('negative_days', v)} type="number" placeholder="0" hint="Days the account went negative" />
-        <InputField label="NSF Count (last 3 months)" name="nsf_count" value={data.nsf_count} onChange={(v) => update('nsf_count', v)} type="number" placeholder="0" hint="Number of returned / insufficient fund items" />
-      </div>
+      <SectionIntro title="Document Uploads" text="Upload the supporting documents required for underwriting. Documents are stored in the private application-documents bucket." />
+      {documentConfig.map((doc) => (
+        <div key={doc.key} className="rounded-[16px] border border-[#E4E4E7] p-5 flex flex-col md:flex-row md:items-center gap-4">
+          <div className="flex-1"><div className="font-semibold text-[#09090B]">{doc.label} {doc.required && <span className="text-[#EF4444]">*</span>}</div><p className="text-[13px] text-[#71717A] mt-1">{doc.help}</p><p className="text-[12px] text-[#A1A1AA] mt-2">{files[doc.key]?.map((file) => file.name).join(', ') || 'No files selected'}</p></div>
+          <label className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#DDE3EF] px-4 h-10 text-[14px] font-semibold cursor-pointer hover:bg-[#F8F9FB]"><UploadCloud className="w-4 h-4" />Choose File<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic" className="hidden" onChange={(event) => setFiles(doc.key, Array.from(event.target.files || []))} /></label>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── Step 6 – Document Upload ─────────────────────────────────────────────
-function StepDocuments() {
-  const docs = [
-    { id: 'bank_statements', label: 'Last 3 Bank Statements', required: true, description: 'All pages of your last 3 complete months' },
-    { id: 'drivers_license', label: "Driver's License or State ID", required: true, description: 'Front and back of government-issued photo ID' },
-    { id: 'voided_check', label: 'Voided Check', required: true, description: 'Voided check for the business checking account' },
-    { id: 'processing_statements', label: 'Processing Statements', required: false, description: 'Last 3 months if you accept credit cards' },
-    { id: 'business_tax_returns', label: 'Business Tax Returns', required: false, description: 'Most recent year, if available' },
+function StepReview({ data, files, update }: { data: ApplicationFormData; files: Record<DocumentKey, File[]>; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+  const rows = [
+    ['Business', data.legal_name], ['DBA', data.dba || '—'], ['Address', `${data.address}, ${data.city}, ${data.state} ${data.zip}`], ['Phone / Mobile / Fax', [data.business_phone, data.business_mobile, data.fax].filter(Boolean).join(' / ') || '—'],
+    ['Products / Services', data.products_services], ['Owner 1', `${data.owner1.first_name} ${data.owner1.last_name}`], ['Owner 2', `${data.owner2.first_name} ${data.owner2.last_name}`.trim() || '—'], ['Requested Amount', data.requested_amount ? `$${Number(data.requested_amount).toLocaleString()}` : '—'],
+    ['Average Monthly Sales', data.average_monthly_sales ? `$${Number(data.average_monthly_sales).toLocaleString()}` : '—'], ['Bank', data.bank_name], ['Documents', documentConfig.map((doc) => `${doc.label}: ${files[doc.key]?.length || 0}`).join(' • ')],
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Document Upload</h2>
-        <p className="text-[14px] text-[#71717A]">Securely upload your supporting documents. You can also email them to your advisor after applying.</p>
+      <SectionIntro title="Authorization & Final Review" text="Review the application and complete the required authorization, signature, and date fields before submission." />
+      <div className="rounded-[14px] border border-[#E4E4E7] overflow-hidden">
+        {rows.map(([label, value]) => <div key={label} className="grid grid-cols-1 md:grid-cols-3 gap-2 border-b last:border-b-0 border-[#F4F4F5] px-4 py-3"><div className="text-[12px] uppercase tracking-[0.06em] text-[#A1A1AA]">{label}</div><div className="md:col-span-2 text-[14px] font-medium text-[#09090B]">{value}</div></div>)}
       </div>
-
-      <div className="flex flex-col gap-3">
-        {docs.map((doc) => (
-          <div
-            key={doc.id}
-            className="border border-[#E4E4E7] rounded-[12px] p-4 flex items-start gap-4"
-          >
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-[14px] font-medium text-[#09090B]">{doc.label}</span>
-                {doc.required && (
-                  <span className="badge-brand text-[11px]">Required</span>
-                )}
-              </div>
-              <p className="text-[12px] text-[#71717A]">{doc.description}</p>
-            </div>
-            <div>
-              <label className="inline-flex items-center gap-2 rounded-[8px] bg-[#F4F4F5] hover:bg-[#E4E4E7] text-[#09090B] font-medium text-[13px] h-9 px-4 cursor-pointer transition-colors">
-                <span>Choose File</span>
-                <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.heic" multiple />
-              </label>
-            </div>
-          </div>
-        ))}
+      <div className="rounded-[16px] border border-[#DDE3EF] bg-[#FAFAFA] p-5 text-[13px] leading-relaxed text-[#52525B] space-y-3">
+        <p><strong className="text-[#09090B]">Credit/background authorization.</strong> By submitting this application, each signer authorizes Elite Funding Solutions, its representatives, funding partners, lenders, recipients, successors, and assigns to obtain consumer, personal, business, investigative, credit, processor, and bank statement reports and other information from credit bureaus, banks, processors, landlords, references, and other sources for underwriting, verification, servicing, renewal, collection, and funding purposes.</p>
+        <p><strong className="text-[#09090B]">SMS consent.</strong> If selected, you agree that Elite Funding Solutions may contact you by SMS/text message regarding your application and funding options. Message and data rates may apply. Consent is not required as a condition of funding. See the privacy policy at www.elitefundingsolution.com.</p>
       </div>
-
-      <div className="bg-[#FAFAFA] border border-[#E4E4E7] rounded-[12px] px-5 py-4">
-        <p className="text-[13px] text-[#71717A]">
-          <strong className="text-[#52525B]">Accepted formats:</strong> PDF, JPG, PNG, HEIC &nbsp;&bull;&nbsp;
-          <strong className="text-[#52525B]">Max size:</strong> 25MB per file &nbsp;&bull;&nbsp;
-          Documents are stored encrypted in a private, access-controlled vault.
-        </p>
-      </div>
+      <CheckboxField checked={data.authorization_consent} onChange={(v) => update('authorization_consent', v)} label="I authorize Elite Funding Solutions and its partners to obtain and review the reports and information described above." help="Required to submit." />
+      <CheckboxField checked={data.sms_consent} onChange={(v) => update('sms_consent', v)} label="I consent to receive SMS/text messages about my application." help="Optional. Consent may be revoked at any time." />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><InputField label="E-Signature" value={data.signature} onChange={(v) => update('signature', v)} required hint="Type your full legal name." /><InputField label="Signature Date" value={data.signature_date} onChange={(v) => update('signature_date', v)} type="date" required /></div>
     </div>
   );
 }
 
-// ─── Step 7 – Review ───────────────────────────────────────────────────────
-function StepReview({ data }: { data: FormData }) {
-  const sections = [
-    {
-      title: 'Business',
-      fields: [
-        ['Legal Name', data.legal_name],
-        ['DBA', data.dba || '—'],
-        ['Entity Type', data.entity_type],
-        ['Industry', data.industry],
-        ['Business Start Date', data.start_date],
-        ['Monthly Revenue', data.monthly_gross_revenue ? `$${Number(data.monthly_gross_revenue).toLocaleString()}` : '—'],
-        ['Location', `${data.city}, ${data.state} ${data.zip}`],
-      ],
-    },
-    {
-      title: 'Owner',
-      fields: [
-        ['Name', `${data.first_name} ${data.last_name}`],
-        ['Email', data.email],
-        ['Phone', data.phone],
-        ['Credit Range', data.credit_range],
-        ['Ownership', `${data.ownership_pct}%`],
-      ],
-    },
-    {
-      title: 'Funding Request',
-      fields: [
-        ['Amount Requested', data.requested_amount ? `$${Number(data.requested_amount).toLocaleString()}` : '—'],
-        ['Use of Funds', data.use_of_funds],
-        ['Timeline', data.timeline],
-        ['Payment Frequency', data.payment_frequency],
-      ],
-    },
-    {
-      title: 'Bank',
-      fields: [
-        ['Bank Name', data.bank_name],
-        ['Account Type', data.account_type],
-        ['Account Last 4', data.account_last4 ? `****${data.account_last4}` : '—'],
-        ['Avg Monthly Deposits', data.avg_monthly_deposits ? `$${Number(data.avg_monthly_deposits).toLocaleString()}` : '—'],
-      ],
-    },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-[22px] font-bold text-[#09090B] mb-1">Review Your Application</h2>
-        <p className="text-[14px] text-[#71717A]">Please review your information before submitting.</p>
-      </div>
-
-      {sections.map((section) => (
-        <div key={section.title} className="border border-[#E4E4E7] rounded-[12px] overflow-hidden">
-          <div className="bg-[#F4F4F5] px-5 py-3">
-            <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A]">{section.title}</h3>
-          </div>
-          <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {section.fields.map(([label, value]) => (
-              <div key={label}>
-                <div className="text-[12px] text-[#A1A1AA] mb-0.5">{label}</div>
-                <div className="text-[14px] font-medium text-[#09090B]">{value || '—'}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      <div className="border border-[#E4E4E7] rounded-[12px] p-5">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" required className="mt-0.5 w-4 h-4 rounded border-[#E4E4E7]" />
-          <p className="text-[13px] text-[#71717A] leading-relaxed">
-            By submitting this application, I certify that all information provided is accurate and complete. I authorize Elite Funding Solutions to conduct a soft credit inquiry and to share this application with funding partners on my behalf. I have read and agree to the{' '}
-            <a href="/terms" className="text-[#2563EB] hover:underline">Terms of Service</a> and{' '}
-            <a href="/privacy" className="text-[#2563EB] hover:underline">Privacy Policy</a>.
-          </p>
-        </label>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step 8 – Confirmation ─────────────────────────────────────────────────
-function StepConfirmation({ data }: { data: FormData }) {
+function StepConfirmation({ data }: { data: ApplicationFormData }) {
   return (
     <div className="text-center py-8">
-      <div className="w-16 h-16 rounded-full bg-[#F0FDF4] border border-[#DCFCE7] flex items-center justify-center mx-auto mb-6">
-        <CheckCircle2 className="w-8 h-8 text-[#10B981]" />
-      </div>
-      <h2 className="text-[26px] font-bold text-[#09090B] mb-3">Application Submitted!</h2>
-      <p className="text-[16px] text-[#71717A] max-w-[420px] mx-auto leading-relaxed mb-8">
-        Thank you, {data.first_name}. Your application has been received. A funding advisor will contact you within 4 business hours at{' '}
-        <strong className="text-[#09090B]">{data.email}</strong>.
-      </p>
-
-      <div className="max-w-[400px] mx-auto bg-[#FAFAFA] border border-[#E4E4E7] rounded-[16px] p-6 text-left mb-8">
-        <h3 className="text-[15px] font-semibold text-[#09090B] mb-4">What happens next</h3>
-        <div className="flex flex-col gap-3">
-          {[
-            { step: '1', text: 'Your advisor reviews your application and documents' },
-            { step: '2', text: 'We shop your deal across 50+ funding partners' },
-            { step: '3', text: 'You receive one or more competing offers' },
-            { step: '4', text: 'You choose the best offer and e-sign your contract' },
-            { step: '5', text: 'Funds are wired directly to your business account' },
-          ].map((item) => (
-            <div key={item.step} className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-[#EFF6FF] text-[#2563EB] text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
-                {item.step}
-              </div>
-              <span className="text-[14px] text-[#52525B]">{item.text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <a
-        href="/portal"
-        className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all"
-        style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628' }}
-      >
-        Access Your Client Portal
-        <ArrowRight className="w-4 h-4" />
-      </a>
+      <div className="w-16 h-16 rounded-full bg-[#F0FDF4] border border-[#DCFCE7] flex items-center justify-center mx-auto mb-6"><CheckCircle2 className="w-8 h-8 text-[#10B981]" /></div>
+      <h2 className="text-[26px] font-bold text-[#09090B] mb-3">Application Submitted</h2>
+      <p className="text-[16px] text-[#71717A] max-w-[460px] mx-auto leading-relaxed mb-8">Thank you, {data.owner1.first_name || 'there'}. Your digital funding application and documents have been received. A funding advisor will contact you shortly.</p>
+      <a href="/" className="btn-gold">Return Home <ArrowRight className="w-4 h-4" /></a>
     </div>
   );
 }
 
-// ─── Main Application Page ──────────────────────────────────────────────────
 export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
-  const [form, setForm] = useState<FormData>(initialForm);
+  const [form, setForm] = useState<ApplicationFormData>(initialForm);
+  const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [], voided_check: [], drivers_license: [] });
   const [submitting, setSubmitting] = useState(false);
 
-  const updateField = (key: keyof FormData, value: unknown) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  useEffect(() => {
+    const saved = window.localStorage.getItem('elite-application-progress');
+    if (saved) {
+      try { setForm({ ...initialForm, ...JSON.parse(saved) }); } catch { window.localStorage.removeItem('elite-application-progress'); }
+    }
+  }, []);
 
-  const next = () => setCurrentStep((s) => Math.min(s + 1, 8) as Step);
-  const back = () => setCurrentStep((s) => Math.max(s - 1, 1) as Step);
+  useEffect(() => {
+    window.localStorage.setItem('elite-application-progress', JSON.stringify(form));
+  }, [form]);
+
+  const progressPct = useMemo(() => ((currentStep - 1) / 7) * 100, [currentStep]);
+  const updateField = <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => setForm((prev) => ({ ...prev, [key]: value }));
+  const updateOwner = (ownerKey: OwnerKey, key: keyof OwnerFields, value: string) => setForm((prev) => ({ ...prev, [ownerKey]: { ...prev[ownerKey], [key]: value } }));
+  const setFiles = (key: DocumentKey, selectedFiles: File[]) => setFilesState((prev) => ({ ...prev, [key]: selectedFiles }));
+  const next = () => setCurrentStep((step) => Math.min(step + 1, 8) as Step);
+  const back = () => setCurrentStep((step) => Math.max(step - 1, 1) as Step);
+
+  const missingRequiredDocs = documentConfig.filter((doc) => doc.required && files[doc.key].length === 0).map((doc) => doc.label);
 
   const handleSubmit = async () => {
+    if (!form.authorization_consent) return toast.error('Please accept the required credit/background authorization.');
+    if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
+    if (missingRequiredDocs.length > 0) return toast.error(`Please upload: ${missingRequiredDocs.join(', ')}`);
+
     setSubmitting(true);
-    const db = supabase as any;
     try {
-      // Insert business
-      const { data: biz, error: bizErr } = await db
-        .from('businesses')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          legal_name: form.legal_name,
-          dba: form.dba || null,
-          entity_type: form.entity_type as never || null,
-          industry: form.industry || null,
-          start_date: form.start_date || null,
-          phone: form.business_phone || null,
-          email: form.business_email || null,
-          website: form.website || null,
-          address: form.address || null,
-          city: form.city || null,
-          state: form.state || null,
-          zip: form.zip || null,
-          monthly_gross_revenue: form.monthly_gross_revenue ? Number(form.monthly_gross_revenue) : null,
-          average_daily_balance: form.average_daily_balance ? Number(form.average_daily_balance) : null,
-          deposit_count_monthly: form.deposit_count ? Number(form.deposit_count) : null,
-          rent_amount: form.rent_amount ? Number(form.rent_amount) : null,
-          has_tax_lien: form.has_tax_lien,
-          has_bankruptcy: form.has_bankruptcy,
-        })
-        .select('id')
-        .single();
+      const body = new globalThis.FormData();
+      body.append('payload', JSON.stringify(form));
+      documentConfig.forEach((doc) => files[doc.key].forEach((file) => body.append(doc.key, file)));
 
-      if (bizErr) throw bizErr;
+      const response = await fetch('/api/applications/submit', { method: 'POST', body });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Application submission failed.');
 
-      // Insert owner
-      const { data: owner, error: ownerErr } = await db
-        .from('owners')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          first_name: form.first_name,
-          last_name: form.last_name,
-          email: form.email || null,
-          phone: form.phone || null,
-          ssn_last4: form.ssn_last4 || null,
-          ownership_percentage: form.ownership_pct ? Number(form.ownership_pct) : null,
-          credit_score_range: form.credit_range as never || null,
-          address: form.home_address || null,
-          city: form.home_city || null,
-          state: form.home_state || null,
-          zip: form.home_zip || null,
-        })
-        .select('id')
-        .single();
-
-      if (ownerErr) throw ownerErr;
-
-      // Link owner to business
-      await db.from('business_owners').insert({
-        organization_id: DEFAULT_ORG_ID,
-        business_id: biz.id,
-        owner_id: owner.id,
-        ownership_percentage: form.ownership_pct ? Number(form.ownership_pct) : null,
-        is_primary: true,
-      });
-
-      // Insert application
-      const { data: app, error: appErr } = await db
-        .from('applications')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          business_id: biz.id,
-          status: 'submitted',
-          requested_amount: form.requested_amount ? Number(form.requested_amount) : null,
-          use_of_funds: form.use_of_funds || null,
-          desired_timeline: form.timeline || null,
-          has_existing_advances: form.has_existing_advances,
-          desired_payment_frequency: form.payment_frequency as never || null,
-          notes: form.notes || null,
-          bank_name: form.bank_name || null,
-          account_type: form.account_type as never || null,
-          routing_number: form.routing_number || null,
-          account_last4: form.account_last4 || null,
-          avg_monthly_deposits: form.avg_monthly_deposits ? Number(form.avg_monthly_deposits) : null,
-          negative_days_count: Number(form.negative_days) || 0,
-          nsf_count: Number(form.nsf_count) || 0,
-          ending_balance_estimate: form.ending_balance ? Number(form.ending_balance) : null,
-          submitted_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
-
-      if (appErr) throw appErr;
-
-      // Insert existing advances
-      if (form.existing_advances.length > 0) {
-        await db.from('existing_advances').insert(
-          form.existing_advances.map((adv) => ({
-            organization_id: DEFAULT_ORG_ID,
-            application_id: app.id,
-            funder_name: adv.funder_name || null,
-            original_funded_amount: adv.original_amount ? Number(adv.original_amount) : null,
-            current_balance: adv.current_balance ? Number(adv.current_balance) : null,
-            daily_payment: adv.daily_payment ? Number(adv.daily_payment) : null,
-            payment_frequency: adv.payment_frequency as never || null,
-          }))
-        );
-      }
-
-      // Insert lead
-      await db.from('leads').insert({
-        organization_id: DEFAULT_ORG_ID,
-        lead_source: 'website',
-        first_name: form.first_name,
-        last_name: form.last_name,
-        email: form.email || null,
-        phone: form.phone || null,
-        business_name: form.legal_name,
-        status: 'application_started',
-      });
-
+      window.localStorage.removeItem('elite-application-progress');
       setCurrentStep(8);
     } catch (err) {
       console.error(err);
-      toast.error('Something went wrong. Please try again or contact support.');
+      toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again or contact support.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const isLastStep = currentStep === 7;
-  const progressPct = ((currentStep - 1) / 7) * 100;
-
   return (
     <div className="min-h-screen bg-[#F8F9FB] pt-8 pb-20">
-      <div className="max-w-[760px] mx-auto px-6">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-[28px] font-bold text-[#0A1628] tracking-tight mb-2">Apply for Business Funding</h1>
-          <p className="text-[15px] text-[#5A6A85]">No obligation. Decisions in as little as 4 hours.</p>
-        </div>
-
-        {/* Progress bar */}
-        {currentStep < 8 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[13px] font-medium text-[#52525B]">
-                Step {currentStep} of 7: {steps[currentStep - 1].title}
-              </span>
-              <span className="text-[13px] text-[#A1A1AA]">{Math.round(progressPct)}% complete</span>
-            </div>
-            <div className="h-1.5 bg-[#E4E4E7] rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{ background: 'linear-gradient(90deg, #0F2B5B, #C9A84C)', width: `${progressPct}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Form card */}
-        <div className="bg-white border border-[#E4E4E7] rounded-[20px] p-8" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
-          {currentStep === 1 && <StepBusiness data={form} update={updateField as never} />}
-          {currentStep === 2 && <StepOwner data={form} update={updateField as never} />}
-          {currentStep === 3 && <StepFunding data={form} update={updateField as never} />}
-          {currentStep === 4 && <StepExistingAdvances data={form} update={updateField as never} />}
-          {currentStep === 5 && <StepBank data={form} update={updateField as never} />}
-          {currentStep === 6 && <StepDocuments />}
-          {currentStep === 7 && <StepReview data={form} />}
+      <div className="max-w-[860px] mx-auto px-6">
+        <div className="text-center mb-10"><h1 className="text-[28px] font-bold text-[#0A1628] tracking-tight mb-2">Elite Funding Solutions Application</h1><p className="text-[15px] text-[#5A6A85]">Secure digital application at elitefundingsolution.com/apply.</p></div>
+        {currentStep < 8 && <div className="mb-8"><div className="flex items-center justify-between mb-2"><span className="text-[13px] font-medium text-[#52525B]">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="text-[13px] text-[#A1A1AA]">{Math.round(progressPct)}% complete</span></div><div className="h-1.5 bg-[#E4E4E7] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ background: 'linear-gradient(90deg, #0F2B5B, #C9A84C)', width: `${progressPct}%` }} /></div></div>}
+        <div className="bg-white border border-[#E4E4E7] rounded-[20px] p-6 md:p-8" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+          {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
+          {currentStep === 2 && <StepReferencesBanking data={form} update={updateField} />}
+          {currentStep === 3 && <StepOwners data={form} updateOwner={updateOwner} />}
+          {currentStep === 4 && <StepFunding data={form} update={updateField} />}
+          {currentStep === 5 && <StepExistingAdvances data={form} update={updateField} />}
+          {currentStep === 6 && <StepDocuments files={files} setFiles={setFiles} />}
+          {currentStep === 7 && <StepReview data={form} files={files} update={updateField} />}
           {currentStep === 8 && <StepConfirmation data={form} />}
-
-          {/* Navigation */}
-          {currentStep < 8 && (
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-[#F4F4F5]">
-              <button
-                type="button"
-                onClick={back}
-                disabled={currentStep === 1}
-                className={`inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors ${
-                  currentStep === 1
-                    ? 'text-[#A1A1AA] cursor-not-allowed'
-                    : 'text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]'
-                }`}
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </button>
-
-              <div className="flex items-center gap-2">
-                {/* Step dots */}
-                {steps.slice(0, 7).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`rounded-full transition-all ${
-                      i + 1 === currentStep
-                        ? 'w-6 h-2 bg-[#0F2B5B]'
-                        : i + 1 < currentStep
-                        ? 'w-2 h-2 bg-[#10B981]'
-                        : 'w-2 h-2 bg-[#E4E4E7]'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {isLastStep ? (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="inline-flex items-center gap-2 rounded-[10px] bg-[#10B981] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#059669] disabled:opacity-50"
-                >
-                  {submitting ? 'Submitting…' : 'Submit Application'}
-                  {!submitting && <CheckCircle2 className="w-4 h-4" />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={next}
-                  className="inline-flex items-center gap-2 rounded-[10px] text-white font-semibold text-[14px] h-10 px-5 transition-all" style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628' }}
-                >
-                  Continue
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          )}
+          {currentStep < 8 && <div className="flex items-center justify-between mt-8 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#10B981] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#059669] disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-10 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div>}
         </div>
-
-        {/* Security note */}
-        {currentStep < 8 && (
-          <div className="flex items-center justify-center gap-2 mt-5 text-[12px] text-[#A1A1AA]">
-            <Shield className="w-3.5 h-3.5" />
-            <span>256-bit SSL encryption. Your data is never sold or shared without consent.</span>
-          </div>
-        )}
+        {currentStep < 8 && <div className="mt-6 flex items-center justify-center gap-6 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Progress saved locally</span></div>}
       </div>
     </div>
   );

@@ -62,10 +62,10 @@ export function PublicFooter() {
                 (888) 400-2580
               </a>
               <a
-                href="mailto:hello@elitefundingsolutions.com"
+                href="mailto:info@elitefundingsolution.com"
                 className="text-[14px] text-[#5A6A85] hover:text-[#C9A84C] transition-colors"
               >
-                hello@elitefundingsolutions.com
+                info@elitefundingsolution.com
               </a>
             </div>
           </div>

@@ -1,0 +1,3 @@
+import type { Metadata } from 'next';
+export const metadata: Metadata = { title: 'Security | Elite Funding Solutions', description: 'Security practices for the Elite Funding Solutions platform.' };
+export default function SecurityPage(){return <section className="section"><div className="container-page"><h1 className="text-[44px] font-bold mb-5">Security</h1><p className="text-[#71717A] max-w-3xl">The platform uses server-side submissions, Supabase Row Level Security, private document storage, audit logging, and role-based CRM access. Production deployment requires live Supabase, Resend, Vercel, and analytics credentials configured as environment variables.</p></div></section>}

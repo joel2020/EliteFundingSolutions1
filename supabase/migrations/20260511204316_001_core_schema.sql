@@ -173,7 +173,7 @@ VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Elite Funding Solutions',
   'elite-funding-solutions',
-  'support@elitefundingsolutions.com',
+  'info@elitefundingsolution.com',
   '(888) 400-3780',
   'https://mdrrcrmowurbrwvdsgnq.supabase.co'
 ) ON CONFLICT (id) DO NOTHING;

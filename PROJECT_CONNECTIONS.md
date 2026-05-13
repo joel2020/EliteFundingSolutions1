@@ -46,18 +46,18 @@ NEXT_PUBLIC_SUPABASE_URL=https://mdrrcrmowurbrwvdsgnq.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=REPLACE_WITH_SUPABASE_ANON_OR_PUBLISHABLE_KEY
 SUPABASE_SERVICE_ROLE_KEY=REPLACE_WITH_SERVICE_ROLE_KEY
 
-NEXT_PUBLIC_APP_URL=https://elitefundingsolutions.com
-NEXT_PUBLIC_CRM_URL=https://crm.elitefundingsolutions.com
-NEXT_PUBLIC_ADMIN_URL=https://admin.elitefundingsolutions.com
+NEXT_PUBLIC_APP_URL=https://elitefundingsolution.com
+NEXT_PUBLIC_CRM_URL=https://crm.elitefundingsolution.com
+NEXT_PUBLIC_ADMIN_URL=https://admin.elitefundingsolution.com
 ```
 
 Never commit real secret keys to GitHub. Store production secrets only in Vercel Environment Variables and Supabase.
 
 ## Production Domains
 
-- Main Website: https://elitefundingsolutions.com
-- CRM: https://crm.elitefundingsolutions.com
-- Admin: https://admin.elitefundingsolutions.com
+- Main Website: https://elitefundingsolution.com
+- CRM: https://crm.elitefundingsolution.com
+- Admin: https://admin.elitefundingsolution.com
 
 ## Agent / Codex Instructions
 

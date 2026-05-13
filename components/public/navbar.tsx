@@ -19,7 +19,9 @@ const navLinks = [
   { label: 'How It Works', href: '/how-it-works' },
   { label: 'Industries', href: '/industries' },
   { label: 'About', href: '/about' },
+  { label: 'Resources', href: '/resources' },
   { label: 'FAQ', href: '/faq' },
+  { label: 'Contact', href: '/contact' },
 ];
 
 export function PublicNavbar() {
