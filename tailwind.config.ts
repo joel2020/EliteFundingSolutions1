@@ -55,10 +55,10 @@ const config: Config = {
         },
         // Design system tokens
         brand: {
-          DEFAULT: '#2563EB',
-          hover: '#1D4ED8',
-          light: '#EFF6FF',
-          text: '#2563EB',
+          DEFAULT: '#061326',
+          hover: '#0A1730',
+          light: '#EEF2F7',
+          text: '#061326',
         },
         zinc: {
           50: '#FAFAFA',
