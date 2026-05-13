@@ -1,7 +1,33 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowRight } from 'lucide-react';
-import { fundingSolutions, industries, blogPosts } from '@/lib/content/site';
-export const metadata: Metadata = { title: 'Funding Guide | Elite Funding Solutions', description: 'Learn how lenders evaluate revenue, bank activity, time in business, owner profile, industry risk, use of funds, and documentation quality.', alternates: { canonical: '/funding-guide' } };
-export default function Page() { return <main className="section bg-[#F8F9FB]"><div className="container-page"><div className="mb-12 max-w-4xl"><p className="eyebrow mb-3">Funding Guide</p><h1 className="text-4xl font-semibold leading-tight tracking-tight text-[#0A1628] md:text-6xl">How business funding decisions are made</h1><p className="mt-5 max-w-3xl text-lg leading-8 text-[#5A6A85]">Learn how lenders evaluate revenue, bank activity, time in business, owner profile, industry risk, use of funds, and documentation quality.</p></div><div className="grid gap-5 md:grid-cols-3"><HubCard href="/apply" title="Secure Application" text="Submit one protected funding request with required documents." /><HubCard href="/funding-solutions" title="Funding Products" text={`Compare ${fundingSolutions.length} product categories with advisor guidance.`} /><HubCard href="/industries" title="Industries" text={`Review ${industries.length} industry pages and common use cases.`} /></div><div className="mt-12 grid gap-8 lg:grid-cols-[1fr_0.8fr]"><section className="premium-card p-6"><h2 className="text-2xl font-semibold text-[#0A1628]">Popular articles</h2><div className="mt-5 grid gap-3">{blogPosts.map((post)=><Link key={post.slug} href={`/blog/${post.slug}`} className="rounded-2xl border border-[#E5E7EB] p-4 text-[#0A1628] transition hover:border-[#C9A84C]/70"><span className="font-semibold">{post.title}</span><span className="mt-1 block text-sm leading-6 text-[#5A6A85]">{post.description}</span></Link>)}</div></section><section className="premium-card p-6"><h2 className="text-2xl font-semibold text-[#0A1628]">Product links</h2><div className="mt-5 flex flex-wrap gap-3">{fundingSolutions.map((solution)=><Link key={solution.slug} href={`/funding-solutions/${solution.slug}`} className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm font-semibold text-[#0A1628] hover:border-[#C9A84C]">{solution.title}</Link>)}</div></section></div></div></main>; }
-function HubCard({href,title,text}:{href:string;title:string;text:string}){return <Link href={href} className="premium-card group block p-6 transition hover:-translate-y-1 hover:border-[#C9A84C]/60"><h2 className="text-xl font-semibold text-[#0A1628]">{title}</h2><p className="mt-2 leading-7 text-[#5A6A85]">{text}</p><span className="mt-5 inline-flex items-center gap-2 font-semibold text-[#0A1628]">Open <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span></Link>}
+
+export const metadata: Metadata = {
+  title: 'Business Funding Guide | Elite Funding Solutions',
+  description: 'A practical guide to business funding documents, underwriting criteria, product fit, offer comparison, and funding agreement review.',
+  alternates: { canonical: '/funding-guide' },
+};
+
+const guide = [
+  ['1. Define the funding objective', 'Underwriters and funding partners review whether proceeds are intended for inventory, payroll, equipment, expansion, receivables timing, debt consolidation, or emergency repairs. A clear use of funds helps match the request to the right product.'],
+  ['2. Prepare a complete file', 'Most prequalification reviews begin with legal business details, EIN, owner identity information, full SSN with authorization, owner mobile phone, requested amount, revenue context, and the last three complete business bank statements.'],
+  ['3. Understand what gets reviewed', 'Revenue consistency, time in business, bank activity, industry risk, existing advances, credit profile, cash-flow capacity, and documentation quality can all affect eligible offers, cost, and speed.'],
+  ['4. Compare offers responsibly', 'Review total payback, payment frequency, estimated term, collateral or guaranty requirements, renewal expectations, fees, and conditions before signing. Fast funding is only useful if repayment fits the business.'],
+];
+
+export default function FundingGuidePage() {
+  return (
+    <main className="bg-[#F8F9FB]">
+      <section className="container-page py-20 md:py-28">
+        <p className="eyebrow mb-4">Funding guide</p>
+        <h1 className="max-w-5xl text-4xl font-semibold leading-tight tracking-tight text-[#0A1628] md:text-6xl">How to prepare, compare, and close business funding with fewer surprises.</h1>
+        <p className="mt-6 max-w-3xl text-lg leading-8 text-[#5A6A85]">Use this guide to understand what a funding partner is likely to review, what documents to prepare, and how to evaluate speed against cost and repayment fit.</p>
+      </section>
+      <section className="container-page grid gap-5 pb-16 md:grid-cols-2">
+        {guide.map(([title, body]) => <article key={title} className="premium-card p-7"><h2 className="text-2xl font-semibold tracking-tight text-[#0A1628]">{title}</h2><p className="mt-3 leading-7 text-[#5A6A85]">{body}</p></article>)}
+      </section>
+      <section className="container-page pb-20">
+        <div className="rounded-[32px] bg-[#061326] p-8 text-white md:p-10"><h2 className="text-3xl font-semibold tracking-tight">Before you accept funding</h2><div className="mt-6 grid gap-4 md:grid-cols-3">{['Confirm all fees and total repayment.', 'Make sure payment frequency matches revenue timing.', 'Read the full agreement and ask questions before signing.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 text-slate-200">{item}</div>)}</div><Link href="/apply" className="btn-gold mt-8">Start secure application</Link></div>
+      </section>
+    </main>
+  );
+}

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/public/legal-page';
-export const metadata: Metadata = { title: 'Compliance Disclosures | Elite Funding Solutions' };
+export const metadata: Metadata = { title: 'Compliance Disclosures | Elite Funding Solutions', description: 'Important compliance disclosures for Elite Funding Solutions business funding applicants and website users.', alternates: { canonical: '/disclosures' } };
 export default function DisclosuresPage() { return <LegalPage title="Compliance Disclosures" intro="Important disclosures for business funding applicants and website users." sections={[
   { title: 'No guarantee and no funding obligation', body: ['Elite Funding Solutions is not guaranteeing approval, funding, rates, terms, or availability. Submitting an application does not create a funding obligation by Elite Funding Solutions or any third-party funding partner.'] },
   { title: 'Underwriting and final agreements', body: ['Offers are subject to underwriting, partner approval, document verification, risk review, bank and processor verification, identity verification, and final agreement execution. Rates, terms, fees, repayment structures, and availability vary by applicant, funding product, partner, risk profile, and documentation.'] },

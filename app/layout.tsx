@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: 'Elite Funding Solutions — Institutional Business Funding & Private Credit Advisory',
-    template: '%s | Elite Funding Solutions',
+    template: '%s',
   },
   description: 'Elite Funding Solutions provides secure advisor-led business funding, working capital, revenue-based financing, lines of credit, equipment financing, SBA options, invoice factoring, and commercial real estate capital for U.S. operators.',
   keywords: ['business funding', 'working capital', 'merchant cash advance', 'revenue-based financing', 'equipment financing', 'SBA loans', 'business line of credit', 'invoice factoring', 'fast business funding', 'small business funding'],

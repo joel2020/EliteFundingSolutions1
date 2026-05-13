@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { LegalPage } from '@/components/public/legal-page';
 import { COMPANY } from '@/lib/company';
 
-export const metadata: Metadata = { title: 'Terms of Use | Elite Funding Solutions', description: 'Terms governing use of the Elite Funding Solutions website and application.' };
+export const metadata: Metadata = { title: 'Terms of Use | Elite Funding Solutions', description: 'Terms governing use of the Elite Funding Solutions website and application.', alternates: { canonical: '/terms-of-use' } };
 export default function TermsOfUsePage() {
   return <LegalPage title="Terms of Use" intro={`These Terms govern your use of ${COMPANY.domain}, our application pages, CRM portal, forms, communications, and related services.`} sections={[
     { title: 'Acceptance of terms', body: ['By accessing the website, submitting information, uploading documents, communicating with us, or using our services, you agree to these Terms. If you do not agree, do not use the website or submit an application.'] },
