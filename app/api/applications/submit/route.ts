@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createCipheriv, createHash, randomBytes } from 'crypto';
 import { z } from 'zod';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
@@ -17,6 +18,8 @@ const isValidPhone = (value?: string) => digitsOnly(value).length >= 10;
 const allowedFileTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/heic', 'image/heif']);
 const allowedFileExtensions = new Set(['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 5;
 
 const ownerSchema = z.object({
   first_name: z.string().optional().default(''),
@@ -112,19 +115,61 @@ const documentLabels: Record<(typeof documentKeys)[number], string> = {
   bank_statements: 'Last 3 Bank Statements',
 };
 
-const submissionBuckets = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 5;
 const getClientIp = (request: Request) => request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
-function isRateLimited(ip: string) {
-  const now = Date.now();
-  const bucket = submissionBuckets.get(ip);
-  if (!bucket || bucket.resetAt < now) {
-    submissionBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+
+function encryptionKey() {
+  const secret = process.env.FIELD_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) throw new Error('Sensitive field encryption is not configured.');
+  return createHash('sha256').update(secret).digest();
+}
+
+function encryptSensitiveField(value?: string | null) {
+  if (!value) return null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `v1:${iv.toString('base64')}:${authTag.toString('base64')}:${ciphertext.toString('base64')}`;
+}
+
+function maskDigits(value?: string | null) {
+  const digits = digitsOnly(value || '');
+  if (!digits) return '';
+  return `${'*'.repeat(Math.max(digits.length - 4, 0))}${digits.slice(-4)}`;
+}
+
+function sanitizeOwnerForPayload<T extends { ssn?: string; dob?: string }>(owner: T) {
+  return {
+    ...owner,
+    ssn: maskDigits(owner.ssn),
+    dob: owner.dob ? '[encrypted]' : '',
+  };
+}
+
+function sanitizePayloadForCrm(form: z.infer<typeof applicationSchema>, uploadedTypes: string[]) {
+  return {
+    ...form,
+    ein: maskDigits(form.ein),
+    owner1: sanitizeOwnerForPayload(form.owner1),
+    owner2: sanitizeOwnerForPayload(form.owner2),
+    bot_field: undefined,
+    authorization_text_version: CONSENT_VERSION,
+    consent_version: form.consent_version,
+    uploaded_document_types: uploadedTypes,
+  };
+}
+
+async function checkRateLimit(supabase: ReturnType<typeof createServiceSupabaseClient>, key: string) {
+  const now = new Date();
+  const resetAt = new Date(now.getTime() + RATE_LIMIT_WINDOW_MS).toISOString();
+  const { data } = await supabase.from('rate_limits').select('count, reset_at').eq('key', key).maybeSingle();
+  if (!data || new Date(data.reset_at).getTime() < now.getTime()) {
+    await supabase.from('rate_limits').upsert({ key, count: 1, reset_at: resetAt, updated_at: now.toISOString() });
     return false;
   }
-  bucket.count += 1;
-  return bucket.count > RATE_LIMIT_MAX;
+  const nextCount = Number(data.count || 0) + 1;
+  await supabase.from('rate_limits').update({ count: nextCount, updated_at: now.toISOString() }).eq('key', key);
+  return nextCount > RATE_LIMIT_MAX;
 }
 
 async function readPayloadAndFiles(request: Request) {
@@ -143,7 +188,9 @@ async function readPayloadAndFiles(request: Request) {
 export async function POST(request: Request) {
   const clientIp = getClientIp(request);
   const userAgent = request.headers.get('user-agent') || 'unknown';
-  if (isRateLimited(clientIp)) {
+  const supabase = createServiceSupabaseClient();
+
+  if (await checkRateLimit(supabase, `application:${clientIp}`)) {
     return NextResponse.json({ success: false, error: 'Too many submission attempts. Please wait and try again.' }, { status: 429 });
   }
 
@@ -160,9 +207,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Please complete all required fields and authorization language.', issues: parsed.error.flatten() }, { status: 400 });
   }
 
+  const form = parsed.data;
+  if (form.bot_field) {
+    return NextResponse.json({ success: true });
+  }
+
   const bankStatementFiles = parsedBody.files.filter((item) => item.key === 'bank_statements');
-  if (bankStatementFiles.length < 3) {
-    return NextResponse.json({ success: false, error: 'Please upload at least 3 recent business bank statements.' }, { status: 400 });
+  if (bankStatementFiles.length < 1) {
+    return NextResponse.json({ success: false, error: 'Please upload your three most recent business bank statements as one combined PDF or separate files.' }, { status: 400 });
   }
 
   const invalidFile = parsedBody.files.find(({ file }) => {
@@ -173,12 +225,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.' }, { status: 400 });
   }
 
-  const form = parsed.data;
-  if (form.bot_field) {
-    return NextResponse.json({ success: true });
-  }
-  const supabase = createServiceSupabaseClient();
-
   try {
     const { data: biz, error: bizErr } = await supabase
       .from('businesses')
@@ -187,7 +233,7 @@ export async function POST(request: Request) {
         legal_name: form.legal_name,
         dba: emptyToNull(form.dba),
         entity_type: emptyToNull(form.entity_type),
-        ein_encrypted: emptyToNull(form.ein),
+        ein_encrypted: encryptSensitiveField(form.ein),
         ein_last4: form.ein.slice(-4),
         industry: emptyToNull(form.industry),
         start_date: emptyToNull(form.start_date),
@@ -210,8 +256,16 @@ export async function POST(request: Request) {
 
     if (bizErr) throw bizErr;
 
+    const { data: lead, error: leadErr } = await supabase
+      .from('leads')
+      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: 'website', first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.` })
+      .select('id')
+      .single();
+    if (leadErr) throw leadErr;
+
     const createOwner = async (owner: typeof form.owner1 | typeof form.owner2, isPrimary: boolean) => {
       if (!owner.first_name || !owner.last_name) return null;
+      const ownerSsn = digitsOnly(owner.ssn);
       const { data: ownerRow, error } = await supabase
         .from('owners')
         .insert({
@@ -220,9 +274,9 @@ export async function POST(request: Request) {
           last_name: owner.last_name,
           email: emptyToNull(owner.email),
           phone: emptyToNull(owner.phone || owner.mobile),
-          dob_encrypted: emptyToNull(owner.dob),
-          ssn_encrypted: emptyToNull(owner.ssn),
-          ssn_last4: owner.ssn.slice(-4),
+          dob_encrypted: encryptSensitiveField(owner.dob),
+          ssn_encrypted: encryptSensitiveField(ownerSsn),
+          ssn_last4: ownerSsn ? ownerSsn.slice(-4) : null,
           ownership_percentage: toNumber(owner.ownership_pct),
           credit_score_range: emptyToNull(owner.credit_range),
           address: emptyToNull(owner.address),
@@ -241,19 +295,14 @@ export async function POST(request: Request) {
     await createOwner(form.owner1, true);
     await createOwner(form.owner2, false);
 
-    const payloadForCrm = {
-      ...form,
-      bot_field: undefined,
-      authorization_text_version: CONSENT_VERSION,
-      consent_version: form.consent_version,
-      uploaded_document_types: parsedBody.files.map((item) => item.key),
-    };
+    const payloadForCrm = sanitizePayloadForCrm(form, parsedBody.files.map((item) => item.key));
 
     const { data: app, error: appErr } = await supabase
       .from('applications')
       .insert({
         organization_id: DEFAULT_ORG_ID,
         business_id: biz.id,
+        lead_id: lead.id,
         status: 'submitted',
         requested_amount: toNumber(form.requested_amount),
         use_of_funds: emptyToNull(form.use_of_funds),
@@ -291,6 +340,13 @@ export async function POST(request: Request) {
 
     if (appErr) throw appErr;
 
+    const { data: deal, error: dealErr } = await supabase
+      .from('deals')
+      .insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: `${form.legal_name} funding request`, requested_amount: toNumber(form.requested_amount), notes: emptyToNull(form.notes) })
+      .select('id')
+      .single();
+    if (dealErr) throw dealErr;
+
     const uploadedDocuments = await Promise.all(parsedBody.files.map(async ({ key, file }) => {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const storagePath = `${app.id}/${key}/${Date.now()}-${safeName}`;
@@ -298,6 +354,7 @@ export async function POST(request: Request) {
       if (uploadError) throw uploadError;
       const { error: docError } = await supabase.from('documents').insert({
         organization_id: DEFAULT_ORG_ID,
+        deal_id: deal.id,
         application_id: app.id,
         document_type: key,
         label: documentLabels[key],
@@ -310,15 +367,13 @@ export async function POST(request: Request) {
       return { type: key, name: file.name, path: storagePath };
     }));
 
-    await supabase.from('funding_requests').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, requested_amount: Number(form.requested_amount), use_of_funds: form.use_of_funds, credit_score_range: emptyToNull(form.owner1.credit_range), desired_timeline: emptyToNull(form.timeline), status: 'new' });
-    await supabase.from('status_history').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, previous_status: null, new_status: 'submitted', notes: 'Submitted through the secure public digital PDF application endpoint.' });
-    await supabase.from('activity_logs').insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, metadata: { source: 'digital_pdf_application', business_name: form.legal_name, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version, signer_ip: clientIp, signer_user_agent: userAgent } });
+    await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
+    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
+    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: 'digital_application', business_name: form.legal_name, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
 
     if (form.existing_advances.length > 0) {
       await supabase.from('existing_advances').insert(form.existing_advances.map((advance) => ({ organization_id: DEFAULT_ORG_ID, application_id: app.id, funder_name: emptyToNull(advance.funder_name), original_funded_amount: toNumber(advance.original_amount), current_balance: toNumber(advance.current_balance), daily_payment: toNumber(advance.daily_payment), payment_frequency: emptyToNull(advance.payment_frequency), notes: emptyToNull(advance.notes) })));
     }
-
-    await supabase.from('leads').insert({ organization_id: DEFAULT_ORG_ID, lead_source: 'website', first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.` });
 
     await Promise.allSettled([
       sendEmail({ to: form.owner1.email || form.business_email, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount)) }),
@@ -327,7 +382,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, applicationId: app.id });
   } catch (error: any) {
-    console.error('Application submission failed. See server logs and Supabase audit records for details.');
+    console.error('Application submission failed.', error?.message || error);
     return NextResponse.json({ success: false, error: 'Application submission failed. Please contact support if this continues.' }, { status: 500 });
   }
 }
