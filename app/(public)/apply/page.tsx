@@ -62,18 +62,10 @@ interface ApplicationFormData {
   has_tax_lien: boolean;
   has_bankruptcy: boolean;
   is_seasonal: boolean;
-  reference1_name: string;
-  reference1_phone: string;
-  reference2_name: string;
-  reference2_phone: string;
   bank_name: string;
   bank_contact: string;
   bank_phone: string;
-  account_last4: string;
   account_type: string;
-  negative_days: string;
-  nsf_count: string;
-  ending_balance: string;
   owner1: OwnerFields;
   owner2: OwnerFields;
   requested_amount: string;
@@ -106,8 +98,7 @@ const initialForm: ApplicationFormData = {
   legal_name: '', dba: '', entity_type: '', ein: '', merchant_type: '', industry: '', start_date: '',
   business_phone: '', business_mobile: '', fax: '', business_email: '', website: '', address: '', city: '', state: '', zip: '', business_location: '', products_services: '',
   pos_contact_name: '', pos_contact_phone: '', pos_system: '', has_judgments: false, has_tax_lien: false, has_bankruptcy: false, is_seasonal: false,
-  reference1_name: '', reference1_phone: '', reference2_name: '', reference2_phone: '',
-  bank_name: '', bank_contact: '', bank_phone: '', account_last4: '', account_type: 'checking', negative_days: '0', nsf_count: '0', ending_balance: '',
+  bank_name: '', bank_contact: '', bank_phone: '', account_type: 'checking',
   owner1: { ...blankOwner, ownership_pct: '100' }, owner2: { ...blankOwner },
   requested_amount: '', use_of_funds: '', timeline: '', average_monthly_sales: '', average_visa_mc_sales: '', monthly_gross_revenue: '',
   has_existing_advances: false, existing_advances: [], notes: '', certification_accepted: false, credit_authorization_accepted: false, esign_consent_accepted: false, sms_consent_accepted: false, terms_accepted: false, privacy_policy_accepted: false, authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10), bot_field: '',
@@ -115,7 +106,7 @@ const initialForm: ApplicationFormData = {
 
 const steps = [
   'Business Information',
-  'References & Banking',
+  'Bank Reference',
   'Owner / Principal Information',
   'Funding Request',
   'Prior Cash Advances',
@@ -127,7 +118,7 @@ const steps = [
 const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
 const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean; help: string }> = [
-  { key: 'bank_statements', label: 'Last 3 Bank Statements', required: true, help: 'Upload the three most recent business bank statements.' },
+  { key: 'bank_statements', label: 'Last 3 Bank Statements', required: true, help: 'Upload one combined PDF with the last 3 business bank statements, or upload each statement separately.' },
 ];
 
 function InputField({ label, value, onChange, type = 'text', required = false, placeholder = '', hint = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; hint?: string }) {
@@ -204,15 +195,11 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
   );
 }
 
-function StepReferencesBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+function StepBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
-      <SectionIntro title="References & Banking" text="Provide business references and bank reference details." />
+      <SectionIntro title="Bank Reference" text="Provide bank reference details only. Do not enter routing or full account numbers." />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="Business Reference 1" value={data.reference1_name} onChange={(v) => update('reference1_name', v)} />
-        <InputField label="Reference 1 Phone" value={data.reference1_phone} onChange={(v) => update('reference1_phone', v)} />
-        <InputField label="Business Reference 2" value={data.reference2_name} onChange={(v) => update('reference2_name', v)} />
-        <InputField label="Reference 2 Phone" value={data.reference2_phone} onChange={(v) => update('reference2_phone', v)} />
         <InputField label="Bank Name" value={data.bank_name} onChange={(v) => update('bank_name', v)} required />
         <InputField label="Bank Contact" value={data.bank_contact} onChange={(v) => update('bank_contact', v)} />
         <InputField label="Bank Phone" value={data.bank_phone} onChange={(v) => update('bank_phone', v)} />
@@ -370,7 +357,7 @@ export default function ApplyPage() {
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
     return file.size > 10 * 1024 * 1024 || !['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif'].includes(extension);
   });
-  const missingRequiredDocs = files.bank_statements.length < 3 ? ['Last 3 Bank Statements'] : [];
+  const missingRequiredDocs = files.bank_statements.length < 1 ? ['Last 3 Bank Statements'] : [];
 
   const handleSubmit = async () => {
     if (digitsOnly(form.ein).length !== 9) return toast.error('EIN must be exactly 9 digits.');
@@ -387,7 +374,7 @@ export default function ApplyPage() {
     if (!form.sms_consent_accepted) return toast.error('Please accept the SMS consent disclosure.');
     if (!form.terms_accepted || !form.privacy_policy_accepted) return toast.error('Please accept the legal policies and disclosures.');
     if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
-    if (missingRequiredDocs.length > 0) return toast.error('Please upload at least 3 recent bank statement files.');
+    if (missingRequiredDocs.length > 0) return toast.error('Upload one combined PDF with the last 3 business bank statements, or upload each statement separately.');
 
     setSubmitting(true);
     try {
@@ -414,7 +401,7 @@ export default function ApplyPage() {
         {currentStep < 8 && <div className="mb-8"><div className="flex items-center justify-between mb-2"><span className="text-[13px] font-medium text-[#52525B]">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="text-[13px] text-[#A1A1AA]">{Math.round(progressPct)}% complete</span></div><div className="h-1.5 bg-[#E4E4E7] rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ background: 'linear-gradient(90deg, #0F2B5B, #C9A84C)', width: `${progressPct}%` }} /></div></div>}
         <div className="bg-white border border-[#E4E4E7] rounded-[20px] p-6 md:p-8" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
           {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
-          {currentStep === 2 && <StepReferencesBanking data={form} update={updateField} />}
+          {currentStep === 2 && <StepBanking data={form} update={updateField} />}
           {currentStep === 3 && <StepOwners data={form} updateOwner={updateOwner} />}
           {currentStep === 4 && <StepFunding data={form} update={updateField} />}
           {currentStep === 5 && <StepExistingAdvances data={form} update={updateField} />}

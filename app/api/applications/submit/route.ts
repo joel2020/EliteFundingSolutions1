@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createCipheriv, createHash, randomBytes } from 'crypto';
 import { z } from 'zod';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
 import { CONSENT_VERSION } from '@/lib/company';
+import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, maskDigits } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
 const toNumber = (value?: string) => value ? Number(String(value).replace(/[$,]/g, '')) : null;
 const emptyToNull = (value?: string) => value && value.trim() ? value.trim() : null;
-const digitsOnly = (value?: string) => (value || '').replace(/\D/g, '');
 const isPositiveMoney = (value?: string) => {
   const number = toNumber(value);
   return typeof number === 'number' && Number.isFinite(number) && number > 0;
@@ -18,7 +17,6 @@ const isValidPhone = (value?: string) => digitsOnly(value).length >= 10;
 const allowedFileTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/heic', 'image/heif']);
 const allowedFileExtensions = new Set(['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
 
 const ownerSchema = z.object({
@@ -73,18 +71,10 @@ const applicationSchema = z.object({
   has_tax_lien: z.boolean().default(false),
   has_bankruptcy: z.boolean().default(false),
   is_seasonal: z.boolean().default(false),
-  reference1_name: z.string().optional().default(''),
-  reference1_phone: z.string().optional().default(''),
-  reference2_name: z.string().optional().default(''),
-  reference2_phone: z.string().optional().default(''),
   bank_name: z.string().min(1),
   bank_contact: z.string().optional().default(''),
   bank_phone: z.string().optional().default(''),
-  account_last4: z.string().optional().default(''),
   account_type: z.string().optional().default('checking'),
-  negative_days: z.string().optional().default('0'),
-  nsf_count: z.string().optional().default('0'),
-  ending_balance: z.string().optional().default(''),
   owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'), email: z.string().email(), phone: z.string().refine(isValidPhone, 'Owner phone must be valid.'), mobile: z.string().refine(isValidPhone, 'Owner mobile phone must be valid.'), dob: z.string().min(1), ssn: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'SSN must be exactly 9 digits.'), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
   owner2: ownerSchema.default({}),
   requested_amount: z.string().refine(isPositiveMoney, 'Requested funding amount must be positive.'),
@@ -117,27 +107,6 @@ const documentLabels: Record<(typeof documentKeys)[number], string> = {
 
 const getClientIp = (request: Request) => request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
 
-function encryptionKey() {
-  const secret = process.env.FIELD_ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret) throw new Error('Sensitive field encryption is not configured.');
-  return createHash('sha256').update(secret).digest();
-}
-
-function encryptSensitiveField(value?: string | null) {
-  if (!value) return null;
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', encryptionKey(), iv);
-  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-  return `v1:${iv.toString('base64')}:${authTag.toString('base64')}:${ciphertext.toString('base64')}`;
-}
-
-function maskDigits(value?: string | null) {
-  const digits = digitsOnly(value || '');
-  if (!digits) return '';
-  return `${'*'.repeat(Math.max(digits.length - 4, 0))}${digits.slice(-4)}`;
-}
-
 function sanitizeOwnerForPayload<T extends { ssn?: string; dob?: string }>(owner: T) {
   return {
     ...owner,
@@ -159,19 +128,6 @@ function sanitizePayloadForCrm(form: z.infer<typeof applicationSchema>, uploaded
   };
 }
 
-async function checkRateLimit(supabase: ReturnType<typeof createServiceSupabaseClient>, key: string) {
-  const now = new Date();
-  const resetAt = new Date(now.getTime() + RATE_LIMIT_WINDOW_MS).toISOString();
-  const { data } = await supabase.from('rate_limits').select('count, reset_at').eq('key', key).maybeSingle();
-  if (!data || new Date(data.reset_at).getTime() < now.getTime()) {
-    await supabase.from('rate_limits').upsert({ key, count: 1, reset_at: resetAt, updated_at: now.toISOString() });
-    return false;
-  }
-  const nextCount = Number(data.count || 0) + 1;
-  await supabase.from('rate_limits').update({ count: nextCount, updated_at: now.toISOString() }).eq('key', key);
-  return nextCount > RATE_LIMIT_MAX;
-}
-
 async function readPayloadAndFiles(request: Request) {
   const contentType = request.headers.get('content-type') || '';
   if (contentType.includes('multipart/form-data')) {
@@ -190,8 +146,12 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get('user-agent') || 'unknown';
   const supabase = createServiceSupabaseClient();
 
-  if (await checkRateLimit(supabase, `application:${clientIp}`)) {
-    return NextResponse.json({ success: false, error: 'Too many submission attempts. Please wait and try again.' }, { status: 429 });
+  try {
+    if (await checkPersistentRateLimit(supabase, `application:${clientIp}`, RATE_LIMIT_MAX)) {
+      return NextResponse.json({ success: false, error: 'Too many submission attempts. Please wait and try again.' }, { status: 429 });
+    }
+  } catch {
+    return NextResponse.json({ success: false, error: 'Unable to validate submission rate. Please try again shortly.' }, { status: 503 });
   }
 
   let parsedBody: Awaited<ReturnType<typeof readPayloadAndFiles>>;
@@ -258,7 +218,7 @@ export async function POST(request: Request) {
 
     const { data: lead, error: leadErr } = await supabase
       .from('leads')
-      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: 'website', first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.` })
+      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: 'website', first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.mobile || form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.` })
       .select('id')
       .single();
     if (leadErr) throw leadErr;
@@ -273,7 +233,7 @@ export async function POST(request: Request) {
           first_name: owner.first_name,
           last_name: owner.last_name,
           email: emptyToNull(owner.email),
-          phone: emptyToNull(owner.phone || owner.mobile),
+          phone: emptyToNull(owner.mobile || owner.phone),
           dob_encrypted: encryptSensitiveField(owner.dob),
           ssn_encrypted: encryptSensitiveField(ownerSsn),
           ssn_last4: ownerSsn ? ownerSsn.slice(-4) : null,
@@ -312,9 +272,6 @@ export async function POST(request: Request) {
         bank_name: emptyToNull(form.bank_name),
         account_type: emptyToNull(form.account_type),
         avg_monthly_deposits: toNumber(form.average_monthly_sales),
-        negative_days_count: Number(form.negative_days) || 0,
-        nsf_count: Number(form.nsf_count) || 0,
-        ending_balance_estimate: toNumber(form.ending_balance),
         application_payload: payloadForCrm,
         certification_accepted: form.certification_accepted,
         credit_authorization_accepted: form.credit_authorization_accepted,
@@ -377,7 +334,7 @@ export async function POST(request: Request) {
 
     await Promise.allSettled([
       sendEmail({ to: form.owner1.email || form.business_email, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount)) }),
-      sendEmail({ to: process.env.ADMIN_EMAIL || 'admin@elitefundingsolution.com', subject: `New digital funding application: ${form.legal_name}`, html: `<p>A new digital application was submitted by ${form.owner1.first_name} ${form.owner1.last_name} for ${form.legal_name}.</p><p>Requested amount: $${Number(form.requested_amount).toLocaleString()}</p><p>Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}</p>` }),
+      sendEmail({ to: process.env.ADMIN_EMAIL || 'admin@elitefundingsolution.com', subject: `New digital funding application: ${form.legal_name}`, html: `<p>A new digital application was submitted by ${escapeHtml(form.owner1.first_name)} ${escapeHtml(form.owner1.last_name)} for ${escapeHtml(form.legal_name)}.</p><p>Requested amount: $${Number(form.requested_amount).toLocaleString()}</p><p>Documents uploaded: ${escapeHtml(uploadedDocuments.map((doc) => doc.name).join(', '))}</p>` }),
     ]);
 
     return NextResponse.json({ success: true, applicationId: app.id });
