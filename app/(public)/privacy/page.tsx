@@ -1,3 +1,1 @@
-import type { Metadata } from 'next';
-export const metadata: Metadata = { title: 'Privacy Policy | Elite Funding Solutions', description: 'How Elite Funding Solutions collects, uses, and safeguards information.' };
-export default function PrivacyPage(){return <section className="section"><div className="container-page prose max-w-3xl"><h1>Privacy Policy</h1><p>Elite Funding Solutions collects business, owner, funding, banking, and document information to evaluate funding requests, communicate with applicants, prevent fraud, and service accounts.</p><p>We share application information only with our team, service providers, and funding partners as needed to process requests. Sensitive information is handled through secure server-side workflows and access-controlled systems.</p><p>To request access, correction, or deletion where legally available, contact info@elitefundingsolution.com.</p></div></section>}
+export { metadata, default } from '../privacy-policy/page';

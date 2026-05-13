@@ -12,6 +12,21 @@ import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
 
+const sensitiveKeyPattern = /(ssn|social|dob|birth|ein|tax|routing|account|bank|processor|statement|license|document|financial)/i;
+
+function maskValue(key: string, value: any): any {
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.map((item) => maskValue(key, item));
+  if (typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [childKey, maskValue(childKey, childValue)]));
+  }
+  if (!sensitiveKeyPattern.test(key)) return value;
+  const text = String(value);
+  if (!text) return value;
+  const last4 = text.replace(/\D/g, '').slice(-4) || text.slice(-4);
+  return `••••${last4}`;
+}
+
 const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
   draft: { label: 'Draft', bg: '#F4F4F5', text: '#71717A' },
   submitted: { label: 'Submitted', bg: '#EFF6FF', text: '#2563EB' },
@@ -29,10 +44,25 @@ export default function ApplicationsPage() {
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
   const [selectedDocuments, setSelectedDocuments] = useState<any[]>([]);
   const [selectedHistory, setSelectedHistory] = useState<any[]>([]);
+  const [currentProfile, setCurrentProfile] = useState<any>(null);
+  const [revealSensitive, setRevealSensitive] = useState(false);
 
   useEffect(() => {
     loadApplications();
+    loadCurrentProfile();
   }, []);
+
+  const loadCurrentProfile = async () => {
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) return;
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('id, role, organization_id')
+      .eq('user_id', authData.user.id)
+      .eq('organization_id', DEFAULT_ORG_ID)
+      .single();
+    setCurrentProfile(data);
+  };
 
   const loadApplications = async () => {
     const { data, error } = await supabase
@@ -67,6 +97,7 @@ export default function ApplicationsPage() {
 
   const viewApplicationDetails = async (application: any) => {
     setSelectedApplication(application);
+    setRevealSensitive(false);
     const [{ data: docs }, { data: history }] = await Promise.all([
       supabase.from('documents').select('*').eq('application_id', application.id).order('created_at', { ascending: false }),
       supabase.from('status_history').select('*').eq('application_id', application.id).order('changed_at', { ascending: false }),
@@ -75,8 +106,28 @@ export default function ApplicationsPage() {
     setSelectedHistory(history || []);
   };
 
+  const canRevealSensitive = ['super_admin', 'admin'].includes(currentProfile?.role);
+
+  const revealSensitiveFields = async () => {
+    if (!selectedApplication || !canRevealSensitive) {
+      toast.error('Only Super Admin/Admin can reveal sensitive fields.');
+      return;
+    }
+    const { error } = await supabase.rpc('log_sensitive_field_reveal', {
+      p_application_id: selectedApplication.id,
+      p_field_name: 'application_payload',
+      p_reason: 'CRM application detail review',
+    });
+    if (error) {
+      toast.error('Unable to audit sensitive-field reveal.');
+      return;
+    }
+    setRevealSensitive(true);
+    toast.success('Sensitive-field reveal audited.');
+  };
+
   const payloadEntries = selectedApplication?.application_payload
-    ? Object.entries(selectedApplication.application_payload).filter(([_, value]) => !['authorization_text_version'].includes(_))
+    ? Object.entries(selectedApplication.application_payload).filter(([key]) => !['authorization_text_version', 'bot_field'].includes(key))
     : [];
 
   const filtered = applications.filter((app) => {
@@ -193,9 +244,9 @@ export default function ApplicationsPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#F4F4F5]">
               <div>
                 <h2 className="text-[18px] font-semibold text-[#09090B]">Application Details</h2>
-                <p className="text-[13px] text-[#71717A]">Complete digital PDF payload, uploaded files, and activity for CRM review.</p>
+                <p className="text-[13px] text-[#71717A]">Sensitive fields are masked by default. Super Admin/Admin reveals are audited in activity logs.</p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedApplication(null)}><X className="w-4 h-4" /></Button>
+              <div className="flex items-center gap-2">{canRevealSensitive && !revealSensitive && <Button variant="outline" size="sm" onClick={revealSensitiveFields}>Reveal sensitive fields</Button>}<Button variant="ghost" size="sm" onClick={() => setSelectedApplication(null)}><X className="w-4 h-4" /></Button></div>
             </div>
             <div className="p-5 grid grid-cols-1 xl:grid-cols-3 gap-5">
               <div className="xl:col-span-2">
@@ -206,7 +257,7 @@ export default function ApplicationsPage() {
                   ) : payloadEntries.map(([key, value]) => (
                     <div key={key} className="grid grid-cols-1 md:grid-cols-3 gap-2 border-b last:border-b-0 border-[#F4F4F5] px-4 py-3">
                       <div className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[#71717A]">{key.replaceAll('_', ' ')}</div>
-                      <pre className="md:col-span-2 whitespace-pre-wrap break-words text-[12px] text-[#09090B] font-sans">{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre>
+                      <pre className="md:col-span-2 whitespace-pre-wrap break-words text-[12px] text-[#09090B] font-sans">{typeof (revealSensitive ? value : maskValue(key, value)) === 'string' ? (revealSensitive ? value : maskValue(key, value)) : JSON.stringify(revealSensitive ? value : maskValue(key, value), null, 2)}</pre>
                     </div>
                   ))}
                 </div>

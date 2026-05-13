@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter, Playfair_Display } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
+import { COMPANY } from '@/lib/company';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -54,18 +55,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     name: 'Elite Funding Solutions',
     url: siteUrl,
     logo: `${siteUrl}/elite-funding-logo.png`,
-    telephone: '+1-888-400-2580',
-    email: 'info@elitefundingsolution.com',
+    telephone: COMPANY.phoneHref,
+    email: COMPANY.email,
     address: {
       '@type': 'PostalAddress',
-      streetAddress: '590 Madison Avenue',
-      addressLocality: 'New York',
-      addressRegion: 'NY',
-      postalCode: '10022',
+      streetAddress: COMPANY.street,
+      addressLocality: COMPANY.city,
+      addressRegion: COMPANY.state,
+      postalCode: COMPANY.zip,
       addressCountry: 'US',
     },
     areaServed: 'US',
-    sameAs: ['https://www.elitefundingsolution.com'],
+    sameAs: [COMPANY.domain],
   };
 
   return (

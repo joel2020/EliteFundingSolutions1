@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { COMPANY } from '@/lib/company';
 
 const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
 
@@ -23,10 +24,15 @@ export async function sendEmail({ to, subject, html }: EmailData) {
     });
     return { success: true, data };
   } catch (error: any) {
-    console.error('Email send error:', error);
+    console.error('Email send error. Check provider logs for details.');
     return { success: false, error: error.message };
   }
 }
+
+const complianceFooter = `
+  <p>${COMPANY.legalName}<br/>${COMPANY.street}<br/>${COMPANY.city}, ${COMPANY.state} ${COMPANY.zip}</p>
+  <p>You may opt out of marketing emails by replying with "unsubscribe" or contacting ${COMPANY.email}. For texts, reply STOP to opt out.</p>
+`;
 
 // Email Templates
 export const emailTemplates = {
@@ -62,7 +68,7 @@ export const emailTemplates = {
         </p>
       </div>
       <div style="padding: 20px; text-align: center; background: #f9fafb; color: #6b7280; font-size: 12px;">
-        <p>© 2024 Elite Funding Solutions. All rights reserved.</p>
+        <p>© ${new Date().getFullYear()} Elite Funding Solutions. All rights reserved.</p>${complianceFooter}
       </div>
     </div>
   `,
@@ -94,7 +100,7 @@ export const emailTemplates = {
         </p>
       </div>
       <div style="padding: 20px; text-align: center; background: #f9fafb; color: #6b7280; font-size: 12px;">
-        <p>© 2024 Elite Funding Solutions. All rights reserved.</p>
+        <p>© ${new Date().getFullYear()} Elite Funding Solutions. All rights reserved.</p>${complianceFooter}
       </div>
     </div>
   `,
@@ -128,7 +134,7 @@ export const emailTemplates = {
         </p>
       </div>
       <div style="padding: 20px; text-align: center; background: #f9fafb; color: #6b7280; font-size: 12px;">
-        <p>© 2024 Elite Funding Solutions. All rights reserved.</p>
+        <p>© ${new Date().getFullYear()} Elite Funding Solutions. All rights reserved.</p>${complianceFooter}
       </div>
     </div>
   `,
