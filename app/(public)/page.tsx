@@ -1,765 +1,400 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { ArrowRight, CircleCheck as CheckCircle2, Clock, Shield, TrendingUp, Users, Star, ChevronDown, Building2, Truck, Utensils, Heart, Wrench, ShoppingBag, Zap, ChartBar as BarChart3, FileCheck, Award } from 'lucide-react';
+import {
+  ArrowRight,
+  BadgeDollarSign,
+  Banknote,
+  BriefcaseBusiness,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  CreditCard,
+  Factory,
+  Handshake,
+  HeartPulse,
+  Landmark,
+  LineChart,
+  LockKeyhole,
+  ReceiptText,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Truck,
+  Utensils,
+  Users,
+  Warehouse,
+  Zap,
+} from 'lucide-react';
 
-// ─── Hero ──────────────────────────────────────────────────────────────────
+const trustBadges = [
+  { icon: Zap, label: '24–48 Hour', sublabel: 'Approvals' },
+  { icon: LineChart, label: 'Funding Up', sublabel: 'To $5M' },
+  { icon: ShieldCheck, label: '625+ Credit', sublabel: 'Accepted' },
+  { icon: LockKeyhole, label: 'No', sublabel: 'Obligation' },
+];
+
+const stats = [
+  { icon: BadgeDollarSign, value: '$500M+', label: 'Funded' },
+  { icon: Users, value: '10,000+', label: 'Businesses Served' },
+  { icon: Star, value: '4.9 / 5', label: 'Average Rating' },
+  { icon: Handshake, value: '100+', label: 'Lending Partners' },
+];
+
+const fundingSolutions = [
+  { icon: Building2, title: 'Working Capital', text: 'Maintain cash flow and cover daily operational expenses.', href: '/funding-solutions#working-capital' },
+  { icon: Factory, title: 'Equipment Financing', text: 'Acquire the equipment you need to grow your business.', href: '/funding-solutions#equipment-financing' },
+  { icon: Landmark, title: 'SBA Loans', text: 'Low-interest, government-backed loans to help your business expand.', href: '/funding-solutions#sba-loans' },
+  { icon: CreditCard, title: 'Lines of Credit', text: 'Flexible revolving credit to help you manage cash flow.', href: '/funding-solutions#lines-of-credit' },
+  { icon: ReceiptText, title: 'Invoice Factoring', text: 'Unlock cash tied up in outstanding invoices fast.', href: '/funding-solutions#invoice-factoring' },
+  { icon: Warehouse, title: 'Commercial Real Estate Financing', text: 'Financing solutions for your property investments and expansions.', href: '/funding-solutions#commercial-real-estate' },
+];
+
+const processSteps = [
+  { step: '1', title: 'Submit Your Application', text: 'Quick and easy application takes just minutes.' },
+  { step: '2', title: 'Review Tailored Offers', text: 'We match you with the best funding options.' },
+  { step: '3', title: 'Receive Funding Quickly', text: 'Get the capital you need to keep moving forward.' },
+];
+
+const whyElite = [
+  { icon: Banknote, label: 'Access to 100+ Lenders' },
+  { icon: Users, label: 'Dedicated Funding Advisors' },
+  { icon: BriefcaseBusiness, label: 'Customized Financing Strategies' },
+  { icon: Clock3, label: 'Fast Turnaround' },
+  { icon: CheckCircle2, label: 'Transparent Process' },
+  { icon: ShieldCheck, label: 'White-Glove Service' },
+];
+
+const industries = [
+  { icon: Building2, title: 'Construction', className: 'industry-construction' },
+  { icon: HeartPulse, title: 'Healthcare', className: 'industry-healthcare' },
+  { icon: Utensils, title: 'Restaurants', className: 'industry-restaurants' },
+  { icon: Truck, title: 'Trucking', className: 'industry-trucking' },
+  { icon: ShoppingBag, title: 'Retail', className: 'industry-retail' },
+  { icon: BriefcaseBusiness, title: 'Professional Services', className: 'industry-professional' },
+];
+
+const testimonials = [
+  {
+    quote: 'Elite Funding Solutions provided the capital we needed to expand our operations seamlessly. Their speed and transparency are unmatched.',
+    byline: 'Business Owner',
+    company: 'Construction Company',
+  },
+  {
+    quote: 'The team was professional, knowledgeable, and delivered funding faster than we expected. Highly recommend!',
+    byline: 'CEO',
+    company: 'Healthcare Provider',
+  },
+  {
+    quote: 'Elite helped us maintain cash flow and take advantage of major growth opportunities. A true partner.',
+    byline: 'Founder',
+    company: 'Logistics Company',
+  },
+];
+
+const faqs = [
+  ['How much funding can I get?', 'Qualified businesses can access $10,000 to $5,000,000 depending on revenue, time in business, credit profile, industry, and selected funding product.'],
+  ['What types of businesses do you fund?', 'We support established U.S. businesses across construction, healthcare, restaurants, trucking, retail, professional services, and many additional industries.'],
+  ['How fast can I receive funding?', 'Many approvals are returned within 24 to 48 hours after a complete application and supporting documentation are received.'],
+  ['Is there an obligation to accept an offer?', 'No. Pre-qualification is designed to show available options, and you are never obligated to accept an offer.'],
+  ['What credit score do I need?', 'Programs may be available for owners with 625+ credit, subject to revenue, deposits, business history, and lender underwriting requirements.'],
+  ['How does your pre-qualification process work?', 'Submit a short application, review curated offers with a funding advisor, select terms that fit, then complete documentation for funding.'],
+];
+
+function SectionHeading({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) {
+  return (
+    <div className="mx-auto mb-7 max-w-3xl text-center md:mb-9">
+      {eyebrow && <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.34em] text-[#d6af62]">{eyebrow}</p>}
+      <h2 className="font-serif text-[28px] font-medium uppercase tracking-[0.16em] text-white md:text-[34px]">{title}</h2>
+      {subtitle && <p className="mt-2 text-sm leading-relaxed text-slate-400 md:text-base">{subtitle}</p>}
+    </div>
+  );
+}
+
+function HeroVisual() {
+  return (
+    <div className="hero-visual pointer-events-none absolute inset-y-0 right-0 hidden w-[62%] overflow-hidden lg:block">
+      <div className="city-glow" />
+      <div className="skyline">
+        {Array.from({ length: 31 }).map((_, index) => (
+          <span key={index} className={`tower tower-${(index % 10) + 1}`} />
+        ))}
+      </div>
+      <div className="desk-lamp" />
+      <div className="laptop">
+        <div className="laptop-screen">
+          <div className="screen-top"><span>EliteOS</span><span>Secured</span></div>
+          <div className="screen-grid">
+            <div><small>Revenue</small><strong>$1,250,000</strong></div>
+            <div><small>Cash Flow</small><strong>$680,000</strong></div>
+            <div><small>Utilization</small><strong>62%</strong></div>
+          </div>
+          <div className="chart-bars">{Array.from({ length: 11 }).map((_, i) => <i key={i} style={{ height: `${22 + ((i * 13) % 50)}%` }} />)}</div>
+          <svg className="chart-line" viewBox="0 0 220 70" aria-hidden="true"><path d="M4 58 C35 20 58 42 84 32 S128 18 158 30 S192 46 216 10" /></svg>
+        </div>
+        <div className="laptop-base" />
+      </div>
+      <div className="notebook" />
+      <div className="coffee-cup">ELITE</div>
+    </div>
+  );
+}
+
 function Hero() {
   return (
-    <section className="relative overflow-hidden pt-[68px]" style={{ background: 'linear-gradient(160deg, #040B16 0%, #060F1E 40%, #0A1628 100%)', minHeight: '100vh' }}>
-      {/* Ambient light effects */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse 60% 50% at 70% 40%, rgba(201,168,76,0.06) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 30% 60%, rgba(15,43,91,0.4) 0%, transparent 60%)',
-        }}
-      />
-      {/* Subtle grid overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none opacity-[0.03]"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(201,168,76,1) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,1) 1px, transparent 1px)',
-          backgroundSize: '80px 80px',
-        }}
-      />
-
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-0 relative pt-20 pb-28 lg:pt-28 lg:pb-36">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          {/* Left: copy */}
-          <div>
-            {/* Badge */}
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[12px] font-semibold mb-8"
-              style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', color: '#C9A84C' }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] animate-pulse" />
-              Funding decisions in as little as 4 hours
-            </div>
-
-            <h1
-              className="font-bold text-white mb-6"
-              style={{ fontSize: 'clamp(40px, 5.5vw, 60px)', lineHeight: 1.08, letterSpacing: '-0.03em' }}
-            >
-              Fast, Flexible Capital
-              <br />
-              <span style={{ background: 'linear-gradient(90deg, #C9A84C 0%, #E8C96A 50%, #C9A84C 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                for Ambitious Businesses
-              </span>
-            </h1>
-
-            <p className="text-[17px] leading-relaxed mb-10 max-w-[500px]" style={{ color: '#7A8FA8' }}>
-              Access $10K to $5M in working capital without the bank delays. Elite Funding Solutions connects high-growth businesses with our network of 50+ elite lenders — funded in 24 to 72 hours.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-start gap-4 mb-12">
-              <Link
-                href="/apply"
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[16px] h-12 px-7 transition-all duration-200 w-full sm:w-auto"
-                style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628', boxShadow: '0 4px 20px rgba(201,168,76,0.35)' }}
-              >
-                Get Pre-Qualified
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/contact"
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[16px] h-12 px-7 transition-all duration-200 w-full sm:w-auto"
-                style={{ background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid rgba(255,255,255,0.12)' }}
-              >
-                Speak With an Advisor
-              </Link>
-            </div>
-
-            {/* Trust line */}
-            <p className="text-[13px]" style={{ color: '#3A4A65' }}>
-              No obligation &nbsp;&bull;&nbsp; No hard credit pull &nbsp;&bull;&nbsp; Results in minutes
-            </p>
-          </div>
-
-          {/* Right: stats panel */}
-          <div className="lg:pl-8">
-            <div
-              className="rounded-[24px] p-8 backdrop-blur-sm"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}
-            >
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                {[
-                  { value: '$2.4B+', label: 'Capital Deployed', sub: 'since inception' },
-                  { value: '12,000+', label: 'Businesses Funded', sub: 'across 50+ industries' },
-                  { value: '97%', label: 'Renewal Rate', sub: 'client satisfaction' },
-                  { value: '4 hrs', label: 'Average Decision', sub: 'during business days' },
-                ].map((stat) => (
-                  <div
-                    key={stat.value}
-                    className="rounded-[16px] p-5"
-                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    <div
-                      className="text-[28px] font-bold tracking-tight leading-none mb-1"
-                      style={{ background: 'linear-gradient(90deg, #C9A84C, #E8C96A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
-                    >
-                      {stat.value}
-                    </div>
-                    <div className="text-[13px] font-semibold text-white mb-0.5">{stat.label}</div>
-                    <div className="text-[11px]" style={{ color: '#3A4A65' }}>{stat.sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Recent funded indicator */}
-              <div
-                className="rounded-[12px] px-4 py-3 flex items-center gap-3"
-                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}
-              >
-                <div className="w-2 h-2 rounded-full bg-[#10B981] shrink-0 animate-pulse" />
-                <p className="text-[13px]" style={{ color: '#7A8FA8' }}>
-                  <span className="text-[#C9A84C] font-semibold">Metro Flooring Co.</span> received $180,000 — today at 2:14 PM
-                </p>
-              </div>
-            </div>
-
-            {/* Trust logos */}
-            <div className="mt-6 flex items-center gap-6 flex-wrap">
-              {['Forbes', 'Inc. 5000', 'Bloomberg', 'Fast Company'].map((l) => (
-                <span key={l} className="text-[13px] font-semibold tracking-tight" style={{ color: '#2A3A55' }}>
-                  {l}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent, #F8F9FB)' }} />
-    </section>
-  );
-}
-
-// ─── Trust Bar ─────────────────────────────────────────────────────────────
-function TrustBar() {
-  return (
-    <section style={{ background: '#F8F9FB', borderTop: '1px solid #EDF0F7', borderBottom: '1px solid #EDF0F7' }} className="py-8">
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-0">
-        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.1em] mb-6" style={{ color: '#8C9BB5' }}>
-          Trusted by businesses featured in
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-8 md:gap-14">
-          {['CNBC', 'Forbes', 'Inc. 5000', 'Fast Company', 'Bloomberg', 'Business Insider'].map((l) => (
-            <span key={l} className="text-[15px] font-semibold tracking-tight" style={{ color: '#C0CAD9' }}>
-              {l}
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Funding Products ───────────────────────────────────────────────────────
-function FundingProducts() {
-  const products = [
-    {
-      icon: <TrendingUp className="w-5 h-5" />,
-      title: 'Merchant Cash Advance',
-      amount: 'Up to $2M',
-      term: '3 to 18 months',
-      description: 'Advance against future receivables. Pay back as a percentage of daily revenue — no fixed monthly payments.',
-      highlights: ['Based on revenue, not credit', 'Daily or weekly remittance', 'No collateral required'],
-      accent: '#C9A84C',
-      accentBg: 'rgba(201,168,76,0.08)',
-    },
-    {
-      icon: <Zap className="w-5 h-5" />,
-      title: 'Working Capital Line',
-      amount: 'Up to $500K',
-      term: 'Revolving',
-      description: 'Draw what you need, when you need it. Replenish as you pay down. Perfect for seasonal cash flow gaps.',
-      highlights: ['Draw on demand', 'Pay interest only on drawn amount', 'Reusable credit line'],
-      accent: '#10B981',
-      accentBg: 'rgba(16,185,129,0.08)',
-    },
-    {
-      icon: <Building2 className="w-5 h-5" />,
-      title: 'Equipment Financing',
-      amount: 'Up to $5M',
-      term: '24 to 84 months',
-      description: 'Finance the equipment your business needs. The equipment itself serves as collateral — no lien on your business.',
-      highlights: ['Equipment-secured only', 'Preserve working capital', 'Potential tax advantages'],
-      accent: '#3B82F6',
-      accentBg: 'rgba(59,130,246,0.08)',
-    },
-    {
-      icon: <BarChart3 className="w-5 h-5" />,
-      title: 'Invoice Factoring',
-      amount: 'Up to $2M',
-      term: 'Per invoice',
-      description: 'Turn outstanding invoices into immediate cash. Fund up to 90% of eligible receivables within 24 hours.',
-      highlights: ['Up to 90% advance rate', 'No debt on balance sheet', 'Same-day funding available'],
-      accent: '#8B5CF6',
-      accentBg: 'rgba(139,92,246,0.08)',
-    },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#FFFFFF' }}>
-      <div className="container-page">
-        <div className="text-center mb-14">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>Funding Solutions</p>
-          <h2 className="font-bold mb-4" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-            The right capital for every stage
-          </h2>
-          <p className="text-[17px] max-w-[480px] mx-auto leading-relaxed" style={{ color: '#5A6A85' }}>
-            Whether you need fast working capital or long-term financing, we have a product built for your business.
+    <section className="relative -mt-16 min-h-[860px] overflow-hidden border-b border-[#c7a45a]/10 bg-[#030812] pt-16 md:-mt-16 lg:min-h-[760px]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_24%,rgba(62,114,174,0.34),transparent_28%),linear-gradient(90deg,#030812_0%,#06101f_44%,rgba(3,8,18,0.58)_100%)]" />
+      <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(214,175,98,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(214,175,98,.06)_1px,transparent_1px)] [background-size:58px_58px]" />
+      <HeroVisual />
+      <div className="relative z-10 mx-auto flex max-w-[1280px] flex-col px-5 pb-14 pt-28 md:px-8 md:pt-36 lg:min-h-[760px] xl:px-0">
+        <div className="max-w-[610px]">
+          <p className="mb-6 text-[13px] font-semibold uppercase tracking-[0.44em] text-[#d6af62]">Fast. Flexible. Reliable.</p>
+          <h1 className="font-serif text-[46px] font-medium leading-[0.96] tracking-[-0.04em] text-white md:text-[68px] lg:text-[72px]">
+            Fast, Flexible Capital for <span className="text-[#d6af62]">Ambitious Businesses.</span>
+          </h1>
+          <p className="mt-7 max-w-[510px] text-base leading-8 text-slate-200 md:text-lg">
+            Access working capital from $10,000 to $5,000,000 through our nationwide network of trusted funding partners.
           </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {products.map((p) => (
-            <div
-              key={p.title}
-              className="bg-white rounded-[16px] p-7 hover:border-opacity-100 transition-all duration-200 group"
-              style={{ border: '1px solid #DDE3EF', boxShadow: '0 1px 4px rgba(10,22,40,0.06)' }}
-            >
-              <div className="flex items-start gap-4 mb-5">
-                <div
-                  className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0 transition-all"
-                  style={{ background: p.accentBg, color: p.accent }}
-                >
-                  {p.icon}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-[17px]" style={{ color: '#0A1628' }}>{p.title}</h3>
-                  <p className="text-[13px] mt-0.5" style={{ color: '#8C9BB5' }}>
-                    {p.amount} &nbsp;&bull;&nbsp; {p.term}
-                  </p>
-                </div>
-              </div>
-              <p className="text-[14px] leading-relaxed mb-5" style={{ color: '#5A6A85' }}>{p.description}</p>
-              <ul className="flex flex-col gap-2">
-                {p.highlights.map((h) => (
-                  <li key={h} className="flex items-center gap-2 text-[14px]" style={{ color: '#3A4A65' }}>
-                    <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: '#10B981' }} />
-                    {h}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10 text-center">
-          <Link
-            href="/apply"
-            className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all duration-150"
-            style={{ background: '#0F2B5B', color: 'white', boxShadow: '0 2px 8px rgba(15,43,91,0.2)' }}
-          >
-            Check Your Eligibility
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── How It Works ──────────────────────────────────────────────────────────
-function HowItWorks() {
-  const steps = [
-    {
-      number: '01',
-      title: 'Apply in minutes',
-      description: 'Complete our secure online application. Tell us about your business, revenue, and how you plan to use the funds. No hard credit pull required.',
-      time: '5 minutes',
-    },
-    {
-      number: '02',
-      title: 'Upload your documents',
-      description: "Securely upload your last 3 months of bank statements, a voided check, and your driver's license. That's it for most approvals.",
-      time: '10 minutes',
-    },
-    {
-      number: '03',
-      title: 'Receive your offer',
-      description: 'Our underwriting team reviews your file and returns an offer within 4 hours during business days. We shop your deal across 50+ funding partners.',
-      time: '4 hours',
-    },
-    {
-      number: '04',
-      title: 'Get funded',
-      description: 'Review and e-sign your contract. Funds are wired directly to your business account — often the same day you sign.',
-      time: '24 to 72 hours',
-    },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#F8F9FB' }}>
-      <div className="container-page">
-        <div className="text-center mb-14">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>The Process</p>
-          <h2 className="font-bold mb-4" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-            From application to funded in days
-          </h2>
-          <p className="text-[17px] max-w-[440px] mx-auto leading-relaxed" style={{ color: '#5A6A85' }}>
-            We&apos;ve removed every unnecessary step. Most businesses get funded in under 72 hours.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {steps.map((step, i) => (
-            <div key={step.number} className="relative">
-              <div
-                className="bg-white rounded-[16px] p-6 relative z-10"
-                style={{ border: '1px solid #DDE3EF', boxShadow: '0 1px 4px rgba(10,22,40,0.06)' }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[32px] font-bold tracking-tight leading-none" style={{ color: '#DDE3EF' }}>{step.number}</span>
-                  <span
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-full px-3 py-1"
-                    style={{ background: 'rgba(201,168,76,0.1)', color: '#9A6F1A' }}
-                  >
-                    <Clock className="w-3 h-3" />
-                    {step.time}
-                  </span>
-                </div>
-                <h3 className="font-semibold text-[17px] mb-2" style={{ color: '#0A1628' }}>{step.title}</h3>
-                <p className="text-[14px] leading-relaxed" style={{ color: '#5A6A85' }}>{step.description}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Eligibility ───────────────────────────────────────────────────────────
-function Eligibility() {
-  const requirements = [
-    { label: 'Time in business', value: '6+ months', icon: <Building2 className="w-4 h-4" /> },
-    { label: 'Monthly revenue', value: '$10,000+', icon: <TrendingUp className="w-4 h-4" /> },
-    { label: 'Credit score', value: '500+', icon: <Award className="w-4 h-4" /> },
-    { label: 'Business type', value: 'Most industries', icon: <Users className="w-4 h-4" /> },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#FFFFFF' }}>
-      <div className="container-page">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>Eligibility</p>
-            <h2 className="font-bold mb-5" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-              Simple qualifications, fast approvals
-            </h2>
-            <p className="text-[17px] leading-relaxed mb-8" style={{ color: '#5A6A85' }}>
-              We focus on your business performance, not just your credit score. If your business generates consistent revenue, you likely qualify.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-              {requirements.map((req) => (
-                <div
-                  key={req.label}
-                  className="flex items-center gap-3 rounded-[12px] px-4 py-3"
-                  style={{ background: '#F8F9FB', border: '1px solid #DDE3EF' }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0"
-                    style={{ background: 'rgba(201,168,76,0.1)', color: '#9A6F1A' }}
-                  >
-                    {req.icon}
-                  </div>
-                  <div>
-                    <div className="text-[13px]" style={{ color: '#8C9BB5' }}>{req.label}</div>
-                    <div className="text-[15px] font-semibold" style={{ color: '#0A1628' }}>{req.value}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Link
-                href="/apply"
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all duration-150"
-                style={{ background: '#0F2B5B', color: 'white' }}
-              >
-                Check Eligibility
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/contact"
-                className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all duration-150"
-                style={{ background: 'white', color: '#0A1628', border: '1px solid #DDE3EF' }}
-              >
-                Talk to an Advisor
-              </Link>
-            </div>
-          </div>
-
-          <div className="rounded-[20px] p-8" style={{ background: '#F8F9FB', border: '1px solid #DDE3EF' }}>
-            <h3 className="font-semibold text-[18px] mb-6" style={{ color: '#0A1628' }}>What we consider</h3>
-            <div className="flex flex-col gap-4">
-              {[
-                { label: 'Monthly bank deposits', weight: 'Primary factor' },
-                { label: 'Average daily balance', weight: 'Primary factor' },
-                { label: 'Time in business', weight: 'Key factor' },
-                { label: 'Industry type', weight: 'Key factor' },
-                { label: 'Personal credit score', weight: 'Secondary factor' },
-                { label: 'Tax liens or judgments', weight: 'Reviewed individually' },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <span className="text-[14px]" style={{ color: '#3A4A65' }}>{item.label}</span>
-                  <span
-                    className="text-[12px] font-semibold rounded-full px-3 py-1"
-                    style={
-                      item.weight === 'Primary factor'
-                        ? { background: 'rgba(201,168,76,0.1)', color: '#9A6F1A' }
-                        : item.weight === 'Key factor'
-                        ? { background: '#F0FDF4', color: '#059669' }
-                        : { background: '#F1F3F7', color: '#5A6A85' }
-                    }
-                  >
-                    {item.weight}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Industries ────────────────────────────────────────────────────────────
-function Industries() {
-  const industries = [
-    { icon: <Utensils className="w-5 h-5" />, name: 'Restaurants & Food Service' },
-    { icon: <Truck className="w-5 h-5" />, name: 'Transportation & Logistics' },
-    { icon: <Wrench className="w-5 h-5" />, name: 'Auto & Mechanical Repair' },
-    { icon: <Heart className="w-5 h-5" />, name: 'Healthcare & Medical' },
-    { icon: <ShoppingBag className="w-5 h-5" />, name: 'Retail & E-commerce' },
-    { icon: <Building2 className="w-5 h-5" />, name: 'Construction & Contracting' },
-    { icon: <FileCheck className="w-5 h-5" />, name: 'Professional Services' },
-    { icon: <Zap className="w-5 h-5" />, name: 'Technology & SaaS' },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#F8F9FB' }}>
-      <div className="container-page">
-        <div className="text-center mb-12">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>Industries Served</p>
-          <h2 className="font-bold mb-4" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-            We fund businesses across every sector
-          </h2>
-          <p className="text-[17px] max-w-[440px] mx-auto" style={{ color: '#5A6A85' }}>
-            From restaurants to SaaS companies, we&apos;ve built funding products for the way your business actually works.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {industries.map((ind) => (
-            <div
-              key={ind.name}
-              className="bg-white rounded-[12px] p-5 flex items-center gap-3 transition-all duration-200 group cursor-default"
-              style={{ border: '1px solid #DDE3EF', boxShadow: '0 1px 2px rgba(10,22,40,0.04)' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#C9A84C';
-                e.currentTarget.style.background = 'rgba(201,168,76,0.04)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#DDE3EF';
-                e.currentTarget.style.background = 'white';
-              }}
-            >
-              <div
-                className="w-9 h-9 rounded-[8px] flex items-center justify-center shrink-0 transition-colors"
-                style={{ background: '#F1F3F7', color: '#5A6A85' }}
-              >
-                {ind.icon}
-              </div>
-              <span className="text-[13px] font-medium leading-tight" style={{ color: '#3A4A65' }}>
-                {ind.name}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Why Choose Us ─────────────────────────────────────────────────────────
-function WhyChooseUs() {
-  const reasons = [
-    {
-      icon: <Clock className="w-5 h-5" />,
-      title: 'Speed that matches your urgency',
-      description: "We understand that business opportunities don't wait. Our team works around the clock to return decisions in hours, not days.",
-    },
-    {
-      icon: <Shield className="w-5 h-5" />,
-      title: 'Transparent terms, zero surprises',
-      description: 'Your factor rate, payback amount, and payment schedule are disclosed before you sign. No hidden fees, no prepayment penalties on most products.',
-    },
-    {
-      icon: <Users className="w-5 h-5" />,
-      title: 'A dedicated funding advisor',
-      description: "You're assigned a real advisor — not a bot. They'll guide you through every step and advocate for the best offer on your behalf.",
-    },
-    {
-      icon: <TrendingUp className="w-5 h-5" />,
-      title: '50+ lenders competing for your deal',
-      description: "We submit your file to our entire network and let lenders compete. You get the best rate the market will offer — not just the first one back.",
-    },
-    {
-      icon: <FileCheck className="w-5 h-5" />,
-      title: 'Minimal documentation',
-      description: 'For most approvals, we only need 3 months of bank statements, a voided check, and ID. No tax returns, no business plans, no collateral.',
-    },
-    {
-      icon: <Award className="w-5 h-5" />,
-      title: 'Renewals that reward loyalty',
-      description: "Once you're 50% paid down, you become eligible for renewal at improved terms. Our best clients fund multiple times a year.",
-    },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#FFFFFF' }}>
-      <div className="container-page">
-        <div className="text-center mb-14">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>Why Elite Funding</p>
-          <h2 className="font-bold mb-4" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-            Built for business owners, not spreadsheets
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reasons.map((r) => (
-            <div
-              key={r.title}
-              className="bg-white rounded-[16px] p-6"
-              style={{ border: '1px solid #DDE3EF', boxShadow: '0 1px 4px rgba(10,22,40,0.06)' }}
-            >
-              <div
-                className="w-10 h-10 rounded-[10px] flex items-center justify-center mb-4"
-                style={{ background: 'rgba(15,43,91,0.07)', color: '#0F2B5B' }}
-              >
-                {r.icon}
-              </div>
-              <h3 className="font-semibold text-[16px] mb-2" style={{ color: '#0A1628' }}>{r.title}</h3>
-              <p className="text-[14px] leading-relaxed" style={{ color: '#5A6A85' }}>{r.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Testimonials ──────────────────────────────────────────────────────────
-function Testimonials() {
-  const testimonials = [
-    {
-      name: 'Marcus Rivera',
-      title: 'Owner, Metro Pizza Group',
-      location: 'New York, NY',
-      quote: "I applied on a Tuesday morning and had $75,000 in my account by Thursday afternoon. The advisor walked me through every term and the process was completely transparent. I've renewed twice since.",
-      amount: '$75,000 funded',
-    },
-    {
-      name: 'Jennifer Walsh',
-      title: 'Owner, Greenfield Auto Repair',
-      location: 'Chicago, IL',
-      quote: "After three banks turned me down because I'd only been in business two years, Elite Funding had an offer in six hours. The working capital funded an equipment purchase that doubled my service capacity.",
-      amount: '$50,000 funded',
-    },
-    {
-      name: 'David Kim',
-      title: 'CFO, Sunrise Medical Supplies',
-      location: 'Los Angeles, CA',
-      quote: "We use Elite Funding for our seasonal inventory purchases. The process is so streamlined now that it takes less than a day from request to funded. It's become a core part of our cash flow strategy.",
-      amount: '$125,000 funded',
-    },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#F8F9FB' }}>
-      <div className="container-page">
-        <div className="text-center mb-12">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>Client Stories</p>
-          <h2 className="font-bold mb-4" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-            Real businesses, real results
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {testimonials.map((t) => (
-            <div
-              key={t.name}
-              className="bg-white rounded-[16px] p-6 flex flex-col"
-              style={{ border: '1px solid #DDE3EF', boxShadow: '0 1px 4px rgba(10,22,40,0.06)' }}
-            >
-              <div className="flex items-center gap-1 mb-5">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-[#C9A84C] text-[#C9A84C]" />
-                ))}
-              </div>
-              <p className="text-[14px] leading-relaxed mb-6 flex-1" style={{ color: '#3A4A65' }}>
-                &ldquo;{t.quote}&rdquo;
-              </p>
-              <div className="flex items-center justify-between pt-4" style={{ borderTop: '1px solid #EDF0F7' }}>
-                <div>
-                  <div className="text-[14px] font-semibold" style={{ color: '#0A1628' }}>{t.name}</div>
-                  <div className="text-[13px]" style={{ color: '#5A6A85' }}>{t.title}</div>
-                  <div className="text-[12px]" style={{ color: '#8C9BB5' }}>{t.location}</div>
-                </div>
-                <span
-                  className="text-[11px] font-semibold rounded-[6px] px-3 py-1"
-                  style={{ background: 'rgba(201,168,76,0.1)', color: '#9A6F1A' }}
-                >
-                  {t.amount}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── FAQ ───────────────────────────────────────────────────────────────────
-function FAQ() {
-  const faqs = [
-    {
-      q: 'How is a merchant cash advance different from a loan?',
-      a: "An MCA is a purchase of future receivables, not a loan. There are no fixed monthly payments, no interest rate, and no set maturity date. You repay as a percentage of daily revenue, so payments naturally flex with your business.",
-    },
-    {
-      q: 'What documents do I need to apply?',
-      a: 'For most approvals, we only need your last 3 months of bank statements, a voided check, and a copy of your government-issued ID. Some larger amounts or certain industries may require additional documentation.',
-    },
-    {
-      q: 'Does applying affect my credit score?',
-      a: 'No. We perform a soft credit pull during the application review process, which does not affect your credit score. A hard pull is only performed if and when you accept a funded offer.',
-    },
-    {
-      q: 'How quickly can I get funded?',
-      a: 'Most approved businesses receive funding within 24 to 72 business hours of signing their contract. Many clients receive same-day funding.',
-    },
-    {
-      q: 'Can I qualify with bad credit?',
-      a: "Yes. While we do review your personal credit, it's not the primary factor. We focus heavily on your business's monthly revenue and banking activity. We fund businesses with credit scores as low as 500.",
-    },
-    {
-      q: 'Can I have more than one advance at a time?',
-      a: "We can work with certain stacking situations depending on your current balance and revenue. If you have existing advances, disclose them on your application — our team will structure an offer accordingly.",
-    },
-  ];
-
-  return (
-    <section className="section" style={{ background: '#FFFFFF' }}>
-      <div className="container-page">
-        <div className="max-w-[680px] mx-auto">
-          <div className="text-center mb-12">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-3" style={{ color: '#C9A84C' }}>FAQs</p>
-            <h2 className="font-bold mb-4" style={{ fontSize: '32px', letterSpacing: '-0.01em', color: '#0A1628' }}>
-              Common questions answered
-            </h2>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {faqs.map((faq) => (
-              <details
-                key={faq.q}
-                className="group bg-white overflow-hidden rounded-[12px]"
-                style={{ border: '1px solid #DDE3EF', boxShadow: '0 1px 2px rgba(10,22,40,0.04)' }}
-              >
-                <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none transition-colors" style={{ background: 'transparent' }}>
-                  <span className="text-[15px] font-medium pr-4" style={{ color: '#0A1628' }}>{faq.q}</span>
-                  <ChevronDown className="w-4 h-4 shrink-0 transition-transform group-open:rotate-180" style={{ color: '#8C9BB5' }} />
-                </summary>
-                <div className="px-5 pb-5">
-                  <p className="text-[14px] leading-relaxed" style={{ color: '#5A6A85' }}>{faq.a}</p>
-                </div>
-              </details>
-            ))}
-          </div>
-
-          <div className="mt-8 text-center">
-            <Link href="/faq" className="text-[14px] font-medium hover:underline" style={{ color: '#C9A84C' }}>
-              View all frequently asked questions →
+          <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+            <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
+              Get Pre-Qualified <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </Link>
+            <Link href="/contact" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm border border-[#d6af62]/55 bg-[#06101f]/60 px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-white transition hover:border-[#d6af62] hover:bg-[#d6af62]/10">
+              Speak With an Advisor <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
             </Link>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
 
-// ─── Final CTA ─────────────────────────────────────────────────────────────
-function FinalCTA() {
-  return (
-    <section className="section relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #040B16 0%, #060F1E 50%, #0A1628 100%)' }}>
-      {/* Ambient glow */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 50%, rgba(201,168,76,0.06) 0%, transparent 70%)' }}
-      />
-      <div className="container-page text-center relative">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] mb-4" style={{ color: '#C9A84C' }}>Get Started Today</p>
-        <h2
-          className="font-bold text-white mb-5"
-          style={{ fontSize: 'clamp(32px, 5vw, 48px)', letterSpacing: '-0.02em', lineHeight: 1.15 }}
-        >
-          Ready to fund your next
-          <br />
-          growth milestone?
-        </h2>
-        <p className="text-[17px] mb-10 max-w-[420px] mx-auto leading-relaxed" style={{ color: '#5A6A85' }}>
-          Join over 12,000 businesses that have trusted Elite Funding Solutions to fuel their growth.
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link
-            href="/apply"
-            className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[16px] h-12 px-7 transition-all duration-150 w-full sm:w-auto"
-            style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)', color: '#0A1628', boxShadow: '0 4px 20px rgba(201,168,76,0.3)' }}
-          >
-            Get Pre-Qualified
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/contact"
-            className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[16px] h-12 px-7 transition-all duration-150 w-full sm:w-auto"
-            style={{ background: 'transparent', color: 'white', border: '1px solid rgba(255,255,255,0.15)' }}
-          >
-            Speak With an Advisor
-          </Link>
+        <div className="mt-11 grid max-w-[560px] grid-cols-2 gap-y-6 sm:grid-cols-4 sm:gap-y-0">
+          {trustBadges.map((badge) => {
+            const Icon = badge.icon;
+            return (
+              <div key={badge.label} className="border-[#d6af62]/18 sm:border-r sm:px-7 first:pl-0 last:border-r-0">
+                <Icon className="mb-3 h-7 w-7 text-[#d6af62]" strokeWidth={1.4} />
+                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-white">{badge.label}</p>
+                <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-white">{badge.sublabel}</p>
+              </div>
+            );
+          })}
         </div>
 
-        <p className="mt-6 text-[13px]" style={{ color: '#2A3A55' }}>
-          No obligation &nbsp;&bull;&nbsp; No hard credit pull &nbsp;&bull;&nbsp; Decisions in hours
-        </p>
+        <div className="mt-auto pt-12">
+          <div className="grid overflow-hidden rounded-md border border-[#d6af62]/18 bg-[#071322]/80 shadow-[0_20px_70px_rgba(0,0,0,0.36)] backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div key={stat.label} className="flex items-center gap-5 border-b border-r border-[#d6af62]/12 px-7 py-6 last:border-r-0 sm:even:border-r-0 lg:even:border-r lg:border-b-0 lg:last:border-r-0">
+                  <Icon className="h-10 w-10 shrink-0 text-[#d6af62]" strokeWidth={1.3} />
+                  <div>
+                    <p className="font-serif text-3xl leading-none text-[#f1d08a]">{stat.value}</p>
+                    <p className="mt-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-white">{stat.label}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────
+function FundingSolutions() {
+  return (
+    <section className="bg-[#030812] px-5 py-11 md:px-8 xl:px-0">
+      <div className="mx-auto max-w-[1280px]">
+        <SectionHeading title="Funding Solutions" subtitle="Flexible financing solutions designed to help your business grow, thrive, and scale." />
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {fundingSolutions.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link key={item.title} href={item.href} className="group min-h-[236px] rounded-sm border border-[#d6af62]/16 bg-[#081523]/88 p-6 transition hover:-translate-y-1 hover:border-[#d6af62]/45 hover:bg-[#0b1a2b]">
+                <Icon className="mb-5 h-10 w-10 text-[#d6af62]" strokeWidth={1.25} />
+                <h3 className="font-serif text-xl leading-tight text-white">{item.title}</h3>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">{item.text}</p>
+                <span className="mt-6 inline-flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.14em] text-[#d6af62]">Learn More <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" /></span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HowAndWhy() {
+  return (
+    <section className="border-y border-[#c7a45a]/10 bg-[#05101d] px-5 py-8 md:px-8 xl:px-0">
+      <div className="mx-auto grid max-w-[1280px] gap-10 lg:grid-cols-[1fr_1.28fr] lg:gap-14">
+        <div>
+          <h2 className="mb-10 text-center font-serif text-2xl font-medium uppercase tracking-[0.18em] text-white">How It Works</h2>
+          <div className="grid gap-8 sm:grid-cols-3">
+            {processSteps.map((step, index) => (
+              <div key={step.step} className="relative text-center">
+                {index < processSteps.length - 1 && <span className="absolute left-[58%] top-6 hidden h-px w-[84%] bg-[#d6af62]/25 sm:block" />}
+                <div className="relative mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full border border-[#d6af62] bg-[#071322] font-serif text-xl text-[#f1d08a]">{step.step}</div>
+                <h3 className="font-serif text-xl text-white">{step.title}</h3>
+                <p className="mx-auto mt-3 max-w-[170px] text-xs leading-6 text-slate-400">{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border-[#d6af62]/25 lg:border-l lg:pl-14">
+          <h2 className="mb-7 text-center font-serif text-2xl font-medium uppercase tracking-[0.18em] text-[#d6af62]">Why Choose Elite</h2>
+          <div className="grid grid-cols-2 border border-[#d6af62]/10 md:grid-cols-3">
+            {whyElite.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} className="min-h-[128px] border-b border-r border-[#d6af62]/10 p-5 text-center [&:nth-child(3n)]:md:border-r-0 [&:nth-child(even)]:border-r-0 [&:nth-child(even)]:md:border-r">
+                  <Icon className="mx-auto mb-3 h-8 w-8 text-[#d6af62]" strokeWidth={1.25} />
+                  <p className="mx-auto max-w-[150px] text-sm leading-5 text-white">{item.label}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Industries() {
+  return (
+    <section className="bg-[#030812] px-5 py-9 md:px-8 xl:px-0">
+      <div className="mx-auto max-w-[1280px]">
+        <SectionHeading title="Industries We Serve" subtitle="Tailored financing solutions for businesses across every industry." />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {industries.map((industry) => {
+            const Icon = industry.icon;
+            return (
+              <Link key={industry.title} href={`/industries#${industry.title.toLowerCase().replaceAll(' ', '-')}`} className="group overflow-hidden rounded-sm border border-[#d6af62]/16 bg-[#081523]">
+                <div className={`industry-image ${industry.className}`} />
+                <div className="flex min-h-[62px] items-center gap-3 px-5 py-3">
+                  <Icon className="h-6 w-6 text-[#d6af62]" strokeWidth={1.25} />
+                  <span className="font-serif text-base text-white">{industry.title}</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Testimonials() {
+  return (
+    <section className="border-y border-[#c7a45a]/10 bg-[#05101d] px-5 py-9 md:px-8 xl:px-0">
+      <div className="mx-auto max-w-[1280px]">
+        <SectionHeading title="What Our Clients Say" />
+        <div className="grid gap-6 md:grid-cols-3">
+          {testimonials.map((testimonial) => (
+            <article key={testimonial.company} className="relative rounded-sm border border-[#d6af62]/16 bg-[#081523]/85 p-7 shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
+              <div className="mb-5 flex gap-1 text-[#f1d08a]">{Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-4 w-4 fill-current" />)}</div>
+              <Sparkles className="absolute right-7 top-7 h-8 w-8 text-white/10" />
+              <p className="text-sm leading-7 text-slate-200">“{testimonial.quote}”</p>
+              <p className="mt-6 text-sm text-white">— {testimonial.byline}</p>
+              <p className="text-sm text-slate-400">{testimonial.company}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Faq() {
+  const [openItems, setOpenItems] = useState<number[]>([0]);
+  const toggle = (index: number) => setOpenItems((current) => (current.includes(index) ? current.filter((item) => item !== index) : [...current, index]));
+
+  return (
+    <section className="bg-[#030812] px-5 py-9 md:px-8 xl:px-0">
+      <div className="mx-auto max-w-[1280px]">
+        <SectionHeading title="Frequently Asked Questions" />
+        <div className="grid gap-3 md:grid-cols-2">
+          {faqs.map(([question, answer], index) => {
+            const isOpen = openItems.includes(index);
+            return (
+              <div key={question} className="rounded-sm border border-[#d6af62]/14 bg-[#071322]">
+                <button type="button" className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-sm font-medium text-white" onClick={() => toggle(index)} aria-expanded={isOpen}>
+                  {question}
+                  <ChevronDown className={`h-5 w-5 shrink-0 text-[#d6af62] transition ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {isOpen && <p className="border-t border-[#d6af62]/10 px-5 pb-5 pt-1 text-sm leading-6 text-slate-400">{answer}</p>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCta() {
+  return (
+    <section className="bg-[#030812] px-5 pb-9 md:px-8 xl:px-0">
+      <div className="mx-auto grid max-w-[1280px] overflow-hidden rounded-sm border border-[#d6af62]/18 bg-[#071322] shadow-[0_20px_60px_rgba(0,0,0,0.26)] md:grid-cols-[320px_1fr_auto] md:items-center">
+        <div className="mini-skyline h-40 md:h-full" />
+        <div className="px-7 py-8">
+          <h2 className="font-serif text-3xl leading-tight text-white md:text-4xl">Ready to Secure the Capital<br className="hidden md:block" /> Your Business Needs?</h2>
+          <p className="mt-3 text-sm text-slate-400">Get the funding you need to grow, operate, and succeed—on your terms.</p>
+        </div>
+        <div className="px-7 pb-8 md:pb-0">
+          <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
+            Get Pre-Qualified Today <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomePage() {
   return (
-    <>
+    <div className="min-h-screen bg-[#030812] text-white">
       <Hero />
-      <TrustBar />
-      <FundingProducts />
-      <HowItWorks />
-      <Eligibility />
+      <FundingSolutions />
+      <HowAndWhy />
       <Industries />
-      <WhyChooseUs />
       <Testimonials />
-      <FAQ />
-      <FinalCTA />
-    </>
+      <Faq />
+      <FinalCta />
+      <style jsx global>{`
+        .font-serif { font-family: Georgia, 'Times New Roman', serif; }
+        .hero-visual:before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #030812 0%, rgba(3,8,18,.38) 24%, rgba(3,8,18,.06) 58%, #030812 100%); z-index: 8; }
+        .city-glow { position: absolute; inset: 0; background: radial-gradient(circle at 62% 38%, rgba(83,148,221,.34), transparent 19%), radial-gradient(circle at 82% 32%, rgba(214,175,98,.11), transparent 22%); }
+        .skyline { position: absolute; left: 7%; right: 0; top: 17%; height: 270px; display: flex; align-items: end; gap: 9px; opacity: .88; }
+        .tower { position: relative; width: 20px; border: 1px solid rgba(255,255,255,.06); background: linear-gradient(180deg, rgba(26,45,75,.95), rgba(4,10,20,.96)); box-shadow: inset 0 0 18px rgba(54,112,187,.18), 0 0 24px rgba(92,151,218,.16); }
+        .tower:after { content: ''; position: absolute; inset: 8px 4px; background-image: radial-gradient(circle, rgba(241,208,138,.85) 0 1px, transparent 1.8px); background-size: 9px 13px; opacity: .65; }
+        .tower-1 { height: 130px; } .tower-2 { height: 188px; width: 25px; } .tower-3 { height: 235px; width: 18px; } .tower-4 { height: 160px; } .tower-5 { height: 270px; width: 28px; } .tower-6 { height: 210px; } .tower-7 { height: 145px; width: 30px; } .tower-8 { height: 246px; } .tower-9 { height: 178px; } .tower-10 { height: 218px; width: 24px; }
+        .laptop { position: absolute; right: 21%; top: 37%; z-index: 12; width: 350px; perspective: 700px; transform: rotate(-1deg); }
+        .laptop-screen { height: 220px; border: 3px solid #171d29; border-radius: 14px 14px 4px 4px; background: linear-gradient(135deg, #07101f, #0e1b30); box-shadow: 0 32px 65px rgba(0,0,0,.68), inset 0 0 0 1px rgba(214,175,98,.12); padding: 20px; }
+        .screen-top { display: flex; justify-content: space-between; color: #d6af62; font-size: 8px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 18px; }
+        .screen-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; color: white; font-size: 11px; }
+        .screen-grid div { border: 1px solid rgba(214,175,98,.14); background: rgba(255,255,255,.03); padding: 9px; } .screen-grid small { display: block; color: #7d8ba1; font-size: 7px; } .screen-grid strong { color: #fff; }
+        .chart-bars { position: absolute; left: 21px; bottom: 25px; display: flex; align-items: end; gap: 5px; width: 120px; height: 58px; } .chart-bars i { width: 7px; background: linear-gradient(#55a6ff,#1f4f96); border-radius: 2px 2px 0 0; }
+        .chart-line { position: absolute; right: 22px; bottom: 25px; width: 148px; height: 70px; } .chart-line path { fill: none; stroke: #d6af62; stroke-width: 4; stroke-linecap: round; filter: drop-shadow(0 0 5px rgba(214,175,98,.45)); }
+        .laptop-base { height: 16px; margin: 0 -28px; border-radius: 3px 3px 18px 18px; background: linear-gradient(180deg,#343944,#0f1118); box-shadow: 0 18px 42px rgba(0,0,0,.55); }
+        .notebook { position: absolute; right: 43%; bottom: 15%; z-index: 11; width: 270px; height: 145px; transform: rotate(13deg) skewX(-8deg); border: 1px solid rgba(214,175,98,.28); background: linear-gradient(135deg,#101722,#060b12); box-shadow: 0 22px 48px rgba(0,0,0,.55); }
+        .notebook:after { content: 'ELITE'; position: absolute; left: 90px; top: 62px; color: rgba(214,175,98,.7); font-family: Georgia,serif; letter-spacing: .4em; font-size: 15px; }
+        .coffee-cup { position: absolute; right: 7%; bottom: 17%; z-index: 13; width: 86px; height: 116px; border-radius: 6px 6px 18px 18px; border: 1px solid rgba(214,175,98,.3); background: linear-gradient(90deg,#05070b,#111722,#05070b); display: grid; place-items: center; color: #d6af62; font-family: Georgia,serif; font-size: 12px; letter-spacing: .25em; box-shadow: 0 18px 40px rgba(0,0,0,.55); }
+        .desk-lamp { position: absolute; right: 5%; top: 14%; z-index: 13; width: 150px; height: 150px; border-top: 5px solid #d6af62; border-right: 5px solid #d6af62; transform: rotate(-28deg); filter: drop-shadow(0 0 20px rgba(214,175,98,.18)); }
+        .desk-lamp:after { content: ''; position: absolute; right: -16px; top: 124px; width: 82px; height: 45px; background: linear-gradient(90deg,#111722,#f3dda4); clip-path: polygon(0 0,100% 20%,82% 100%,8% 75%); box-shadow: 0 0 40px rgba(241,208,138,.55); }
+        .industry-image { height: 112px; position: relative; overflow: hidden; background-size: cover; background-position: center; }
+        .industry-image:after, .mini-skyline:after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg,rgba(3,8,18,0),rgba(3,8,18,.7)); }
+        .industry-construction { background-image: linear-gradient(135deg, rgba(214,175,98,.2), rgba(4,12,22,.2)), repeating-linear-gradient(90deg, transparent 0 24px, rgba(214,175,98,.45) 25px 28px), linear-gradient(160deg,#22304a,#0a1626); }
+        .industry-healthcare { background-image: linear-gradient(135deg, rgba(83,148,221,.35), rgba(4,12,22,.2)), repeating-linear-gradient(0deg, transparent 0 18px, rgba(255,255,255,.13) 19px 21px), linear-gradient(160deg,#1b3148,#071322); }
+        .industry-restaurants { background-image: radial-gradient(circle at 50% 32%, rgba(241,208,138,.42), transparent 18%), repeating-linear-gradient(90deg, rgba(214,175,98,.14) 0 12px, transparent 13px 34px), linear-gradient(160deg,#362013,#071322); }
+        .industry-trucking { background-image: linear-gradient(180deg, transparent 45%, rgba(241,208,138,.22) 46% 48%, transparent 49%), linear-gradient(135deg,#24384f,#071322); }
+        .industry-retail { background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 20px, transparent 21px 44px), linear-gradient(135deg,#2a241b,#071322); }
+        .industry-professional { background-image: radial-gradient(circle at 22% 30%, rgba(255,255,255,.18), transparent 10%), radial-gradient(circle at 70% 34%, rgba(214,175,98,.22), transparent 12%), linear-gradient(135deg,#17263b,#071322); }
+        .mini-skyline { position: relative; background: radial-gradient(circle at 55% 45%, rgba(83,148,221,.28), transparent 28%), linear-gradient(160deg,#091c31,#030812); }
+        .mini-skyline:before { content: ''; position: absolute; left: 8%; right: 8%; bottom: 20%; height: 65%; background: repeating-linear-gradient(90deg, rgba(19,37,62,.95) 0 19px, transparent 20px 28px, rgba(19,37,62,.9) 29px 52px, transparent 53px 68px); clip-path: polygon(0 100%,0 48%,6% 48%,6% 32%,13% 32%,13% 55%,19% 55%,19% 20%,26% 20%,26% 42%,35% 42%,35% 6%,43% 6%,43% 35%,52% 35%,52% 17%,60% 17%,60% 50%,70% 50%,70% 28%,80% 28%,80% 44%,90% 44%,90% 22%,100% 22%,100% 100%); }
+        @media (max-width: 1023px) { .hero-visual { display: block; opacity: .38; width: 100%; } .hero-visual:before { background: linear-gradient(90deg,#030812 0%,rgba(3,8,18,.7) 45%,#030812 100%); } .laptop,.notebook,.coffee-cup,.desk-lamp { display:none; } .skyline { left: 5%; top: 20%; } }
+      `}</style>
+    </div>
   );
 }
