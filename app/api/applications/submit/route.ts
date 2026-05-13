@@ -6,6 +6,18 @@ import { CONSENT_VERSION } from '@/lib/company';
 
 export const dynamic = 'force-dynamic';
 
+const toNumber = (value?: string) => value ? Number(String(value).replace(/[$,]/g, '')) : null;
+const emptyToNull = (value?: string) => value && value.trim() ? value.trim() : null;
+const digitsOnly = (value?: string) => (value || '').replace(/\D/g, '');
+const isPositiveMoney = (value?: string) => {
+  const number = toNumber(value);
+  return typeof number === 'number' && Number.isFinite(number) && number > 0;
+};
+const isValidPhone = (value?: string) => digitsOnly(value).length >= 10;
+const allowedFileTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/heic', 'image/heif']);
+const allowedFileExtensions = new Set(['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif']);
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 const ownerSchema = z.object({
   first_name: z.string().optional().default(''),
   last_name: z.string().optional().default(''),
@@ -36,11 +48,11 @@ const applicationSchema = z.object({
   legal_name: z.string().min(2),
   dba: z.string().optional().default(''),
   entity_type: z.string().min(1),
-  ein: z.string().min(1),
+  ein: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'EIN must be exactly 9 digits.'),
   merchant_type: z.string().min(1),
   industry: z.string().min(1),
   start_date: z.string().min(1),
-  business_phone: z.string().min(7),
+  business_phone: z.string().refine(isValidPhone, 'Business phone must be a valid U.S. phone number.'),
   business_mobile: z.string().optional().default(''),
   fax: z.string().optional().default(''),
   business_email: z.string().email(),
@@ -70,14 +82,14 @@ const applicationSchema = z.object({
   negative_days: z.string().optional().default('0'),
   nsf_count: z.string().optional().default('0'),
   ending_balance: z.string().optional().default(''),
-  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().min(1), email: z.string().email(), phone: z.string().min(7), mobile: z.string().min(7), dob: z.string().min(1), ssn: z.string().min(9), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
+  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'), email: z.string().email(), phone: z.string().refine(isValidPhone, 'Owner phone must be valid.'), mobile: z.string().refine(isValidPhone, 'Owner mobile phone must be valid.'), dob: z.string().min(1), ssn: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'SSN must be exactly 9 digits.'), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
   owner2: ownerSchema.default({}),
-  requested_amount: z.string().min(1),
+  requested_amount: z.string().refine(isPositiveMoney, 'Requested funding amount must be positive.'),
   use_of_funds: z.string().min(1),
   timeline: z.string().optional().default(''),
-  average_monthly_sales: z.string().min(1),
+  average_monthly_sales: z.string().refine(isPositiveMoney, 'Average monthly sales must be positive.'),
   average_visa_mc_sales: z.string().optional().default(''),
-  monthly_gross_revenue: z.string().min(1),
+  monthly_gross_revenue: z.string().refine(isPositiveMoney, 'Monthly revenue must be positive.'),
   has_existing_advances: z.boolean().default(false),
   notes: z.string().optional().default(''),
   existing_advances: z.array(existingAdvanceSchema).default([]),
@@ -100,8 +112,6 @@ const documentLabels: Record<(typeof documentKeys)[number], string> = {
   bank_statements: 'Last 3 Bank Statements',
 };
 
-const toNumber = (value?: string) => value ? Number(value) : null;
-const emptyToNull = (value?: string) => value && value.trim() ? value.trim() : null;
 const submissionBuckets = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
@@ -150,9 +160,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Please complete all required fields and authorization language.', issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  const missingDocs = documentKeys.filter((key) => !parsedBody.files.some((item) => item.key === key));
-  if (missingDocs.length > 0) {
-    return NextResponse.json({ success: false, error: `Missing required uploads: ${missingDocs.map((key) => documentLabels[key]).join(', ')}` }, { status: 400 });
+  const bankStatementFiles = parsedBody.files.filter((item) => item.key === 'bank_statements');
+  if (bankStatementFiles.length < 3) {
+    return NextResponse.json({ success: false, error: 'Please upload at least 3 recent business bank statements.' }, { status: 400 });
+  }
+
+  const invalidFile = parsedBody.files.find(({ file }) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    return file.size > MAX_FILE_SIZE_BYTES || (!allowedFileTypes.has(file.type) && !allowedFileExtensions.has(extension));
+  });
+  if (invalidFile) {
+    return NextResponse.json({ success: false, error: 'Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.' }, { status: 400 });
   }
 
   const form = parsed.data;
@@ -170,6 +188,7 @@ export async function POST(request: Request) {
         dba: emptyToNull(form.dba),
         entity_type: emptyToNull(form.entity_type),
         ein_encrypted: emptyToNull(form.ein),
+        ein_last4: form.ein.slice(-4),
         industry: emptyToNull(form.industry),
         start_date: emptyToNull(form.start_date),
         phone: emptyToNull(form.business_phone),
@@ -203,6 +222,7 @@ export async function POST(request: Request) {
           phone: emptyToNull(owner.phone || owner.mobile),
           dob_encrypted: emptyToNull(owner.dob),
           ssn_encrypted: emptyToNull(owner.ssn),
+          ssn_last4: owner.ssn.slice(-4),
           ownership_percentage: toNumber(owner.ownership_pct),
           credit_score_range: emptyToNull(owner.credit_range),
           address: emptyToNull(owner.address),

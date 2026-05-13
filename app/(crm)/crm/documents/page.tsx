@@ -71,6 +71,12 @@ export default function DocumentsPage() {
       toast.error('Please select a file');
       return;
     }
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif'];
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (file.size > 10 * 1024 * 1024 || (!allowed.includes(file.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''))) {
+      toast.error('Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.');
+      return;
+    }
 
     setUploading(true);
 
@@ -81,27 +87,23 @@ export default function DocumentsPage() {
       const filePath = `${DEFAULT_ORG_ID}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file);
+        .from('application-documents')
+        .upload(filePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-      // Save document record
+      // Save document record without public URLs; CRM downloads use short-lived signed URLs. 
       const { error: dbError } = await supabase
         .from('documents')
         .insert({
           organization_id: DEFAULT_ORG_ID,
           document_type: docType,
           file_name: file.name,
-          file_path: filePath,
-          file_url: publicUrl,
+          label: docTypes.find((type) => type.value === docType)?.label || docType,
+          storage_path: filePath,
           file_size: file.size,
-          description: description || null,
+          mime_type: file.type || null,
+          review_notes: description || null,
         });
 
       if (dbError) throw dbError;
@@ -120,21 +122,23 @@ export default function DocumentsPage() {
   };
 
   const downloadDocument = async (doc: Document) => {
-    if (!doc.file_url) {
-      toast.error('File URL not available');
+    const response = await fetch(`/api/documents/${doc.id}/signed-url`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Unable to open document');
       return;
     }
-    window.open(doc.file_url, '_blank');
+    window.open(result.url, '_blank', 'noopener,noreferrer');
   };
 
   const deleteDocument = async (doc: Document) => {
     if (!confirm('Are you sure you want to delete this document?')) return;
 
     // Delete from storage
-    if (doc.file_path) {
+    if (doc.storage_path) {
       await supabase.storage
-        .from('documents')
-        .remove([doc.file_path]);
+        .from('application-documents')
+        .remove([doc.storage_path]);
     }
 
     // Delete from database
@@ -205,9 +209,9 @@ export default function DocumentsPage() {
                   <div className="font-medium text-sm text-[#09090B] truncate mb-1">
                     {doc.file_name}
                   </div>
-                  {doc.description && (
+                  {doc.review_notes && (
                     <div className="text-xs text-[#71717A] line-clamp-2">
-                      {doc.description}
+                      {doc.review_notes}
                     </div>
                   )}
                 </div>
@@ -258,7 +262,7 @@ export default function DocumentsPage() {
                 id="file"
                 type="file"
                 onChange={handleFileChange}
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
               />
               {file && (
                 <p className="text-xs text-[#71717A] mt-1">

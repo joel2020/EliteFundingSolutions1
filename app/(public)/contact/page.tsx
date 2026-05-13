@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Phone, Mail, MapPin, Clock, ArrowRight } from 'lucide-react';
 
 export default function ContactPage() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', type: 'general' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', type: 'general', bot_field: '' });
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -12,6 +12,10 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (!form.name.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email) || (form.phone && form.phone.replace(/\D/g, '').length < 10) || form.message.trim().length < 5) {
+      setError('Please provide your name, a valid email, a valid phone if included, and a message.');
+      return;
+    }
     setSubmitting(true);
 
     const response = await fetch('/api/contact', {
@@ -52,27 +56,28 @@ export default function ContactPage() {
                 <p className="text-[14px] text-[#71717A]">We&apos;ll be in touch within 2 business hours.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+                <input type="text" tabIndex={-1} autoComplete="off" value={form.bot_field} onChange={(e) => setForm({ ...form, bot_field: e.target.value })} className="hidden" aria-hidden="true" />
                 {error && <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[14px] text-red-700">{error}</div>}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Full Name *</label>
-                    <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field w-full" placeholder="Your name" />
+                    <input id="contact-name" type="text" required aria-required="true" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field w-full" placeholder="Your name" />
                   </div>
                   <div>
                     <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Email *</label>
-                    <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field w-full" placeholder="you@company.com" />
+                    <input id="contact-email" type="email" required aria-required="true" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input-field w-full" placeholder="you@company.com" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">Phone</label>
-                  <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field w-full" placeholder="(XXX) XXX-XXXX" />
+                  <input id="contact-phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field w-full" placeholder="(XXX) XXX-XXXX" />
                 </div>
                 <div>
                   <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">How can we help?</label>
-                  <textarea rows={5} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-4 py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#EFF6FF] transition-all" placeholder="Tell us about your funding needs, questions, or concerns…" />
+                  <textarea id="contact-message" rows={5} required aria-required="true" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-4 py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#EFF6FF] transition-all" placeholder="Tell us about your funding needs, questions, or concerns…" />
                 </div>
-                <button type="submit" className="inline-flex items-center gap-2 rounded-[10px] bg-[#2563EB] text-white font-semibold text-[15px] h-11 px-6 hover:bg-[#1D4ED8] transition-all">
+                <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#2563EB] text-white font-semibold text-[15px] h-11 px-6 hover:bg-[#1D4ED8] transition-all">
                   {submitting ? 'Sending…' : 'Send Message'} <ArrowRight className="w-4 h-4" />
                 </button>
               </form>

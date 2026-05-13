@@ -1,7 +1,8 @@
-'use client';
-
 import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = { title: 'Business Funding FAQ | Elite Funding Solutions', description: 'Answers to common questions about business funding, merchant cash advances, working capital eligibility, application documents, and repayment.', alternates: { canonical: '/faq' } };
 
 const faqs = [
   {
@@ -41,7 +42,10 @@ const faqs = [
 ];
 
 export default function FAQPage() {
+  const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faqs.flatMap((section) => section.questions.map((faq) => ({ '@type': 'Question', name: faq.q, acceptedAnswer: { '@type': 'Answer', text: faq.a } }))) };
   return (
+    <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
     <div className="section">
       <div className="container-page">
         <div className="text-center mb-14">
@@ -66,11 +70,11 @@ export default function FAQPage() {
                     className="group border border-[#E4E4E7] rounded-[12px] bg-white overflow-hidden"
                     style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}
                   >
-                    <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none hover:bg-[#FAFAFA] transition-colors">
+                    <summary className="flex items-center justify-between px-5 py-4 cursor-pointer list-none hover:bg-[#FAFAFA] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] transition-colors" aria-controls={faq.q.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-answer'}>
                       <span className="text-[15px] font-medium text-[#09090B] pr-4">{faq.q}</span>
                       <ChevronDown className="w-4 h-4 text-[#71717A] shrink-0 transition-transform group-open:rotate-180" />
                     </summary>
-                    <div className="px-5 pb-5">
+                    <div id={faq.q.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-answer'} className="px-5 pb-5">
                       <p className="text-[14px] text-[#71717A] leading-relaxed">{faq.a}</p>
                     </div>
                   </details>
@@ -90,5 +94,6 @@ export default function FAQPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

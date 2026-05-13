@@ -15,10 +15,15 @@ export default function AboutPage() {
           <p className="text-[18px] leading-relaxed text-[#8C9BB5]">Elite Funding Solutions combines technology-enabled intake, disciplined underwriting, and high-touch advisory to help businesses secure capital with clarity and speed.</p>
         </div>
         <div className="rounded-[24px] border border-[#1A2B4A] bg-[#07111f] p-8 space-y-6">
-          {['White-glove funding guidance', 'Nationwide lender relationships', 'Transparent offer comparisons', 'Secure application and document workflows'].map((item) => (
+          {[
+            ['White-glove funding guidance', 'Work directly with a dedicated advisor who helps organize your application, identify suitable funding options, and keep the process moving from intake through funding.'],
+            ['Nationwide lender relationships', 'Access a broad network of funding partners across working capital, equipment financing, lines of credit, SBA options, receivables financing, and commercial real estate capital.'],
+            ['Transparent offer comparisons', 'Review available structures with clear visibility into estimated terms, repayment mechanics, funding speed, documentation needs, and total cost considerations.'],
+            ['Secure application and document workflows', 'Submit business information and supporting documents through secure digital workflows designed to protect sensitive financial and identity data.'],
+          ].map(([item, copy]) => (
             <div key={item} className="border-b last:border-b-0 border-[#1A2B4A] pb-5 last:pb-0">
               <h2 className="text-[20px] font-semibold text-[#C9A84C]">{item}</h2>
-              <p className="text-[#8C9BB5] mt-2">A dedicated advisor helps coordinate every step from pre-qualification to funding.</p>
+              <p className="text-[#8C9BB5] mt-2">{copy}</p>
             </div>
           ))}
         </div>
