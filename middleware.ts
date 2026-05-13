@@ -2,6 +2,41 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const INTERNAL_CRM_ROLES = [
+  'super_admin',
+  'admin',
+  'manager',
+  'sales_rep',
+  'processor',
+  'underwriter',
+] as const;
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+
+type UserProfile = {
+  role: string;
+  is_active: boolean;
+};
+
+function isInternalCrmRole(role: string) {
+  return INTERNAL_CRM_ROLES.includes(role as (typeof INTERNAL_CRM_ROLES)[number]);
+}
+
+function redirect(req: NextRequest, pathname: string) {
+  const redirectUrl = req.nextUrl.clone();
+  redirectUrl.pathname = pathname;
+  redirectUrl.search = '';
+  return NextResponse.redirect(redirectUrl);
+}
+
+function redirectToLogin(req: NextRequest) {
+  const redirectUrl = req.nextUrl.clone();
+  redirectUrl.pathname = '/login';
+  redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname);
+  return NextResponse.redirect(redirectUrl);
+}
+
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });
   const pathname = req.nextUrl.pathname;
@@ -25,8 +60,8 @@ export async function middleware(req: NextRequest) {
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -43,22 +78,62 @@ export async function middleware(req: NextRequest) {
   );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Redirect to login if accessing protected route without session
-  if (isProtectedRoute && !session) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = '/login';
-    redirectUrl.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(redirectUrl);
+  if (isProtectedRoute && !user) {
+    return redirectToLogin(req);
   }
 
-  // Redirect to CRM if logged in and trying to access login
-  if (isLoginRoute && session) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = '/crm';
-    return NextResponse.redirect(redirectUrl);
+  if (!user) {
+    return res;
+  }
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role,is_active')
+    .eq('user_id', user.id)
+    .maybeSingle() as { data: UserProfile | null };
+
+  if (!profile || !profile.is_active) {
+    if (isProtectedRoute) {
+      return redirectToLogin(req);
+    }
+
+    return res;
+  }
+
+  const isClientRole = profile.role === 'client';
+  const isInternalRole = isInternalCrmRole(profile.role);
+
+  // Redirect logged-in users away from login based on their profile role.
+  if (isLoginRoute) {
+    if (isClientRole) {
+      return redirect(req, '/portal');
+    }
+
+    if (isInternalRole) {
+      return redirect(req, '/crm');
+    }
+
+    return res;
+  }
+
+  if (pathname.startsWith('/crm') && !isInternalRole) {
+    if (isClientRole) {
+      return redirect(req, '/portal');
+    }
+
+    return redirectToLogin(req);
+  }
+
+  if (pathname.startsWith('/portal') && !isClientRole) {
+    if (isInternalRole) {
+      return redirect(req, '/crm');
+    }
+
+    return redirectToLogin(req);
   }
 
   return res;

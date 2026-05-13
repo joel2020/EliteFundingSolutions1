@@ -1,15 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
+
+const INTERNAL_CRM_ROLES = [
+  'super_admin',
+  'admin',
+  'manager',
+  'sales_rep',
+  'processor',
+  'underwriter',
+] as const;
+
+type UserProfile = {
+  role: string;
+  is_active: boolean;
+};
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+
+function isInternalCrmRole(role: string) {
+  return INTERNAL_CRM_ROLES.includes(role as (typeof INTERNAL_CRM_ROLES)[number]);
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = useMemo(
+    () => createBrowserClient(supabaseUrl, supabaseAnonKey),
+    []
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,18 +46,38 @@ export default function LoginPage() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      if (!data.user) throw new Error('Login failed');
 
       // Check profile and route accordingly
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
-        .select('role')
+        .select('role,is_active')
         .eq('user_id', data.user.id)
-        .maybeSingle() as { data: { role: string } | null };
+        .maybeSingle() as { data: UserProfile | null; error: Error | null };
 
-      if (profile?.role === 'client') {
+      if (profileError) throw profileError;
+
+      if (!profile) {
+        await supabase.auth.signOut();
+        toast.error('No CRM profile found. Contact admin.');
+        return;
+      }
+
+      if (!profile.is_active) {
+        await supabase.auth.signOut();
+        toast.error('This account is inactive.');
+        return;
+      }
+
+      router.refresh();
+
+      if (profile.role === 'client') {
         router.push('/portal');
-      } else {
+      } else if (isInternalCrmRole(profile.role)) {
         router.push('/crm');
+      } else {
+        await supabase.auth.signOut();
+        toast.error('This account is not authorized for CRM access.');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
