@@ -31,65 +31,65 @@ import {
 } from 'lucide-react';
 
 const trustBadges = [
-  { icon: Zap, label: '24–48 Hour', sublabel: 'Approvals' },
-  { icon: LineChart, label: 'Funding Up', sublabel: 'To $5M' },
-  { icon: ShieldCheck, label: '625+ Credit', sublabel: 'Accepted' },
-  { icon: LockKeyhole, label: 'No', sublabel: 'Obligation' },
+  { icon: Zap, label: 'Fast Review', sublabel: 'After Complete File' },
+  { icon: LineChart, label: '$10K–$5M', sublabel: 'Program Range' },
+  { icon: ShieldCheck, label: 'Secure', sublabel: 'Document Intake' },
+  { icon: LockKeyhole, label: 'No Obligation', sublabel: 'To Accept' },
 ];
 
 const stats = [
-  { icon: BadgeDollarSign, value: '$500M+', label: 'Funded' },
-  { icon: Users, value: '10,000+', label: 'Businesses Served' },
-  { icon: Star, value: '4.9 / 5', label: 'Average Rating' },
-  { icon: Handshake, value: '100+', label: 'Lending Partners' },
+  { icon: BadgeDollarSign, value: '$10K–$5M', label: 'Funding Range' },
+  { icon: Users, value: 'U.S.', label: 'Nationwide Coverage' },
+  { icon: Star, value: 'Advisor-Led', label: 'Offer Review' },
+  { icon: Handshake, value: 'Multi-Product', label: 'Funding Network' },
 ];
 
 const fundingSolutions = [
-  { icon: Building2, title: 'Working Capital', text: 'Maintain cash flow and cover daily operational expenses.', href: '/funding-solutions#working-capital' },
-  { icon: Factory, title: 'Equipment Financing', text: 'Acquire the equipment you need to grow your business.', href: '/funding-solutions#equipment-financing' },
-  { icon: Landmark, title: 'SBA Loans', text: 'Low-interest, government-backed loans to help your business expand.', href: '/funding-solutions#sba-loans' },
-  { icon: CreditCard, title: 'Lines of Credit', text: 'Flexible revolving credit to help you manage cash flow.', href: '/funding-solutions#lines-of-credit' },
-  { icon: ReceiptText, title: 'Invoice Factoring', text: 'Unlock cash tied up in outstanding invoices fast.', href: '/funding-solutions#invoice-factoring' },
-  { icon: Warehouse, title: 'Commercial Real Estate Financing', text: 'Financing solutions for your property investments and expansions.', href: '/funding-solutions#commercial-real-estate' },
+  { icon: Building2, title: 'Working Capital', text: 'Support payroll, inventory, expansion, and timing gaps with responsibly structured operating capital.', href: '/funding-solutions#working-capital' },
+  { icon: Factory, title: 'Equipment Financing', text: 'Finance mission-critical assets while preserving operating liquidity.', href: '/funding-solutions#equipment-financing' },
+  { icon: Landmark, title: 'SBA Loans', text: 'Longer-term SBA options for qualified borrowers seeking lower-cost capital.', href: '/funding-solutions#sba-loans' },
+  { icon: CreditCard, title: 'Lines of Credit', text: 'Revolving access for recurring purchases, vendor payments, and reserves.', href: '/funding-solutions#business-lines-of-credit' },
+  { icon: ReceiptText, title: 'Invoice Factoring', text: 'Convert eligible B2B receivables into working capital with clear advance terms.', href: '/funding-solutions#invoice-factoring' },
+  { icon: Warehouse, title: 'Commercial Real Estate Financing', text: 'Acquisition, refinance, bridge, and owner-occupied commercial property strategies.', href: '/funding-solutions#commercial-real-estate' },
 ];
 
 const processSteps = [
-  { step: '1', title: 'Submit Your Application', text: 'Quick and easy application takes just minutes.' },
-  { step: '2', title: 'Review Tailored Offers', text: 'We match you with the best funding options.' },
-  { step: '3', title: 'Receive Funding Quickly', text: 'Get the capital you need to keep moving forward.' },
+  { step: '1', title: 'Submit Secure Intake', text: 'Share business, owner, revenue, and document details through an encrypted workflow.' },
+  { step: '2', title: 'Compare Qualified Options', text: 'An advisor packages the file and explains available structures, costs, and conditions.' },
+  { step: '3', title: 'Close With Confidence', text: 'Complete final verification and move forward only when the terms fit your objective.' },
 ];
 
 const whyElite = [
-  { icon: Banknote, label: 'Access to 100+ Lenders' },
+  { icon: Banknote, label: 'Broad capital marketplace' },
   { icon: Users, label: 'Dedicated Funding Advisors' },
   { icon: BriefcaseBusiness, label: 'Customized Financing Strategies' },
-  { icon: Clock3, label: 'Fast Turnaround' },
+  { icon: Clock3, label: 'Fast, complete-file review' },
   { icon: CheckCircle2, label: 'Transparent Process' },
   { icon: ShieldCheck, label: 'White-Glove Service' },
 ];
 
 const industries = [
-  { icon: Building2, title: 'Construction', className: 'industry-construction' },
-  { icon: HeartPulse, title: 'Healthcare', className: 'industry-healthcare' },
-  { icon: Utensils, title: 'Restaurants', className: 'industry-restaurants' },
-  { icon: Truck, title: 'Trucking', className: 'industry-trucking' },
-  { icon: ShoppingBag, title: 'Retail', className: 'industry-retail' },
-  { icon: BriefcaseBusiness, title: 'Professional Services', className: 'industry-professional' },
+  { icon: Building2, title: 'Construction', slug: 'construction', className: 'industry-construction' },
+  { icon: HeartPulse, title: 'Healthcare', slug: 'healthcare', className: 'industry-healthcare' },
+  { icon: Utensils, title: 'Restaurants', slug: 'restaurants', className: 'industry-restaurants' },
+  { icon: Truck, title: 'Trucking', slug: 'trucking-logistics', className: 'industry-trucking' },
+  { icon: ShoppingBag, title: 'Retail', slug: 'retail', className: 'industry-retail' },
+  { icon: BriefcaseBusiness, title: 'Professional Services', slug: 'professional-services', className: 'industry-professional' },
 ];
 
 const testimonials = [
   {
-    quote: 'Elite Funding Solutions provided the capital we needed to expand our operations seamlessly. Their speed and transparency are unmatched.',
+    quote: 'Elite helped us compare options clearly and choose a structure that aligned with our expansion plan.',
     byline: 'Business Owner',
     company: 'Construction Company',
   },
   {
-    quote: 'The team was professional, knowledgeable, and delivered funding faster than we expected. Highly recommend!',
+    quote: 'The process felt organized, secure, and consultative from document intake through final offer review.',
     byline: 'CEO',
     company: 'Healthcare Provider',
   },
   {
-    quote: 'Elite helped us maintain cash flow and take advantage of major growth opportunities. A true partner.',
+    quote: 'Our advisor explained the tradeoffs, timelines, and documentation requirements without pressure.',
     byline: 'Founder',
     company: 'Logistics Company',
   },
@@ -151,12 +151,12 @@ function Hero() {
       <HeroVisual />
       <div className="relative z-10 mx-auto flex max-w-[1280px] flex-col px-5 pb-14 pt-28 md:px-8 md:pt-36 lg:min-h-[760px] xl:px-0">
         <div className="max-w-[610px]">
-          <p className="mb-6 text-[13px] font-semibold uppercase tracking-[0.44em] text-[#d6af62]">Fast. Flexible. Reliable.</p>
+          <p className="mb-6 text-[13px] font-semibold uppercase tracking-[0.44em] text-[#d6af62]">Private-credit execution for serious operators</p>
           <h1 className="font-serif text-[46px] font-medium leading-[0.96] tracking-[-0.04em] text-white md:text-[68px] lg:text-[72px]">
-            Fast, Flexible Capital for <span className="text-[#d6af62]">Ambitious Businesses.</span>
+            Institutional Business Funding for <span className="text-[#d6af62]">Ambitious Operators.</span>
           </h1>
           <p className="mt-7 max-w-[510px] text-base leading-8 text-slate-200 md:text-lg">
-            Access working capital from $10,000 to $5,000,000 through our nationwide network of trusted funding partners.
+            Access working capital, revenue-based financing, lines of credit, equipment financing, SBA options, invoice factoring, and commercial real estate capital through a secure advisor-led process.
           </p>
           <div className="mt-9 flex flex-col gap-4 sm:flex-row">
             <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
@@ -265,12 +265,12 @@ function Industries() {
   return (
     <section className="bg-[#030812] px-5 py-9 md:px-8 xl:px-0">
       <div className="mx-auto max-w-[1280px]">
-        <SectionHeading title="Industries We Serve" subtitle="Tailored financing solutions for businesses across every industry." />
+        <SectionHeading title="Industries We Serve" subtitle="Sector-aware financing guidance for operators with payroll, inventory, equipment, receivables, expansion, and seasonality needs." />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {industries.map((industry) => {
             const Icon = industry.icon;
             return (
-              <Link key={industry.title} href={`/industries#${industry.title.toLowerCase().replaceAll(' ', '-')}`} className="group overflow-hidden rounded-sm border border-[#d6af62]/16 bg-[#081523]">
+              <Link key={industry.title} href={`/industries/${industry.slug}`} className="group overflow-hidden rounded-sm border border-[#d6af62]/16 bg-[#081523]">
                 <div className={`industry-image ${industry.className}`} />
                 <div className="flex min-h-[62px] items-center gap-3 px-5 py-3">
                   <Icon className="h-6 w-6 text-[#d6af62]" strokeWidth={1.25} />
@@ -289,7 +289,7 @@ function Testimonials() {
   return (
     <section className="border-y border-[#c7a45a]/10 bg-[#05101d] px-5 py-9 md:px-8 xl:px-0">
       <div className="mx-auto max-w-[1280px]">
-        <SectionHeading title="What Our Clients Say" />
+        <SectionHeading title="Representative Client Feedback" />
         <div className="grid gap-6 md:grid-cols-3">
           {testimonials.map((testimonial) => (
             <article key={testimonial.company} className="relative rounded-sm border border-[#d6af62]/16 bg-[#081523]/85 p-7 shadow-[0_16px_50px_rgba(0,0,0,0.22)]">
@@ -340,11 +340,11 @@ function FinalCta() {
         <div className="mini-skyline h-40 md:h-full" />
         <div className="px-7 py-8">
           <h2 className="font-serif text-3xl leading-tight text-white md:text-4xl">Ready to Secure the Capital<br className="hidden md:block" /> Your Business Needs?</h2>
-          <p className="mt-3 text-sm text-slate-400">Get the funding you need to grow, operate, and succeed—on your terms.</p>
+          <p className="mt-3 text-sm text-slate-400">Submit one secure request and speak with an advisor about available capital structures, documentation needs, and next steps.</p>
         </div>
         <div className="px-7 pb-8 md:pb-0">
           <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
-            Get Pre-Qualified Today <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            Get Pre-Qualified <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
           </Link>
         </div>
       </div>

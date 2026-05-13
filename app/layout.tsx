@@ -8,24 +8,24 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://elitefundingsolutio
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Elite Funding Solutions — Fast, Flexible Capital for Ambitious Businesses',
+    default: 'Elite Funding Solutions — Institutional Business Funding & Private Credit Advisory',
     template: '%s | Elite Funding Solutions',
   },
-  description: 'Elite Funding Solutions provides fast, flexible business capital from $10K to $5M with white-glove guidance, streamlined approvals, and a nationwide funding partner network.',
-  keywords: ['business funding', 'merchant cash advance', 'working capital', 'equipment financing', 'SBA loans', 'business line of credit', 'invoice factoring'],
+  description: 'Elite Funding Solutions provides secure advisor-led business funding, working capital, revenue-based financing, lines of credit, equipment financing, SBA options, invoice factoring, and commercial real estate capital for U.S. operators.',
+  keywords: ['business funding', 'working capital', 'merchant cash advance', 'revenue-based financing', 'equipment financing', 'SBA loans', 'business line of credit', 'invoice factoring', 'fast business funding', 'small business funding'],
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     url: siteUrl,
     siteName: 'Elite Funding Solutions',
-    title: 'Elite Funding Solutions — Fast, Flexible Capital for Ambitious Businesses',
-    description: 'Premium business funding solutions with streamlined approvals and white-glove service.',
+    title: 'Elite Funding Solutions — Institutional Business Funding & Private Credit Advisory',
+    description: 'Premium business funding solutions with secure intake, responsible underwriting guidance, and white-glove offer comparison.',
     images: [{ url: '/Elite_Funding_Solutions_Logo_Final.jpg', width: 1672, height: 940, alt: 'Elite Funding Solutions' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Elite Funding Solutions',
-    description: 'Fast, flexible capital for ambitious businesses.',
+    description: 'Institutional business funding and private credit advisory for ambitious operators.',
     images: ['/Elite_Funding_Solutions_Logo_Final.jpg'],
   },
   icons: {
@@ -54,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     },
     areaServed: 'US',
     sameAs: [COMPANY.domain],
+    makesOffer: ['Working capital', 'Revenue-based financing', 'Merchant cash advance', 'Business line of credit', 'Equipment financing', 'Invoice factoring', 'SBA loans', 'Commercial real estate financing'],
   };
 
   return (
