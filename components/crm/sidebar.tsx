@@ -4,9 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, FileText, Users, Building2, CircleUser as UserCircle, Layers, ClipboardCheck, Tag, Handshake, FolderOpen, Signature as FileSignature, RefreshCw, Network, DollarSign, ChartBar as BarChart3, MessageSquare, SquareCheck as CheckSquare, Settings, LogOut, Shield, ChevronDown } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 
 const navSections = [
   {
@@ -69,18 +69,26 @@ export function CrmSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const authClient = useMemo(() => createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build'
+  ), []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--crm-sidebar-width', collapsed ? '64px' : '260px');
+  }, [collapsed]);
 
   const isActive = (href: string) =>
     href === '/crm' ? pathname === '/crm' : pathname.startsWith(href);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await authClient.auth.signOut();
     router.push('/login');
   };
 
   return (
     <aside
-      className={`fixed top-0 left-0 h-full flex flex-col transition-all duration-200 z-40 ${
+      className={`fixed top-0 left-0 h-full hidden md:flex flex-col transition-all duration-200 z-40 ${
         collapsed ? 'w-[64px]' : 'w-[260px]'
       }`}
       style={{ background: '#060D1B', borderRight: '1px solid #111E35' }}

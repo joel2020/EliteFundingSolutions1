@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Plus, MoreVertical, CheckCircle2, Circle, Edit, Trash2, Calendar } from 'lucide-react';
 import type { Task } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,8 @@ const emptyForm: TaskFormData = {
 };
 
 export default function TasksPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -57,14 +60,16 @@ export default function TasksPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadTasks();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadTasks = async () => {
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('due_date', { ascending: true, nullsFirst: false });
 
     if (error) {
@@ -109,7 +114,7 @@ export default function TasksPage() {
     
     const taskData = {
       ...formData,
-      organization_id: DEFAULT_ORG_ID,
+      organization_id: organizationId,
     };
 
     if (selectedTask) {

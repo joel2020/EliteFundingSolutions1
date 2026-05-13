@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { FileText, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
 import type { Application } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,8 @@ const riskLevels = [
 ];
 
 export default function UnderwritingPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
@@ -33,14 +36,16 @@ export default function UnderwritingPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadApplications();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadApplications = async () => {
     const { data, error } = await supabase
       .from('applications')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .in('status', ['submitted', 'in_review', 'under_review'])
       .order('created_at', { ascending: false });
 
@@ -86,7 +91,7 @@ export default function UnderwritingPage() {
     const { error: reviewError } = await supabase
       .from('underwriting_reviews')
       .insert({
-        organization_id: DEFAULT_ORG_ID,
+        organization_id: organizationId,
         application_id: selectedApp.id,
         risk_level: riskAssessment,
         notes: reviewNotes,

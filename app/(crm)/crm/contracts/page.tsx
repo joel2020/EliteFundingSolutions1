@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { FileSignature, Send, Eye, CheckCircle, Clock, XCircle } from 'lucide-react';
 import type { Contract } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
@@ -20,18 +21,22 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 };
 
 export default function ContractsPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadContracts();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadContracts = async () => {
     const { data, error } = await supabase
       .from('contracts')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) {

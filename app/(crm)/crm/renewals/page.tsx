@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { RefreshCw } from 'lucide-react';
 import type { Renewal } from '@/types/database';
 import { Badge } from '@/components/ui/badge';
@@ -21,18 +22,22 @@ const statusColors: Record<string, string> = {
 };
 
 export default function RenewalsPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadRenewals();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadRenewals = async () => {
     const { data, error } = await supabase
       .from('renewals')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
 
     if (error) {

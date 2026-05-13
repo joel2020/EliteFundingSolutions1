@@ -2,25 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Plus } from 'lucide-react';
 import type { FundingPartner } from '@/types/database';
 
 export default function PartnersPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [partners, setPartners] = useState<FundingPartner[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     supabase
       .from('funding_partners')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .order('name')
       .then(({ data }) => {
         if (data) setPartners(data as FundingPartner[]);
         setLoading(false);
       });
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const fmt = (n: number | null) => (n ? `$${(n / 1000).toFixed(0)}K` : '—');
 

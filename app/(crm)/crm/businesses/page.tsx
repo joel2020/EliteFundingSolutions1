@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Search, Plus, MoreVertical, Building2, Edit, Trash2, Users } from 'lucide-react';
 import type { Business, Owner } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,8 @@ const emptyForm: BusinessFormData = {
 };
 
 export default function BusinessesPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -76,14 +79,16 @@ export default function BusinessesPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadBusinesses();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadBusinesses = async () => {
     const { data, error } = await supabase
       .from('businesses')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
@@ -141,7 +146,7 @@ export default function BusinessesPage() {
     
     const businessData = {
       ...formData,
-      organization_id: DEFAULT_ORG_ID,
+      organization_id: organizationId,
       monthly_gross_revenue: formData.monthly_gross_revenue ? parseFloat(formData.monthly_gross_revenue) : null,
       average_daily_balance: formData.average_daily_balance ? parseFloat(formData.average_daily_balance) : null,
       deposit_count_monthly: formData.deposit_count_monthly ? parseInt(formData.deposit_count_monthly) : null,

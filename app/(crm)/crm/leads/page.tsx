@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { useCrmUser } from '@/lib/crm-auth';
 import { Search, Plus, MoreVertical, Phone, Mail, Trash2, Edit, Eye } from 'lucide-react';
 import type { Lead } from '@/types/database';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,8 @@ const emptyForm: LeadFormData = {
 };
 
 export default function LeadsPage() {
+  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -74,14 +77,16 @@ export default function LeadsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
     loadLeads();
-  }, []);
+  }, [crmUserLoading, organizationId]);
 
   const loadLeads = async () => {
     const { data, error } = await supabase
       .from('leads')
       .select('*')
-      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('organization_id', organizationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
@@ -124,7 +129,7 @@ export default function LeadsPage() {
     
     const leadData = {
       ...formData,
-      organization_id: DEFAULT_ORG_ID,
+      organization_id: organizationId,
     };
 
     if (selectedLead) {
