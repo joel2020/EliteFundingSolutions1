@@ -172,7 +172,8 @@ export function CrmSidebar() {
       {/* Bottom actions */}
       <div className="px-2 py-3" style={{ borderTop: '1px solid #111E35' }}>
         <Link
-          href="/"
+          href="https://elitefundingsolution.com/"
+          prefetch={false}
           className="flex items-center gap-3 px-3 py-2 rounded-[8px] text-[13px] font-medium transition-colors mb-0.5"
           style={{ color: '#5A6A85' }}
           onMouseEnter={(e) => {

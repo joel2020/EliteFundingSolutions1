@@ -138,7 +138,7 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-[13px] font-medium" style={{ color: '#8C9BB5' }}>Password</label>
-                <Link href="/forgot-password" className="text-[12px] hover:underline" style={{ color: '#C9A84C' }}>
+                <Link href="/forgot-password" prefetch={false} className="text-[12px] hover:underline" style={{ color: '#C9A84C' }}>
                   Forgot password?
                 </Link>
               </div>
@@ -180,7 +180,7 @@ export default function LoginPage() {
           <div className="mt-6 pt-5 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <p className="text-[13px]" style={{ color: '#3A4A65' }}>
               New client?{' '}
-              <Link href="/apply" className="font-medium hover:underline" style={{ color: '#C9A84C' }}>
+              <Link href="https://elitefundingsolution.com/apply" prefetch={false} className="font-medium hover:underline" style={{ color: '#C9A84C' }}>
                 Apply for funding
               </Link>
             </p>
