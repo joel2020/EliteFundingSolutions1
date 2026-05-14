@@ -46,6 +46,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { Button } from '@/components/ui/button';
@@ -94,6 +95,8 @@ const STAGE_LABELS = Object.fromEntries(STAGES);
 const STAGE_OPTIONS = STAGES.map(([value, label]) => ({ value, label }));
 const STATUS_COLORS = ['#0F2B5B', '#C9A84C', '#2563EB', '#059669', '#D97706', '#DC2626', '#64748B'];
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
 const emptyLead = {
   business_name: '',
@@ -224,6 +227,7 @@ function exportCsv(name: string, rows: RecordMap[]) {
 
 function useCrmDataset() {
   const { profile, organizationId, loading: profileLoading, error: profileError } = useCrmUser();
+  const browserSupabase = useMemo(() => createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY), []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CrmDataset>({
@@ -247,19 +251,19 @@ function useCrmDataset() {
     setError(null);
 
     const settled = await Promise.allSettled([
-      supabase.from('leads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-      supabase.from('deals').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-      supabase.from('offers').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
-      supabase.from('renewals').select('*').eq('organization_id', org).order('updated_at', { ascending: false }),
-      supabase.from('commissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
-      supabase.from('funding_partners').select('*').eq('organization_id', org).order('name'),
-      supabase.from('user_profiles').select('*').eq('organization_id', org).order('first_name'),
-      supabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      supabase.from('documents').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      supabase.from('notes').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      supabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      supabase.from('deal_financials').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      supabase.from('businesses').select('*').eq('organization_id', org).is('deleted_at', null),
+      browserSupabase.from('leads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
+      browserSupabase.from('deals').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
+      browserSupabase.from('offers').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
+      browserSupabase.from('renewals').select('*').eq('organization_id', org).order('updated_at', { ascending: false }),
+      browserSupabase.from('commissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
+      browserSupabase.from('funding_partners').select('*').eq('organization_id', org).order('name'),
+      browserSupabase.from('user_profiles').select('*').eq('organization_id', org).order('first_name'),
+      browserSupabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('documents').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('notes').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('deal_financials').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('businesses').select('*').eq('organization_id', org).is('deleted_at', null),
     ]);
 
     const unwrap = (index: number) => {
@@ -319,7 +323,7 @@ function useCrmDataset() {
       dealFinancials: unwrap(11),
     });
     setLoading(false);
-  }, [organizationId]);
+  }, [browserSupabase, organizationId]);
 
   useEffect(() => {
     if (profileLoading) return;

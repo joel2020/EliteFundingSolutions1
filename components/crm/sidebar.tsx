@@ -123,6 +123,7 @@ export function CrmSidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   title={collapsed ? item.label : undefined}
                   className="flex items-center gap-3 px-3 py-2 rounded-[7px] text-[13px] font-medium transition-all duration-100 mb-0.5"
                   style={{

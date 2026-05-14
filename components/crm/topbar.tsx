@@ -29,6 +29,7 @@ export function CrmTopbar({ title, subtitle, actions }: TopbarProps) {
         </button>
         <Link
           href="/crm/settings"
+          prefetch={false}
           className="w-9 h-9 rounded-[7px] flex items-center justify-center text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
         >
           <Settings className="w-4 h-4" />
