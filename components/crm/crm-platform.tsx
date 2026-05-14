@@ -247,11 +247,11 @@ function useCrmDataset() {
     setError(null);
 
     const settled = await Promise.allSettled([
-      supabase.from('leads').select('*, user_profiles:assigned_user_id(id,first_name,last_name,email)').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-      supabase.from('deals').select('*, businesses(id,legal_name,dba,industry,phone,email,monthly_gross_revenue,city,state), user_profiles:assigned_user_id(id,first_name,last_name,email), offers(id,status,approved_amount,payback_amount,factor_rate,funding_partner_id,funding_partners(id,name)), renewals(id,status,current_balance,percent_paid_down,renewal_date)').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-      supabase.from('offers').select('*, deals(id,title,businesses(legal_name,dba)), funding_partners(id,name)').eq('organization_id', org).order('created_at', { ascending: false }),
-      supabase.from('renewals').select('*, deals:original_deal_id(id,title,funded_amount,funded_at,businesses(legal_name,dba)), user_profiles:assigned_user_id(id,first_name,last_name,email)').eq('organization_id', org).order('updated_at', { ascending: false }),
-      supabase.from('commissions').select('*, deals(id,title,businesses(legal_name,dba)), offers(id,funding_partner_id,funding_partners(id,name)), user_profiles:rep_id(id,first_name,last_name,email)').eq('organization_id', org).order('created_at', { ascending: false }),
+      supabase.from('leads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('deals').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
+      supabase.from('offers').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
+      supabase.from('renewals').select('*').eq('organization_id', org).order('updated_at', { ascending: false }),
+      supabase.from('commissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
       supabase.from('funding_partners').select('*').eq('organization_id', org).order('name'),
       supabase.from('user_profiles').select('*').eq('organization_id', org).order('first_name'),
       supabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
@@ -259,6 +259,7 @@ function useCrmDataset() {
       supabase.from('notes').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       supabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       supabase.from('deal_financials').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      supabase.from('businesses').select('*').eq('organization_id', org).is('deleted_at', null),
     ]);
 
     const unwrap = (index: number) => {
@@ -273,14 +274,44 @@ function useCrmDataset() {
       setError((hardError.value as any).error.message);
     }
 
+    const rawLeads = unwrap(0);
+    const rawDeals = unwrap(1);
+    const rawOffers = unwrap(2);
+    const rawRenewals = unwrap(3);
+    const rawCommissions = unwrap(4);
+    const partners = unwrap(5);
+    const users = unwrap(6);
+    const businesses = unwrap(12);
+    const usersById = Object.fromEntries(users.map((user: RecordMap) => [user.id, user]));
+    const partnersById = Object.fromEntries(partners.map((partner: RecordMap) => [partner.id, partner]));
+    const businessesById = Object.fromEntries(businesses.map((business: RecordMap) => [business.id, business]));
+    const offers = rawOffers.map((offer: RecordMap) => ({ ...offer, funding_partners: partnersById[offer.funding_partner_id] }));
+    const renewals = rawRenewals.map((renewal: RecordMap) => ({ ...renewal, user_profiles: usersById[renewal.assigned_user_id] }));
+    const deals = rawDeals.map((deal: RecordMap) => ({
+      ...deal,
+      businesses: businessesById[deal.business_id],
+      user_profiles: usersById[deal.assigned_user_id],
+      offers: offers.filter((offer: RecordMap) => offer.deal_id === deal.id),
+      renewals: renewals.filter((renewal: RecordMap) => renewal.original_deal_id === deal.id),
+    }));
+    const dealsById = Object.fromEntries(deals.map((deal: RecordMap) => [deal.id, deal]));
+    const offersById = Object.fromEntries(offers.map((offer: RecordMap) => [offer.id, offer]));
+    const commissions = rawCommissions.map((commission: RecordMap) => ({
+      ...commission,
+      deals: dealsById[commission.deal_id],
+      offers: offersById[commission.offer_id],
+      user_profiles: usersById[commission.rep_id],
+    }));
+    const leads = rawLeads.map((lead: RecordMap) => ({ ...lead, user_profiles: usersById[lead.assigned_user_id] }));
+
     setData({
-      leads: unwrap(0),
-      deals: unwrap(1),
-      offers: unwrap(2),
-      renewals: unwrap(3),
-      commissions: unwrap(4),
-      partners: unwrap(5),
-      users: unwrap(6),
+      leads,
+      deals,
+      offers,
+      renewals: renewals.map((renewal: RecordMap) => ({ ...renewal, deals: dealsById[renewal.original_deal_id] })),
+      commissions,
+      partners,
+      users,
       activities: unwrap(7),
       documents: unwrap(8),
       notes: unwrap(9),
