@@ -2,9 +2,9 @@ import { CrmSidebar } from '@/components/crm/sidebar';
 
 export default function CrmLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen bg-[#F6F7FA] overflow-hidden">
+    <div className="h-screen overflow-hidden bg-[#F8FAFC] pt-14">
       <CrmSidebar />
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden transition-[padding] duration-200 md:pl-[var(--crm-sidebar-width,260px)]">
+      <main className="flex h-full min-w-0 flex-col overflow-hidden">
         {children}
       </main>
     </div>
