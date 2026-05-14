@@ -18,6 +18,7 @@ const allowedFileTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 
 const allowedFileExtensions = new Set(['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const RATE_LIMIT_MAX = 5;
+const creditScoreRangeSchema = z.enum(['', '720+', '680-719', '640-679', '600-639', '<600']);
 
 const ownerSchema = z.object({
   first_name: z.string().optional().default(''),
@@ -33,7 +34,7 @@ const ownerSchema = z.object({
   city: z.string().optional().default(''),
   state: z.string().optional().default(''),
   zip: z.string().optional().default(''),
-  credit_range: z.string().optional().default(''),
+  credit_range: creditScoreRangeSchema.optional().default(''),
 });
 
 const existingAdvanceSchema = z.object({
