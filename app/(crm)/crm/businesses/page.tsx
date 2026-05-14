@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -78,13 +78,8 @@ export default function BusinessesPage() {
   const [formData, setFormData] = useState<BusinessFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadBusinesses();
-  }, [crmUserLoading, organizationId]);
-
-  const loadBusinesses = async () => {
+  const loadBusinesses = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('businesses')
       .select('*')
@@ -99,7 +94,13 @@ export default function BusinessesPage() {
       setBusinesses(data as Business[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadBusinesses();
+  }, [crmUserLoading, organizationId, loadBusinesses]);
 
   const handleAdd = () => {
     setSelectedBusiness(null);
@@ -113,7 +114,7 @@ export default function BusinessesPage() {
       legal_name: business.legal_name,
       dba: business.dba || '',
       entity_type: business.entity_type || 'llc',
-      ein: business.ein_encrypted || '',
+      ein: '',
       industry: business.industry || '',
       start_date: business.start_date || '',
       phone: business.phone || '',

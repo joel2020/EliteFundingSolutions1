@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -102,13 +102,7 @@ export default function DashboardPage() {
     return { start: start.toISOString(), end: end.toISOString(), monthStart: monthStart.toISOString() };
   }, []);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setError(crmUserError || 'CRM profile unavailable.'); setLoading(false); return; }
-    loadDashboardData();
-  }, [crmUserLoading, organizationId, crmUserError]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     if (!organizationId) return;
     setLoading(true);
     setError(null);
@@ -151,7 +145,13 @@ export default function DashboardPage() {
     setRecentDeals(deals.slice(0, 6).map((d: any) => ({ id: d.id, business_name: d.businesses?.legal_name || d.businesses?.dba || 'Unnamed business', amount: d.funded_amount || d.requested_amount || 0, stage: MCA_STAGE_LABELS[d.stage_slug] || d.stage_slug, created_at: d.created_at })));
     setRecentApplications(applications.slice(0, 6).map((a: any) => ({ id: a.id, business_name: a.businesses?.legal_name || a.businesses?.dba || 'Unlinked application', amount: a.requested_amount || 0, status: a.status, created_at: a.submitted_at || a.created_at })));
     setLoading(false);
-  };
+  }, [organizationId, todayRange.end, todayRange.monthStart, todayRange.start]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setError(crmUserError || 'CRM profile unavailable.'); setLoading(false); return; }
+    loadDashboardData();
+  }, [crmUserLoading, organizationId, crmUserError, loadDashboardData]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

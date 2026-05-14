@@ -26,6 +26,10 @@ export default function ReportsPage() {
   const [monthlyVolume, setMonthlyVolume] = useState<any[]>([]);
 
   const loadReports = useCallback(async () => {
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
     try {
       const daysAgo = parseInt(timeframe);
       const startDate = new Date();
@@ -101,7 +105,7 @@ export default function ReportsPage() {
       toast.error('Failed to load reports');
     }
     setLoading(false);
-  }, [timeframe]);
+  }, [organizationId, timeframe]);
 
   useEffect(() => {
     loadReports();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -25,7 +25,8 @@ export default function MessagesPage() {
   const [body, setBody] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
+    if (!organizationId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('messages')
@@ -40,13 +41,13 @@ export default function MessagesPage() {
       setMessages((data || []) as Message[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
 
   useEffect(() => {
     if (crmUserLoading) return;
     if (!organizationId) { setLoading(false); return; }
     loadMessages();
-  }, [crmUserLoading, organizationId]);
+  }, [crmUserLoading, organizationId, loadMessages]);
 
   const saveMessage = async () => {
     if (!body.trim()) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -26,13 +26,8 @@ export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadContracts();
-  }, [crmUserLoading, organizationId]);
-
-  const loadContracts = async () => {
+  const loadContracts = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('contracts')
       .select('*')
@@ -46,7 +41,13 @@ export default function ContractsPage() {
       setContracts(data as Contract[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadContracts();
+  }, [crmUserLoading, organizationId, loadContracts]);
 
   const sendContract = async (contractId: string) => {
     const { error } = await supabase

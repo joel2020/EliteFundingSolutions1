@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -42,13 +42,8 @@ export default function IsoBrokersPage() {
   const [formData, setFormData] = useState<BrokerFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadBrokers();
-  }, [crmUserLoading, organizationId]);
-
-  const loadBrokers = async () => {
+  const loadBrokers = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('iso_brokers')
       .select('*')
@@ -62,7 +57,13 @@ export default function IsoBrokersPage() {
       setBrokers(data as IsoBroker[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadBrokers();
+  }, [crmUserLoading, organizationId, loadBrokers]);
 
   const saveBroker = async () => {
     if (!formData.company_name || !formData.contact_name) {

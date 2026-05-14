@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -59,13 +59,8 @@ export default function TasksPage() {
   const [formData, setFormData] = useState<TaskFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadTasks();
-  }, [crmUserLoading, organizationId]);
-
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -79,7 +74,13 @@ export default function TasksPage() {
       setTasks(data as Task[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadTasks();
+  }, [crmUserLoading, organizationId, loadTasks]);
 
   const handleAdd = () => {
     setSelectedTask(null);

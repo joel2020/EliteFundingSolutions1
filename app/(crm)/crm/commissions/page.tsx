@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -25,13 +25,8 @@ export default function CommissionsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadCommissions();
-  }, [crmUserLoading, organizationId]);
-
-  const loadCommissions = async () => {
+  const loadCommissions = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('commissions')
       .select('*')
@@ -45,7 +40,13 @@ export default function CommissionsPage() {
       setCommissions(data as Commission[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadCommissions();
+  }, [crmUserLoading, organizationId, loadCommissions]);
 
   const updateStatus = async (commissionId: string, newStatus: string) => {
     const { error } = await supabase

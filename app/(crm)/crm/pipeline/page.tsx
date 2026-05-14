@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -54,13 +54,8 @@ export default function PipelinePage() {
   const [formData, setFormData] = useState<DealFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadDeals();
-  }, [crmUserLoading, organizationId]);
-
-  const loadDeals = async () => {
+  const loadDeals = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('deals')
       .select('id,title,stage_slug,requested_amount,funded_amount,created_at,businesses(legal_name,dba)')
@@ -75,7 +70,13 @@ export default function PipelinePage() {
       setDeals(data as any[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadDeals();
+  }, [crmUserLoading, organizationId, loadDeals]);
 
   const handleAdd = () => {
     setFormData(emptyForm);

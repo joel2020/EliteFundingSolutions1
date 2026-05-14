@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -49,14 +49,8 @@ export default function ApplicationsPage() {
   const [currentProfile, setCurrentProfile] = useState<any>(null);
   const [revealSensitive, setRevealSensitive] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadApplications();
-    loadCurrentProfile();
-  }, [crmUserLoading, organizationId]);
-
-  const loadCurrentProfile = async () => {
+  const loadCurrentProfile = useCallback(async () => {
+    if (!organizationId) return;
     const { data: authData } = await supabase.auth.getUser();
     if (!authData.user) return;
     const { data } = await supabase
@@ -66,9 +60,10 @@ export default function ApplicationsPage() {
       .eq('organization_id', organizationId)
       .single();
     setCurrentProfile(data);
-  };
+  }, [organizationId]);
 
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('applications')
       .select('id,organization_id,business_id,status,requested_amount,submitted_at,created_at,application_payload,certification_accepted,credit_authorization_accepted,esign_consent_accepted,sms_consent_accepted,terms_accepted,privacy_policy_accepted,signed_name,signed_at,signature_date,businesses(legal_name,dba,email,phone,ein_last4),leads(first_name,last_name,email,phone)')
@@ -83,7 +78,14 @@ export default function ApplicationsPage() {
       setApplications(data as any[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadApplications();
+    loadCurrentProfile();
+  }, [crmUserLoading, organizationId, loadApplications, loadCurrentProfile]);
 
   const updateStatus = async (appId: string, newStatus: string) => {
     const { error } = await supabase
@@ -105,7 +107,7 @@ export default function ApplicationsPage() {
     setSelectedApplication(application);
     setRevealSensitive(false);
     const [{ data: docs }, { data: history }] = await Promise.all([
-      supabase.from('documents').select('id,label,file_name,storage_path,document_type,status,created_at').eq('application_id', application.id).eq('organization_id', organizationId).order('created_at', { ascending: false }),
+      supabase.from('documents').select('id,label,file_name,document_type,status,created_at').eq('application_id', application.id).eq('organization_id', organizationId).order('created_at', { ascending: false }),
       supabase.from('status_history').select('id,previous_status,new_status,notes,changed_at').eq('application_id', application.id).eq('organization_id', organizationId).order('changed_at', { ascending: false }),
     ]);
     setSelectedDocuments(docs || []);
@@ -277,7 +279,6 @@ export default function ApplicationsPage() {
                       <div key={doc.id} className="rounded-[10px] border border-[#F4F4F5] p-3">
                         <div className="text-[14px] font-medium text-[#09090B]">{doc.label}</div>
                         <div className="text-[12px] text-[#71717A]">{doc.file_name}</div>
-                        <div className="text-[11px] text-[#A1A1AA] break-all">{doc.storage_path}</div>
                       </div>
                     ))}
                   </div>

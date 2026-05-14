@@ -365,7 +365,7 @@ export default function ApplyForm() {
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
     return file.size > 10 * 1024 * 1024 || !['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif'].includes(extension);
   });
-  const missingRequiredDocs = files.bank_statements.length < 3 ? ['Last 3 Business Bank Statements'] : [];
+  const missingRequiredDocs = files.bank_statements.length < 1 ? ['Last 3 Business Bank Statements'] : [];
 
   const handleSubmit = async () => {
     if (digitsOnly(form.ein).length !== 9) return toast.error('EIN must be exactly 9 digits.');

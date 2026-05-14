@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -39,13 +39,8 @@ export default function UsersPage() {
   const [inviteLastName, setInviteLastName] = useState('');
   const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadUsers();
-  }, [crmUserLoading, organizationId]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -59,7 +54,13 @@ export default function UsersPage() {
       setUsers(data as UserProfile[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadUsers();
+  }, [crmUserLoading, organizationId, loadUsers]);
 
   const handleInvite = async () => {
     if (!inviteEmail || !inviteFirstName || !inviteLastName) {

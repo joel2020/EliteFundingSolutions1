@@ -1,25 +1,16 @@
-'use client';
-
 import { CrmTopbar } from '@/components/crm/topbar';
 import { GmailConnection } from '@/components/gmail/gmail-connection';
+import { GmailStatusToast } from './settings-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Bell, Shield, Palette } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
-import { toast } from 'sonner';
+import { Mail, Bell, Shield } from 'lucide-react';
+import { Suspense } from 'react';
 
 export default function SettingsPage() {
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const gmailStatus = searchParams?.get('gmail');
-    if (gmailStatus === 'connected') {
-      toast.success('Gmail connected successfully!');
-    }
-  }, [searchParams]);
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      <Suspense fallback={null}>
+        <GmailStatusToast />
+      </Suspense>
       <CrmTopbar
         title="Settings"
         subtitle="Manage your account and integrations"

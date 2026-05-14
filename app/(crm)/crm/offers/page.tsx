@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -47,13 +47,7 @@ export default function OffersPage() {
   const [formData, setFormData] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadData();
-  }, [crmUserLoading, organizationId]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!organizationId) return;
     const [offersResult, dealsResult] = await Promise.all([
       supabase.from('offers').select('id,deal_id,approved_amount,factor_rate,payback_amount,term_days,payment_frequency,daily_payment,weekly_payment,holdback_pct,status,expires_at,created_at,deals(id,title,businesses(legal_name,dba))').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100),
@@ -68,7 +62,13 @@ export default function OffersPage() {
       setDeals(dealsResult.data || []);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadData();
+  }, [crmUserLoading, organizationId, loadData]);
 
   const calculations = useMemo(() => {
     const approvedAmount = parseFloat(formData.approved_amount) || 0;

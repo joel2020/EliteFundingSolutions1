@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -76,13 +76,8 @@ export default function LeadsPage() {
   const [formData, setFormData] = useState<LeadFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadLeads();
-  }, [crmUserLoading, organizationId]);
-
-  const loadLeads = async () => {
+  const loadLeads = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('leads')
       .select('*')
@@ -97,7 +92,13 @@ export default function LeadsPage() {
       setLeads(data as Lead[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadLeads();
+  }, [crmUserLoading, organizationId, loadLeads]);
 
   const handleAdd = () => {
     setFormData(emptyForm);

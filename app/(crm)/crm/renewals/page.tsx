@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -27,13 +27,8 @@ export default function RenewalsPage() {
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadRenewals();
-  }, [crmUserLoading, organizationId]);
-
-  const loadRenewals = async () => {
+  const loadRenewals = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('renewals')
       .select('*')
@@ -47,7 +42,13 @@ export default function RenewalsPage() {
       setRenewals(data as Renewal[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadRenewals();
+  }, [crmUserLoading, organizationId, loadRenewals]);
 
   const updateStatus = async (renewalId: string, newStatus: string) => {
     const { error } = await supabase

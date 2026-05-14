@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -61,13 +61,7 @@ export default function DocumentsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { toast.error(crmUserError || 'Your CRM profile is not active.'); setLoading(false); return; }
-    loadDocuments();
-  }, [crmUserLoading, organizationId, crmUserError]);
-
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async () => {
     if (!organizationId) return;
     setLoading(true);
     const { data, error } = await supabase
@@ -84,7 +78,13 @@ export default function DocumentsPage() {
       setDocuments(data as unknown as CrmDocument[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { toast.error(crmUserError || 'Your CRM profile is not active.'); setLoading(false); return; }
+    loadDocuments();
+  }, [crmUserLoading, organizationId, crmUserError, loadDocuments]);
 
   const filteredDocuments = useMemo(() => documents.filter((doc) => {
     const business = doc.applications?.businesses?.legal_name || doc.deals?.businesses?.legal_name || doc.applications?.businesses?.dba || doc.deals?.businesses?.dba || '';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
@@ -23,42 +23,75 @@ const riskLevels = [
   { value: 'declined', label: 'Decline', color: 'bg-red-100 text-red-700', icon: XCircle },
 ];
 
+type UnderwritingApplication = Application & {
+  businesses?: {
+    legal_name?: string | null;
+    dba?: string | null;
+    monthly_gross_revenue?: number | null;
+    start_date?: string | null;
+  } | null;
+  documents?: Array<{ id: string; status?: string | null }> | null;
+};
+
+const getBusinessName = (app?: UnderwritingApplication | null) =>
+  app?.businesses?.legal_name || app?.businesses?.dba || app?.business_name || 'Unnamed Business';
+
+const getMonthlyRevenue = (app?: UnderwritingApplication | null) =>
+  Number(app?.businesses?.monthly_gross_revenue || 0);
+
+const getTimeInBusinessMonths = (app?: UnderwritingApplication | null) => {
+  if (!app?.businesses?.start_date) return null;
+  const startDate = new Date(app.businesses.start_date);
+  if (Number.isNaN(startDate.getTime())) return null;
+  const now = new Date();
+  return Math.max(0, (now.getFullYear() - startDate.getFullYear()) * 12 + now.getMonth() - startDate.getMonth());
+};
+
+const getDocumentSummary = (app?: UnderwritingApplication | null) => {
+  const documents = app?.documents || [];
+  if (documents.length === 0) return '0 uploaded';
+  const approved = documents.filter((doc) => doc.status === 'approved').length;
+  const pending = documents.filter((doc) => doc.status !== 'approved').length;
+  return approved > 0 ? `${documents.length} uploaded, ${approved} approved` : `${documents.length} uploaded, ${pending} pending`;
+};
+
 export default function UnderwritingPage() {
   const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
 
-  const [applications, setApplications] = useState<Application[]>([]);
+  const [applications, setApplications] = useState<UnderwritingApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [selectedApp, setSelectedApp] = useState<UnderwritingApplication | null>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [reviewNotes, setReviewNotes] = useState('');
   const [riskAssessment, setRiskAssessment] = useState('medium');
   const [recommendedAmount, setRecommendedAmount] = useState('');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (crmUserLoading) return;
-    if (!organizationId) { setLoading(false); return; }
-    loadApplications();
-  }, [crmUserLoading, organizationId]);
-
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async () => {
+    if (!organizationId) return;
     const { data, error } = await supabase
       .from('applications')
-      .select('*')
+      .select('id,organization_id,business_id,status,requested_amount,submitted_at,created_at,businesses(legal_name,dba,monthly_gross_revenue,start_date),documents(id,status)')
       .eq('organization_id', organizationId)
-      .in('status', ['submitted', 'in_review', 'under_review'])
-      .order('created_at', { ascending: false });
+      .in('status', ['submitted', 'under_review'])
+      .order('submitted_at', { ascending: false, nullsFirst: false });
 
     if (error) {
       toast.error('Failed to load applications');
       console.error(error);
     } else if (data) {
-      setApplications(data as Application[]);
+      setApplications(data as UnderwritingApplication[]);
     }
     setLoading(false);
-  };
+  }, [organizationId]);
 
-  const openReview = (app: Application) => {
+  useEffect(() => {
+    if (crmUserLoading) return;
+    if (!organizationId) { setLoading(false); return; }
+    loadApplications();
+  }, [crmUserLoading, organizationId, loadApplications]);
+
+  const openReview = (app: UnderwritingApplication) => {
     setSelectedApp(app);
     setReviewNotes('');
     setRiskAssessment('medium');
@@ -109,27 +142,29 @@ export default function UnderwritingPage() {
     setSaving(false);
   };
 
-  const calculateScore = (app: Application) => {
+  const calculateScore = (app: UnderwritingApplication) => {
     // Simple scoring algorithm
     let score = 50;
+    const monthlyRevenue = getMonthlyRevenue(app);
+    const timeInBusinessMonths = getTimeInBusinessMonths(app);
     
-    if (app.monthly_gross_revenue) {
-      if (app.monthly_gross_revenue > 100000) score += 20;
-      else if (app.monthly_gross_revenue > 50000) score += 10;
-      else if (app.monthly_gross_revenue > 25000) score += 5;
+    if (monthlyRevenue) {
+      if (monthlyRevenue > 100000) score += 20;
+      else if (monthlyRevenue > 50000) score += 10;
+      else if (monthlyRevenue > 25000) score += 5;
     }
     
-    if (app.requested_amount && app.monthly_gross_revenue) {
-      const ratio = app.requested_amount / app.monthly_gross_revenue;
+    if (app.requested_amount && monthlyRevenue) {
+      const ratio = app.requested_amount / monthlyRevenue;
       if (ratio < 0.5) score += 15;
       else if (ratio < 1) score += 10;
       else if (ratio < 2) score += 5;
     }
     
-    if (app.time_in_business_months) {
-      if (app.time_in_business_months > 24) score += 15;
-      else if (app.time_in_business_months > 12) score += 10;
-      else if (app.time_in_business_months > 6) score += 5;
+    if (timeInBusinessMonths) {
+      if (timeInBusinessMonths > 24) score += 15;
+      else if (timeInBusinessMonths > 12) score += 10;
+      else if (timeInBusinessMonths > 6) score += 5;
     }
 
     return Math.min(100, Math.max(0, score));
@@ -158,7 +193,7 @@ export default function UnderwritingPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-[#09090B]">
-                {applications.filter(a => a.status === 'in_review').length}
+                {applications.filter(a => a.status === 'under_review').length}
               </div>
             </CardContent>
           </Card>
@@ -206,6 +241,8 @@ export default function UnderwritingPage() {
           ) : (
             applications.map((app) => {
               const score = calculateScore(app);
+              const monthlyRevenue = getMonthlyRevenue(app);
+              const timeInBusinessMonths = getTimeInBusinessMonths(app);
               return (
                 <div
                   key={app.id}
@@ -215,7 +252,7 @@ export default function UnderwritingPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-3">
                         <h3 className="text-lg font-semibold text-[#09090B]">
-                          {app.business_name || 'Unnamed Business'}
+                          {getBusinessName(app)}
                         </h3>
                         <Badge variant="secondary">{app.status.replace('_', ' ')}</Badge>
                       </div>
@@ -229,21 +266,36 @@ export default function UnderwritingPage() {
                           </div>
                         </div>
                         <div>
+                          <div className="text-xs text-[#71717A] mb-1">Documents</div>
+                          <div className="font-semibold text-[#09090B]">
+                            {getDocumentSummary(app)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[#71717A] mb-1">Submitted</div>
+                          <div className="font-semibold text-[#09090B]">
+                            {app.submitted_at ? new Date(app.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                        <div>
                           <div className="text-xs text-[#71717A] mb-1">Monthly Revenue</div>
                           <div className="font-semibold text-[#09090B]">
-                            ${app.monthly_gross_revenue?.toLocaleString() || '—'}
+                            {monthlyRevenue ? `$${monthlyRevenue.toLocaleString()}` : '—'}
                           </div>
                         </div>
                         <div>
                           <div className="text-xs text-[#71717A] mb-1">Time in Business</div>
                           <div className="font-semibold text-[#09090B]">
-                            {app.time_in_business_months ? `${app.time_in_business_months} months` : '—'}
+                            {timeInBusinessMonths !== null ? `${timeInBusinessMonths} months` : '—'}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-[#71717A] mb-1">Credit Score</div>
+                          <div className="text-xs text-[#71717A] mb-1">Document Status</div>
                           <div className="font-semibold text-[#09090B]">
-                            {app.credit_score || '—'}
+                            {getDocumentSummary(app)}
                           </div>
                         </div>
                       </div>
@@ -286,7 +338,7 @@ export default function UnderwritingPage() {
           <DialogHeader>
             <DialogTitle>Underwriting Review</DialogTitle>
             <DialogDescription>
-              Review and assess {selectedApp?.business_name}
+              Review and assess {getBusinessName(selectedApp)}
             </DialogDescription>
           </DialogHeader>
           
@@ -300,15 +352,15 @@ export default function UnderwritingPage() {
                 </div>
                 <div>
                   <span className="text-[#71717A]">Revenue:</span>
-                  <span className="ml-2 font-semibold">${selectedApp?.monthly_gross_revenue?.toLocaleString()}</span>
+                  <span className="ml-2 font-semibold">{getMonthlyRevenue(selectedApp) ? `$${getMonthlyRevenue(selectedApp).toLocaleString()}` : 'N/A'}</span>
                 </div>
                 <div>
                   <span className="text-[#71717A]">Time in Business:</span>
-                  <span className="ml-2 font-semibold">{selectedApp?.time_in_business_months} months</span>
+                  <span className="ml-2 font-semibold">{getTimeInBusinessMonths(selectedApp) !== null ? `${getTimeInBusinessMonths(selectedApp)} months` : 'N/A'}</span>
                 </div>
                 <div>
-                  <span className="text-[#71717A]">Credit Score:</span>
-                  <span className="ml-2 font-semibold">{selectedApp?.credit_score || 'N/A'}</span>
+                  <span className="text-[#71717A]">Documents:</span>
+                  <span className="ml-2 font-semibold">{getDocumentSummary(selectedApp)}</span>
                 </div>
               </div>
             </div>

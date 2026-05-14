@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
 import { FileText, Upload, MessageSquare, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,63 +33,89 @@ export default function ClientPortalPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [portalEmail, setPortalEmail] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadPortalData();
-  }, []);
-
-  const loadPortalData = async () => {
+  const loadPortalData = useCallback(async () => {
     try {
-      const [
-        { data: apps },
-        { data: docs },
-        { data: offerData },
-      ] = await Promise.all([
-        supabase.from('applications').select('*').eq('organization_id', DEFAULT_ORG_ID).order('created_at', { ascending: false }).limit(5),
-        supabase.from('documents').select('*').eq('organization_id', DEFAULT_ORG_ID).order('created_at', { ascending: false }).limit(10),
-        supabase.from('offers').select('*').eq('organization_id', DEFAULT_ORG_ID).order('created_at', { ascending: false }).limit(5),
-      ]);
+      const { data: authData } = await supabase.auth.getUser();
+      const email = authData.user?.email;
+      if (!email) {
+        setLoading(false);
+        return;
+      }
+      setPortalEmail(email);
+
+      const { data: apps, error: appsError } = await supabase
+        .from('applications')
+        .select('id,organization_id,status,requested_amount,created_at,submitted_at,lead_id,businesses(legal_name,dba),leads!inner(email)')
+        .eq('organization_id', DEFAULT_ORG_ID)
+        .eq('leads.email', email)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (appsError) throw appsError;
+
+      const applicationIds = (apps || []).map((app) => app.id);
+      const [{ data: docs }, { data: offerData }] = applicationIds.length > 0 ? await Promise.all([
+        supabase.from('documents').select('id,application_id,label,file_name,status,created_at').eq('organization_id', DEFAULT_ORG_ID).in('application_id', applicationIds).order('created_at', { ascending: false }).limit(25),
+        supabase.from('offers').select('id,deal_id,approved_amount,payback_amount,payment_frequency,daily_payment,weekly_payment,term_days,status,created_at,deals!inner(application_id,title)').eq('organization_id', DEFAULT_ORG_ID).in('deals.application_id', applicationIds).order('created_at', { ascending: false }).limit(10),
+      ]) : [{ data: [] }, { data: [] }];
 
       setApplications(apps || []);
       setDocuments(docs || []);
       setOffers(offerData || []);
     } catch (error) {
       console.error('Error loading portal data:', error);
+      toast.error('Unable to load portal data.');
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPortalData();
+  }, [loadPortalData]);
+
+  const selectedApplicationId = applications[0]?.id;
 
   const handleFileUpload = async () => {
+    if (!selectedApplicationId) {
+      toast.error('No active application is available for document upload.');
+      return;
+    }
     if (!uploadFile) {
       toast.error('Please select a file');
       return;
     }
 
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif'];
+    const extension = uploadFile.name.split('.').pop()?.toLowerCase();
+    if (uploadFile.size > 10 * 1024 * 1024 || (!allowed.includes(uploadFile.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''))) {
+      toast.error('Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.');
+      return;
+    }
+
     setUploading(true);
     try {
-      const fileExt = uploadFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${DEFAULT_ORG_ID}/${fileName}`;
+      const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${selectedApplicationId}/client_uploads/${Date.now()}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, uploadFile);
+        .from('application-documents')
+        .upload(filePath, uploadFile, { contentType: uploadFile.type || 'application/octet-stream', upsert: false });
 
       if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
 
       const { error: dbError } = await supabase
         .from('documents')
         .insert({
           organization_id: DEFAULT_ORG_ID,
+          application_id: selectedApplicationId,
           document_type: 'other',
+          label: 'Client Portal Upload',
           file_name: uploadFile.name,
-          file_path: filePath,
-          file_url: publicUrl,
+          storage_path: filePath,
           file_size: uploadFile.size,
+          mime_type: uploadFile.type || null,
         });
 
       if (dbError) throw dbError;
@@ -114,9 +140,13 @@ export default function ClientPortalPage() {
       .from('messages')
       .insert({
         organization_id: DEFAULT_ORG_ID,
-        message_type: 'client_inquiry',
-        content: message,
-        status: 'unread',
+          direction: 'inbound',
+          channel: 'portal',
+          recipient_email: 'advisor',
+          sender_user_id: null,
+          subject: `Client portal message${portalEmail ? ` from ${portalEmail}` : ''}`,
+          body: message,
+          delivery_status: 'logged',
       });
 
     if (error) {
@@ -196,7 +226,7 @@ export default function ClientPortalPage() {
                         <div className="flex items-start justify-between mb-4">
                           <div>
                             <h3 className="font-semibold text-lg text-[#09090B] mb-1">
-                              {app.business_name || 'Application'}
+                              {app.businesses?.legal_name || app.businesses?.dba || 'Application'}
                             </h3>
                             <p className="text-sm text-[#71717A]">
                               Requested: ${app.requested_amount?.toLocaleString() || '0'}
@@ -247,21 +277,21 @@ export default function ClientPortalPage() {
                       <div className="space-y-3">
                         <div className="flex justify-between">
                           <span className="text-[#71717A]">Funding Amount</span>
-                          <span className="font-semibold text-[#09090B]">${offer.funding_amount?.toLocaleString()}</span>
+                          <span className="font-semibold text-[#09090B]">${offer.approved_amount?.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-[#71717A]">Total Payback</span>
-                          <span className="font-semibold text-[#09090B]">${offer.total_payback?.toLocaleString()}</span>
+                          <span className="font-semibold text-[#09090B]">${offer.payback_amount?.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-[#71717A]">Payment</span>
                           <span className="font-semibold text-[#09090B]">
-                            ${offer.payment_amount?.toLocaleString()} {offer.payment_frequency}
+                            ${Number(offer.daily_payment || offer.weekly_payment || 0).toLocaleString()} {offer.payment_frequency}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-[#71717A]">Term</span>
-                          <span className="font-semibold text-[#09090B]">{offer.term_months} months</span>
+                          <span className="font-semibold text-[#09090B]">{offer.term_days} days</span>
                         </div>
                         <Button className="w-full mt-4">
                           Accept Offer
@@ -303,9 +333,7 @@ export default function ClientPortalPage() {
                           </div>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" className="w-full" onClick={() => window.open(doc.file_url, '_blank')}>
-                        View
-                      </Button>
+                      <p className="text-xs text-[#71717A]">Private document. Your advisor can provide secure access when needed.</p>
                     </CardContent>
                   </Card>
                 ))
@@ -328,6 +356,7 @@ export default function ClientPortalPage() {
               id="file"
               type="file"
               onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+              accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
               className="mt-2"
             />
           </div>
