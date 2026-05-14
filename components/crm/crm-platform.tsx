@@ -862,7 +862,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       <div className="mb-4 grid gap-3 md:grid-cols-4">
         <MetricCard title="Requested" value={currency(deal.requested_amount)} subtitle="Merchant ask" icon={<Target className="h-4 w-4" />} />
         <MetricCard title="Underwriting Score" value={intelligence.score} subtitle={`Tier ${intelligence.tier} · ${currency(intelligence.maxFunding)} max fit`} icon={<Sparkles className="h-4 w-4" />} tone={intelligence.score >= 70 ? '#059669' : intelligence.score >= 50 ? '#D97706' : '#DC2626'} />
-        <MetricCard title="Best Funder Fit" value={partnerMatches[0]?.partner?.name || 'No match'} subtitle={partnerMatches[0] ? `${partnerMatches[0].fitScore}/100 fit score` : 'Add partner criteria'} icon={<Building2 className="h-4 w-4" />} tone="#2563EB" />
+        <MetricCard title="Best Funder Fit" value={partnerMatches[0] ? `${partnerMatches[0].fitScore}/100` : 'No match'} subtitle={partnerMatches[0] ? 'Top criteria match' : 'Add partner criteria'} icon={<Building2 className="h-4 w-4" />} tone="#2563EB" />
         <MetricCard title="Compliance Gate" value={complianceBlocks.length ? 'Blocked' : 'Clear'} subtitle={disclosureState ? `${disclosureState} disclosure watch` : 'No state disclosure flag'} icon={<AlertTriangle className="h-4 w-4" />} tone={complianceBlocks.length ? '#DC2626' : '#059669'} />
       </div>
 

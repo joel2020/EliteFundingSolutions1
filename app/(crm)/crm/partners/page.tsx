@@ -164,7 +164,7 @@ export default function PartnersPage() {
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Funding Partner</DialogTitle>
             <DialogDescription>Create a funder profile for offers and partner reporting.</DialogDescription>
