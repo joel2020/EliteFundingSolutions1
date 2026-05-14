@@ -97,16 +97,16 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Deal Info', 'financials', 'merchant', 'positions', 'offers', 'documents', 'activity', 'notes', 'renewals']) {
+    for (const tab of ['Deal Info', 'Documents', 'Files', 'Notes', 'Merchant Interview', 'Financials', 'Merchant Info', 'Current Positions', 'Offers', 'Activity', 'Renewals']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
 
-    await page.getByRole('tab', { name: 'offers' }).click();
+    await page.getByRole('tab', { name: 'Offers' }).click();
     await expect(page.getByText('Apex Business Funding')).toBeVisible();
     await expect(page.getByText('presented')).toBeVisible();
 
-    await page.getByRole('tab', { name: 'renewals' }).click();
+    await page.getByRole('tab', { name: 'Renewals' }).click();
     await expect(page.getByText('Percent paid down')).toBeVisible();
     await expect(page.getByText('55%', { exact: true })).toBeVisible();
     await expect(page.getByText('Renewal probability')).toBeVisible();
@@ -125,6 +125,10 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByTestId('crm-page-reports')).toBeVisible();
     await expect(page.getByText('Pipeline Conversion')).toBeVisible();
     await expect(page.getByText('Funding partner performance')).toBeVisible();
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Export pack' }).click();
+    expect((await downloadPromise).suggestedFilename()).toBe('crm-report-pack.csv');
   });
 
   test('creates users only when the current role has admin permission', async ({ page }) => {
@@ -141,12 +145,44 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.user_profiles.some((user) => user.email === 'jordan.processor@elitefunding.test')).toBe(true);
     await expect(page.getByText('jordan.processor@elitefunding.test')).toBeVisible();
 
+    const createdUser = state.user_profiles.find((user) => user.email === 'jordan.processor@elitefunding.test')!;
+    await page.getByTestId(`edit-user-${createdUser.id}`).click();
+    await page.getByTestId('user-first_name').fill('Jordan Updated');
+    await page.getByTestId('save-user').click();
+    await expect.poll(() => state.user_profiles.find((user) => user.id === createdUser.id)?.first_name).toBe('Jordan Updated');
+    await expect(page.getByText('Jordan Updated')).toBeVisible();
+
     const salesPage = await page.context().newPage();
     await mockCrmApis(salesPage, 'sales_rep');
     await salesPage.goto('/crm/users');
     await expect(salesPage.getByTestId('crm-page-user-management')).toBeVisible();
     await expect(salesPage.getByTestId('create-user')).toHaveCount(0);
     await salesPage.close();
+  });
+
+  test('creates funding partners and presents offers from CRM action buttons', async ({ page }) => {
+    const { state } = await mockCrmApis(page, 'admin');
+
+    await page.goto('/crm/partners');
+    await page.getByTestId('add-partner').click();
+    await page.getByTestId('partner-name').fill('Keystone Capital');
+    await page.getByTestId('partner-contact-name').fill('Kim Partner');
+    await page.getByTestId('partner-email').fill('kim@keystone.test');
+    await page.getByTestId('save-partner').click();
+    await expect.poll(() => state.funding_partners.some((partner) => partner.name === 'Keystone Capital')).toBe(true);
+    await expect(page.getByText('Keystone Capital')).toBeVisible();
+
+    await page.goto('/crm/offers');
+    await page.getByTestId('create-offer').click();
+    await page.getByTestId('offer-deal').click();
+    await page.getByRole('option', { name: 'Atlas Retail - $75K MCA' }).click();
+    await page.getByTestId('offer-approved-amount').fill('123000');
+    await page.getByTestId('save-offer').click();
+    await expect.poll(() => state.offers.find((offer) => offer.approved_amount === 123000)?.status).toBe('received');
+
+    const createdOffer = state.offers.find((offer) => offer.approved_amount === 123000)!;
+    await page.getByTestId(`present-offer-${createdOffer.id}`).click();
+    await expect.poll(() => state.offers.find((offer) => offer.id === createdOffer.id)?.status).toBe('presented');
   });
 
   test('uploads and previews documents through signed URLs', async ({ page }) => {

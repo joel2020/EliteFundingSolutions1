@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { getOAuth2Client } from '@/lib/gmail';
 import { google } from 'googleapis';
+import { createServiceSupabaseClient } from '@/lib/server-supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/crm?error=no_code', request.url));
     }
 
-    const supabase = createServerClient(
+    const authClient = createServerClient(
       supabaseUrl,
       supabaseAnonKey,
       {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await authClient.auth.getUser();
 
     if (!user) {
       return NextResponse.redirect(new URL('/login?error=not_authenticated', request.url));
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data: userInfo } = await oauth2.userinfo.get();
 
+    const supabase = createServiceSupabaseClient();
     const { error } = await supabase
       .from('gmail_tokens')
       .upsert({

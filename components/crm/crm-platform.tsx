@@ -213,7 +213,10 @@ function Toolbar({ search, setSearch, children }: { search: string; setSearch: (
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
         <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search merchants, reps, IDs, partners..." className="h-10 rounded-[7px] border-[#CBD5E1] pl-9 text-[13px]" />
       </div>
-      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        {search && <Button variant="outline" className="h-10 rounded-[7px]" onClick={() => setSearch('')}>Clear</Button>}
+        {children}
+      </div>
     </div>
   );
 }
@@ -233,6 +236,10 @@ function exportCsv(name: string, rows: RecordMap[]) {
     Object.keys(row).forEach((key) => set.add(key));
     return set;
   }, new Set<string>()));
+  if (!keys.length) {
+    keys.push('status');
+    rows = [{ status: 'No rows available for this export' }];
+  }
   const csv = [keys.join(','), ...rows.map((row) => keys.map((key) => JSON.stringify(row[key] ?? '')).join(','))].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -851,16 +858,30 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         </div>
         <Tabs defaultValue="info">
           <TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">
-            {['info', 'financials', 'merchant', 'positions', 'offers', 'documents', 'activity', 'notes', 'renewals'].map((tab) => <TabsTrigger key={tab} value={tab} className="rounded-[6px] capitalize">{tab === 'info' ? 'Deal Info' : tab}</TabsTrigger>)}
+            {[
+              ['info', 'Deal Info'],
+              ['documents', 'Documents'],
+              ['files', 'Files'],
+              ['notes', 'Notes'],
+              ['merchant-interview', 'Merchant Interview'],
+              ['financials', 'Financials'],
+              ['merchant', 'Merchant Info'],
+              ['positions', 'Current Positions'],
+              ['offers', 'Offers'],
+              ['activity', 'Activity'],
+              ['renewals', 'Renewals'],
+            ].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}
           </TabsList>
           <TabsContent value="info"><InfoGrid rows={[['Stage', stageLabel(deal.stage_slug)], ['Assigned rep', repName(deal)], ['Funding partner', partnerName(offer)], ['Created', date(deal.created_at)], ['Last activity', date(deal.updated_at)], ['Probability', pct(deal.funding_probability)]]} /></TabsContent>
+          <TabsContent value="documents"><SimpleRows rows={dealDocs} empty="No documents attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.label || row.file_name}</b><span>{row.document_type}</span><span>{row.file_name}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
+          <TabsContent value="files"><SimpleRows rows={dealDocs} empty="No files attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.file_name}</b><span>{row.mime_type || 'File'}</span><span>{row.storage_path ? 'Private storage' : 'No storage path'}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
+          <TabsContent value="notes"><SimpleRows rows={notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id)} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
+          <TabsContent value="merchant-interview"><EmptyState title="Merchant interview coming soon" body="Interview notes are not connected yet. Use Notes for demo-safe merchant context today." /></TabsContent>
           <TabsContent value="financials"><InfoGrid rows={[['Requested amount', currency(deal.requested_amount)], ['Offered amount', currency(offer.approved_amount || deal.approved_amount)], ['Funded amount', currency(deal.funded_amount)], ['Total payback', currency(offer.payback_amount || financial.total_payback)], ['Current balance', currency(currentBalance)], ['Percent paid', pct(percentPaid)], ['Daily payment', currency(offer.daily_payment || financial.daily_payment)], ['Weekly payment', currency(offer.weekly_payment || financial.weekly_payment)]]} /></TabsContent>
           <TabsContent value="merchant"><InfoGrid rows={[['Legal name', deal.businesses?.legal_name || businessName(deal)], ['DBA', deal.businesses?.dba || 'None'], ['Industry', deal.businesses?.industry || 'Unknown'], ['Phone', deal.businesses?.phone || 'Unknown'], ['Email', deal.businesses?.email || 'Unknown'], ['Monthly revenue', currency(deal.businesses?.monthly_gross_revenue)], ['Location', [deal.businesses?.city, deal.businesses?.state].filter(Boolean).join(', ') || 'Unknown']]} /></TabsContent>
           <TabsContent value="positions"><SimpleRows rows={positions} empty="No current positions tracked." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.funder_name}</b><span>{currency(row.original_funded_amount)}</span><span>{currency(row.current_balance)}</span><span>{currency(row.daily_payment || row.weekly_payment)}</span><StatusBadge value={row.status || 'active'} /></div>} /></TabsContent>
           <TabsContent value="offers"><SimpleRows rows={dealOffers} empty="No offers received yet." render={(row) => <div className="grid gap-2 md:grid-cols-6"><b>{partnerName(row)}</b><span>{currency(row.approved_amount)}</span><span>{row.factor_rate || 'N/A'} factor</span><span>{currency(row.payback_amount)}</span><span>{row.term_days || 'N/A'} days</span><StatusBadge value={row.status} /></div>} /></TabsContent>
-          <TabsContent value="documents"><SimpleRows rows={dealDocs} empty="No documents attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.label || row.file_name}</b><span>{row.document_type}</span><span>{row.file_name}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
           <TabsContent value="activity"><SimpleRows rows={activities.filter((row: RecordMap) => row.deal_id === deal.id || row.resource_id === deal.id).slice(0, 12)} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
-          <TabsContent value="notes"><SimpleRows rows={notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id)} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
           <TabsContent value="renewals">
             <InfoGrid rows={[
               ['Funded date', date(deal.funded_at)],
@@ -936,25 +957,27 @@ export function CrmReportsExperience() {
     const month = d.toLocaleDateString('en-US', { month: 'short' });
     return { month, funded: deals.filter((deal: RecordMap) => new Date(deal.funded_at || deal.created_at).getMonth() === d.getMonth()).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0) };
   });
+  const fundedDeals = deals.filter((row: RecordMap) => row.stage_slug === 'funded' || row.funded_at);
   const reportRows = [
-    ['Lead volume', leads.length, 'CSV / Excel / PDF'],
-    ['Submission volume', conversion[1].value, 'CSV / Excel / PDF'],
-    ['Approval rate', deals.length ? pct((offers.length / deals.length) * 100) : '0%', 'CSV / Excel / PDF'],
-    ['Offer rate', deals.length ? pct((offers.length / deals.length) * 100) : '0%', 'CSV / Excel / PDF'],
-    ['Funded volume', currency(monthly.reduce((sum, row) => sum + row.funded, 0)), 'CSV / Excel / PDF'],
-    ['Renewal pipeline', renewals.length, 'CSV / Excel / PDF'],
-    ['Rep performance', users.length, 'CSV / Excel / PDF'],
-    ['Funding partner performance', partners.length, 'CSV / Excel / PDF'],
-    ['Earnings', currency(commissions.reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0)), 'CSV / Excel / PDF'],
+    { name: 'Deals', value: deals.length, rows: deals },
+    { name: 'Funding', value: currency(fundedDeals.reduce((sum: number, row: RecordMap) => sum + Number(row.funded_amount || 0), 0)), rows: fundedDeals },
+    { name: 'Renewals', value: renewals.length, rows: renewals },
+    { name: 'Earnings', value: currency(commissions.reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0)), rows: commissions },
+    { name: 'User performance', value: users.length, rows: users.map((user: RecordMap) => ({ email: user.email, role: user.role, active: user.is_active, deals: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).length, earnings: commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0) })) },
+    { name: 'Funding partner performance', value: partners.length, rows: partners.map((partner: RecordMap) => ({ name: partner.name, offers: offers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).length, approved_amount: offers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).reduce((sum: number, offer: RecordMap) => sum + Number(offer.approved_amount || 0), 0) })) },
+    { name: 'Approved but not accepted', value: offers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)).length, rows: offers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)) },
   ];
+  const exportPack = () => {
+    exportCsv('crm-report-pack', reportRows.flatMap((report) => report.rows.map((row: RecordMap) => ({ report: report.name, ...row }))));
+  };
   return (
-    <PageFrame title="Reports" subtitle="Date-filtered MCA production, rep, partner, renewal, and earnings reports" actions={<div className="flex gap-2"><Button variant="outline" className="h-9 rounded-[7px]"><Filter className="mr-2 h-4 w-4" />Date range</Button><Button className="h-9 rounded-[7px] bg-[#0F2B5B]"><Download className="mr-2 h-4 w-4" />Export pack</Button></div>}>
+    <PageFrame title="Reports" subtitle="Date-filtered MCA production, rep, partner, renewal, and earnings reports" actions={<div className="flex gap-2"><Button variant="outline" className="h-9 cursor-not-allowed rounded-[7px] opacity-70" disabled title="Date range filtering is coming soon. Current reports show all CRM data."><Filter className="mr-2 h-4 w-4" />Date range</Button><Button className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={exportPack}><Download className="mr-2 h-4 w-4" />Export pack</Button></div>}>
       <div className="grid gap-4 xl:grid-cols-2">
         <CrmCard className="p-4"><h2 className="text-sm font-semibold">Pipeline Conversion</h2><ResponsiveContainer width="100%" height={290}><BarChart data={conversion}><CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" fill="#0F2B5B" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></CrmCard>
         <CrmCard className="p-4"><h2 className="text-sm font-semibold">Funded Volume Trend</h2><ResponsiveContainer width="100%" height={290}><LineChart data={monthly}><CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => currency(value)} /><Line type="monotone" dataKey="funded" stroke="#C9A84C" strokeWidth={3} dot={{ r: 4 }} /></LineChart></ResponsiveContainer></CrmCard>
       </div>
       <CrmCard className="mt-4 overflow-hidden">
-        <table className="w-full text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr><th className="px-4 py-3">Report</th><th className="px-4 py-3">Current value</th><th className="px-4 py-3">Exports</th><th className="px-4 py-3">Action</th></tr></thead><tbody className="divide-y divide-[#E2E8F0]">{reportRows.map(([name, value, exports]) => <tr key={name}><td className="px-4 py-3 font-semibold">{name}</td><td className="px-4 py-3">{value}</td><td className="px-4 py-3">{exports}</td><td className="px-4 py-3"><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toast.success(`${name} export prepared`)}>Export</Button></td></tr>)}</tbody></table>
+        <table className="w-full text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr><th className="px-4 py-3">Report</th><th className="px-4 py-3">Current value</th><th className="px-4 py-3">Exports</th><th className="px-4 py-3">Action</th></tr></thead><tbody className="divide-y divide-[#E2E8F0]">{reportRows.map((report) => <tr key={report.name}><td className="px-4 py-3 font-semibold">{report.name}</td><td className="px-4 py-3">{report.value}</td><td className="px-4 py-3">CSV</td><td className="px-4 py-3"><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => exportCsv(`crm-${report.name.toLowerCase().replaceAll(' ', '-')}`, report.rows)}>Export</Button></td></tr>)}</tbody></table>
       </CrmCard>
     </PageFrame>
   );
@@ -1012,37 +1035,89 @@ export function CrmUsersExperience() {
   const { users, deals, commissions, profile, organizationId, loading, reload } = useCrmDataset();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<RecordMap>(emptyUser);
+  const [editingUser, setEditingUser] = useState<RecordMap | null>(null);
   if (loading) return <LoadingScreen title="Users" />;
   const canCreateUsers = ['super_admin', 'admin'].includes(profile?.role || '');
+  const openCreateUser = () => {
+    setEditingUser(null);
+    setForm(emptyUser);
+    setDialogOpen(true);
+  };
+  const openEditUser = (user: RecordMap) => {
+    setEditingUser(user);
+    setForm({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      role: user.role || 'sales_rep',
+      is_active: user.is_active !== false,
+    });
+    setDialogOpen(true);
+  };
   const saveUser = async () => {
     if (!canCreateUsers) {
-      toast.error('Only admins can create users.');
+      toast.error('Only admins can manage users.');
       return;
     }
-    const { error } = await supabase.from('user_profiles').insert({
-      organization_id: organizationId,
+    const payload = {
       first_name: form.first_name,
       last_name: form.last_name,
       email: form.email,
       role: form.role,
       is_active: form.is_active,
-    });
+    };
+    const { error } = editingUser
+      ? await supabase.from('user_profiles').update(payload).eq('id', editingUser.id).eq('organization_id', organizationId)
+      : await supabase.from('user_profiles').insert({ organization_id: organizationId, ...payload });
     if (error) toast.error(error.message);
     else {
-      toast.success('User created');
+      toast.success(editingUser ? 'User updated' : 'User created');
       setDialogOpen(false);
+      setEditingUser(null);
       setForm(emptyUser);
       reload();
     }
   };
+  const toggleUserActive = async (user: RecordMap) => {
+    if (!canCreateUsers) {
+      toast.error('Only admins can manage users.');
+      return;
+    }
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ is_active: !user.is_active })
+      .eq('id', user.id)
+      .eq('organization_id', organizationId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success(user.is_active ? 'User deactivated' : 'User activated');
+      reload();
+    }
+  };
+  const roles = ['admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+  const permissions = [
+    ['super_admin', 'Full platform ownership, users, sensitive reveals, documents, and settings.'],
+    ['admin', 'Manage CRM data, users, sensitive reveals, documents, and settings.'],
+    ['manager', 'Manage team CRM workflow and documents without user administration.'],
+    ['sales_rep', 'Work assigned leads and deals without sensitive-field reveal or user administration.'],
+    ['processor', 'Manage documents, applications, tasks, and underwriting support.'],
+    ['underwriter', 'Review files, offers, underwriting, and risk workflow.'],
+    ['client', 'Portal only. Internal CRM access is blocked by middleware.'],
+  ];
   return (
-    <PageFrame title="User Management" subtitle="Create users, assign roles, activate accounts, and view performance" actions={canCreateUsers ? <Button data-testid="create-user" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Create user</Button> : null}>
+    <PageFrame title="User Management" subtitle="Create users, assign roles, activate accounts, and view performance" actions={canCreateUsers ? <Button data-testid="create-user" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openCreateUser}><Plus className="mr-2 h-4 w-4" />Create user</Button> : null}>
       <CrmCard className="overflow-x-auto">
-        <table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</p><p className="text-xs text-[#64748B]">{user.email}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{date(user.last_login_at)}</td><td className="px-4 py-3"><Button variant="outline" size="sm" className="h-8 rounded-[7px]">Edit</Button></td></tr>; })}</tbody></table>
+        <table className="w-full min-w-[1040px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</p><p className="text-xs text-[#64748B]">{user.email}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{date(user.last_login_at)}</td><td className="px-4 py-3"><div className="flex gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</Button></> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
+      </CrmCard>
+      <CrmCard className="mt-4 p-4">
+        <h2 className="text-sm font-semibold text-[#0F172A]">Permission Matrix</h2>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {permissions.map(([role, description]) => <div key={role} className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3"><p className="text-xs font-semibold uppercase text-[#0F2B5B]">{role.replaceAll('_', ' ')}</p><p className="mt-1 text-xs leading-5 text-[#64748B]">{description}</p></div>)}
+        </div>
       </CrmCard>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl rounded-[8px]">
-          <DialogHeader><DialogTitle>Create user</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingUser ? 'Edit user' : 'Create user'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
             {[
               ['First name', 'first_name'],
@@ -1058,9 +1133,13 @@ export function CrmUsersExperience() {
               <Label className="text-xs text-[#64748B]">Role</Label>
               <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                 <SelectTrigger data-testid="user-role" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
-                <SelectContent>{['admin', 'manager', 'sales_rep', 'processor', 'underwriter'].map((role) => <SelectItem key={role} value={role}>{role.replaceAll('_', ' ')}</SelectItem>)}</SelectContent>
+                <SelectContent>{roles.map((role) => <SelectItem key={role} value={role}>{role.replaceAll('_', ' ')}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]">
+              <input type="checkbox" checked={form.is_active !== false} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />
+              Active user
+            </label>
           </div>
           <DialogFooter><Button data-testid="save-user" onClick={saveUser} className="rounded-[7px] bg-[#0F2B5B]">Save user</Button></DialogFooter>
         </DialogContent>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { sendEmail } from '@/lib/gmail';
+import { createServiceSupabaseClient } from '@/lib/server-supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,17 +17,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const cookieStore = cookies();
+    const authClient = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+        setAll() { /* route does not mutate auth cookies */ },
+      },
+    });
+    const { data: { session } } = await authClient.auth.getSession();
+    if (!session?.user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
+    const supabase = createServiceSupabaseClient();
     // Get user's Gmail tokens
     const { data: tokens, error: tokensError } = await supabase
       .from('gmail_tokens')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', session.user.id)
       .single();
 
     if (tokensError || !tokens) {
@@ -47,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Log email in CRM
     await supabase.from('email_logs').insert({
-      user_id: user.id,
+      user_id: session.user.id,
       to_email: to,
       subject,
       body,

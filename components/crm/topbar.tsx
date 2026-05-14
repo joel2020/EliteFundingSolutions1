@@ -19,11 +19,17 @@ export function CrmTopbar({ title, subtitle, actions }: TopbarProps) {
 
       <div className="flex items-center gap-2 ml-4">
         {actions}
-        <button className="hidden h-9 items-center gap-2 rounded-[7px] border border-[#E2E8F0] px-3 text-[12px] font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] lg:flex">
+        <Link href="/crm/deals" prefetch={false} className="hidden h-9 items-center gap-2 rounded-[7px] border border-[#E2E8F0] px-3 text-[12px] font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] lg:flex">
           <Search className="w-4 h-4" />
           Search CRM
-        </button>
-        <button className="w-9 h-9 rounded-[7px] flex items-center justify-center text-[#64748B] hover:bg-[#F8FAFC] transition-colors relative">
+        </Link>
+        <button
+          type="button"
+          disabled
+          title="Notifications are coming soon."
+          aria-label="Notifications coming soon"
+          className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-[7px] text-[#94A3B8] opacity-70"
+        >
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#EF4444]" />
         </button>
