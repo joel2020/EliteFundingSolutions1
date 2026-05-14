@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { getOAuth2Client } from '@/lib/gmail';
-import { supabase } from '@/lib/supabase';
 import { google } from 'googleapis';
 
 export const dynamic = 'force-dynamic';
@@ -14,22 +15,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/crm?error=no_code', request.url));
     }
 
-    const oauth2Client = getOAuth2Client();
-    const { tokens } = await oauth2Client.getToken(code);
-
-    // Get user info from Google
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const { data: userInfo } = await oauth2.userinfo.get();
-
-    // Get current user from Supabase auth
+    const supabase = createRouteHandlerClient({ cookies });
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.redirect(new URL('/login?error=not_authenticated', request.url));
     }
 
-    // Store tokens in database
+    const oauth2Client = getOAuth2Client();
+    const { tokens } = await oauth2Client.getToken(code);
+
+    oauth2Client.setCredentials(tokens);
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const { data: userInfo } = await oauth2.userinfo.get();
+
     const { error } = await supabase
       .from('gmail_tokens')
       .upsert({
