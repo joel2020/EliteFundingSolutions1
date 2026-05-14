@@ -1,56 +1,43 @@
 'use client';
 
-import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, Layers, ClipboardCheck, Tag, FolderOpen, RefreshCw, DollarSign, ChartBar as BarChart3, Settings, LogOut, Shield, ChevronDown, Search, Wrench } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  ChartBar as BarChart3,
+  DollarSign,
+  LayoutDashboard,
+  LogOut,
+  RefreshCw,
+  Search,
+  Settings,
+  Tag,
+  UserCircle,
+  Users,
+  Wrench,
+} from 'lucide-react';
+import { useMemo } from 'react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 
-const navSections = [
-  {
-    label: null,
-    items: [
-      { href: '/crm', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/crm/leads', label: 'Leads', icon: Tag },
-      { href: '/crm/deals', label: 'Deals', icon: Layers },
-      { href: '/crm/earnings', label: 'Earnings', icon: DollarSign },
-      { href: '/crm/reports', label: 'Reports', icon: BarChart3 },
-      { href: '/crm/tools', label: 'Tools', icon: Wrench },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { href: '/crm/applications', label: 'Applications', icon: FileText },
-      { href: '/crm/underwriting', label: 'Underwriting Queue', icon: ClipboardCheck },
-      { href: '/crm/offers', label: 'Offers', icon: Tag },
-      { href: '/crm/documents', label: 'Documents', icon: FolderOpen },
-      { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },
-    ],
-  },
-  {
-    label: 'Admin',
-    items: [
-      { href: '/crm/users', label: 'Users', icon: Users },
-      { href: '/crm/settings', label: 'Settings', icon: Settings },
-    ],
-  },
+const navItems = [
+  { href: '/crm', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/crm/leads', label: 'Leads', icon: Tag },
+  { href: '/crm/deals', label: 'Deals', icon: Search },
+  { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },
+  { href: '/crm/earnings', label: 'Earnings', icon: DollarSign },
+  { href: '/crm/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/crm/tools', label: 'Tools', icon: Wrench },
+  { href: '/crm/users', label: 'Users', icon: Users },
+  { href: '/crm/settings', label: 'Settings', icon: Settings },
 ];
 
 export function CrmSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
   const authClient = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build'
   ), []);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--crm-sidebar-width', collapsed ? '64px' : '260px');
-  }, [collapsed]);
 
   const isActive = (href: string) =>
     href === '/crm' ? pathname === '/crm' : pathname.startsWith(href);
@@ -61,135 +48,82 @@ export function CrmSidebar() {
   };
 
   return (
-    <aside
-      className={`fixed top-0 left-0 h-full hidden md:flex flex-col transition-all duration-200 z-40 ${
-        collapsed ? 'w-[64px]' : 'w-[260px]'
-      }`}
-      style={{ background: '#07111F', borderRight: '1px solid #172033' }}
-    >
-      {/* Logo area */}
-      <div className="flex items-center gap-3 px-4 py-5 shrink-0" style={{ borderBottom: '1px solid #172033' }}>
-        <div className="relative w-8 h-8 rounded-[8px] overflow-hidden shrink-0 bg-[#0F1E35]">
-          <Image
-            src="/elite-funding-logo.png"
-            alt="Elite Funding Solutions"
-            width={32}
-            height={32}
-            className="object-cover"
-          />
-        </div>
-        {!collapsed && (
+    <header className="z-40 shrink-0 border-b border-[#E2E8F0] bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.05)]" data-testid="crm-nexus-shell">
+      <div className="flex min-h-[72px] flex-col gap-3 px-3 py-3 lg:flex-row lg:items-center lg:px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC]">
+            <Image
+              src="/elite-funding-logo.png"
+              alt="Elite Funding Solutions"
+              width={40}
+              height={40}
+              className="object-cover"
+              priority
+            />
+          </div>
           <div className="min-w-0">
-            <div className="text-[13px] font-bold text-white truncate leading-tight">Elite Funding</div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#C9A84C] leading-tight">Solutions CRM</div>
-          </div>
-        )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="ml-auto transition-colors shrink-0"
-          style={{ color: '#3A4A65' }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = '#8C9BB5')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#3A4A65')}
-        >
-          <ChevronDown className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : 'rotate-90'}`} />
-        </button>
-      </div>
-
-      {!collapsed && (
-        <div className="px-3 py-3" style={{ borderBottom: '1px solid #172033' }}>
-          <div className="flex h-9 items-center gap-2 rounded-[8px] border border-[#1E2A44] bg-[#0B1628] px-3 text-[12px] text-[#75839B]">
-            <Search className="h-3.5 w-3.5" />
-            Global search
+            <div className="truncate text-[13px] font-semibold leading-tight text-[#0F172A]">Elite CRM Nexus v2</div>
+            <div className="truncate text-[11px] font-semibold uppercase leading-tight tracking-normal text-[#C9A84C]">Elite Funding Solutions</div>
           </div>
         </div>
-      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
-        {navSections.map((section, si) => (
-          <div key={si} className={si > 0 ? 'mt-1' : ''}>
-            {section.label && !collapsed && (
-              <div
-                className="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.1em]"
-                style={{ color: '#C9A84C' }}
+        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:justify-center" aria-label="CRM navigation">
+          {navItems.map((item) => {
+            const active = isActive(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={false}
+                aria-current={active ? 'page' : undefined}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-semibold transition-colors ${
+                  active
+                    ? 'bg-[#0F2B5B] text-white'
+                    : 'text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
+                }`}
               >
-                {section.label}
-              </div>
-            )}
-            {section.items.map((item) => {
-              const active = isActive(item.href);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  prefetch={false}
-                  title={collapsed ? item.label : undefined}
-                  className="flex items-center gap-3 px-3 py-2 rounded-[7px] text-[13px] font-medium transition-all duration-100 mb-0.5"
-                  style={{
-                    background: active ? 'rgba(201,168,76,0.14)' : 'transparent',
-                    color: active ? '#F0D27A' : '#7B8AA4',
-                    fontWeight: active ? '600' : '500',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                      e.currentTarget.style.color = '#8C9BB5';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#5A6A85';
-                    }
-                  }}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
+                <Icon className="h-3.5 w-3.5" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-      {/* Bottom actions */}
-      <div className="px-2 py-3" style={{ borderTop: '1px solid #111E35' }}>
-        <Link
-          href="https://elitefundingsolution.com/"
-          prefetch={false}
-          className="flex items-center gap-3 px-3 py-2 rounded-[8px] text-[13px] font-medium transition-colors mb-0.5"
-          style={{ color: '#5A6A85' }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-            e.currentTarget.style.color = '#8C9BB5';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#5A6A85';
-          }}
-        >
-          <Shield className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Public Site</span>}
-        </Link>
-        <button
-          data-testid="crm-sign-out"
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-[13px] font-medium transition-colors"
-          style={{ color: '#5A6A85' }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(239,68,68,0.1)';
-            e.currentTarget.style.color = '#EF4444';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#5A6A85';
-          }}
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
-        </button>
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto">
+          <Link
+            href="/crm/deals"
+            prefetch={false}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[7px] border border-[#CBD5E1] bg-white px-3 text-[12px] font-semibold text-[#334155] hover:bg-[#F8FAFC]"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search Deals
+          </Link>
+          <Link
+            href="https://elitefundingsolution.com/"
+            prefetch={false}
+            className="inline-flex h-9 shrink-0 items-center rounded-[7px] border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[12px] font-semibold text-[#0F2B5B] hover:bg-[#EEF2F7]"
+          >
+            Elite Connect
+          </Link>
+          <Link
+            href="/crm/settings"
+            prefetch={false}
+            aria-label="Profile settings"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]"
+          >
+            <UserCircle className="h-4 w-4" />
+          </Link>
+          <button
+            data-testid="crm-sign-out"
+            onClick={handleLogout}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[7px] border border-[#FECACA] bg-white px-3 text-[12px] font-semibold text-[#B91C1C] hover:bg-[#FEF2F2]"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Logout
+          </button>
+        </div>
       </div>
-    </aside>
+    </header>
   );
 }

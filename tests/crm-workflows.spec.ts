@@ -17,6 +17,32 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
+  test('renders the Nexus shell across authenticated CRM routes', async ({ page }) => {
+    await mockCrmApis(page);
+
+    const routes = [
+      '/crm',
+      '/crm/leads',
+      '/crm/deals',
+      '/crm/renewals',
+      '/crm/earnings',
+      '/crm/reports',
+      '/crm/tools',
+      '/crm/users',
+      '/crm/settings',
+    ];
+
+    for (const route of routes) {
+      await page.goto(route);
+      const shell = page.getByTestId('crm-nexus-shell');
+      await expect(shell).toBeVisible();
+      await expect(shell).toContainText('Elite CRM Nexus v2');
+      for (const label of ['Dashboard', 'Leads', 'Deals', 'Renewals', 'Earnings', 'Reports', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
+        await expect(shell.getByText(label, { exact: true })).toBeVisible();
+      }
+    }
+  });
+
   test('creates a lead and converts it to a deal', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page);
 
@@ -141,10 +167,15 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'new-bank-statement.pdf')).toBe(true);
     await expect(page.getByText('new-bank-statement.pdf')).toBeVisible();
 
-    const popupPromise = page.waitForEvent('popup');
+    await page.evaluate(() => {
+      (window as any).__openedUrls = [];
+      window.open = ((url?: string | URL) => {
+        (window as any).__openedUrls.push(String(url));
+        return null;
+      }) as typeof window.open;
+    });
     await page.getByTestId(`preview-document-${DOC_ID}`).click();
-    const popup = await popupPromise;
     await expect.poll(() => calls.some((call) => call.table === 'document_signed_url' && call.body.disposition === 'preview')).toBe(true);
-    await popup.close();
+    await expect.poll(() => (page.evaluate(() => (window as any).__openedUrls as string[]))).toContain('https://signed.example/atlas-bank-statements.pdf');
   });
 });
