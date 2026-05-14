@@ -39,6 +39,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/crm`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (error) throw error;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Google login failed';
+      toast.error(msg);
+      setGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,6 +202,24 @@ export default function LoginPage() {
               {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <span className="text-[11px] uppercase tracking-[0.12em]" style={{ color: '#3A4A65' }}>or</span>
+            <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          </div>
+
+          <button
+            data-testid="login-google"
+            type="button"
+            disabled={googleLoading || loading}
+            onClick={handleGoogleLogin}
+            className="inline-flex h-11 w-full items-center justify-center gap-3 rounded-[10px] px-6 text-[15px] font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }}
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[13px] font-bold text-[#4285F4]">G</span>
+            {googleLoading ? 'Opening Google...' : 'Continue with Google'}
+          </button>
 
           <div className="mt-6 pt-5 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <p className="text-[13px]" style={{ color: '#3A4A65' }}>
