@@ -92,7 +92,7 @@ export default function LoginPage() {
       <div className="w-full max-w-[420px]">
         {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-3 justify-center">
+          <Link href="/" prefetch={false} className="inline-flex items-center gap-3 justify-center">
             <div className="relative w-9 h-9 rounded-[8px] overflow-hidden bg-[#0F1E35]">
               <Image
                 src="/elite-funding-logo.png"
