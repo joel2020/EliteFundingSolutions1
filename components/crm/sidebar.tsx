@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, Building2, CircleUser as UserCircle, Layers, ClipboardCheck, Tag, Handshake, FolderOpen, Signature as FileSignature, RefreshCw, Network, DollarSign, ChartBar as BarChart3, MessageSquare, SquareCheck as CheckSquare, Settings, LogOut, Shield, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Layers, ClipboardCheck, Tag, FolderOpen, RefreshCw, DollarSign, ChartBar as BarChart3, Settings, LogOut, Shield, ChevronDown, Search, Wrench } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
@@ -13,47 +13,21 @@ const navSections = [
     label: null,
     items: [
       { href: '/crm', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/crm/leads', label: 'Leads', icon: Tag },
+      { href: '/crm/deals', label: 'Deals', icon: Layers },
+      { href: '/crm/earnings', label: 'Earnings', icon: DollarSign },
+      { href: '/crm/reports', label: 'Reports', icon: BarChart3 },
+      { href: '/crm/tools', label: 'Tools', icon: Wrench },
     ],
   },
   {
-    label: 'Pipeline',
+    label: 'Operations',
     items: [
       { href: '/crm/applications', label: 'Applications', icon: FileText },
-      { href: '/crm/leads', label: 'Leads', icon: Tag },
-      { href: '/crm/businesses', label: 'Businesses', icon: Building2 },
-      { href: '/crm/owners', label: 'Owners', icon: UserCircle },
-      { href: '/crm/pipeline', label: 'Pipeline', icon: Layers },
-    ],
-  },
-  {
-    label: 'Underwriting',
-    items: [
       { href: '/crm/underwriting', label: 'Underwriting Queue', icon: ClipboardCheck },
       { href: '/crm/offers', label: 'Offers', icon: Tag },
-      { href: '/crm/partners', label: 'Funding Partners', icon: Handshake },
-    ],
-  },
-  {
-    label: 'Funding',
-    items: [
       { href: '/crm/documents', label: 'Documents', icon: FolderOpen },
-      { href: '/crm/contracts', label: 'Contracts', icon: FileSignature },
       { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },
-    ],
-  },
-  {
-    label: 'Finance',
-    items: [
-      { href: '/crm/iso-brokers', label: 'ISO / Brokers', icon: Network },
-      { href: '/crm/commissions', label: 'Commissions', icon: DollarSign },
-      { href: '/crm/reports', label: 'Reports', icon: BarChart3 },
-    ],
-  },
-  {
-    label: 'Tools',
-    items: [
-      { href: '/crm/messages', label: 'Messages', icon: MessageSquare },
-      { href: '/crm/tasks', label: 'Tasks', icon: CheckSquare },
     ],
   },
   {
@@ -91,10 +65,10 @@ export function CrmSidebar() {
       className={`fixed top-0 left-0 h-full hidden md:flex flex-col transition-all duration-200 z-40 ${
         collapsed ? 'w-[64px]' : 'w-[260px]'
       }`}
-      style={{ background: '#060D1B', borderRight: '1px solid #111E35' }}
+      style={{ background: '#07111F', borderRight: '1px solid #172033' }}
     >
       {/* Logo area */}
-      <div className="flex items-center gap-3 px-4 py-5 shrink-0" style={{ borderBottom: '1px solid #111E35' }}>
+      <div className="flex items-center gap-3 px-4 py-5 shrink-0" style={{ borderBottom: '1px solid #172033' }}>
         <div className="relative w-8 h-8 rounded-[8px] overflow-hidden shrink-0 bg-[#0F1E35]">
           <Image
             src="/elite-funding-logo.png"
@@ -121,6 +95,15 @@ export function CrmSidebar() {
         </button>
       </div>
 
+      {!collapsed && (
+        <div className="px-3 py-3" style={{ borderBottom: '1px solid #172033' }}>
+          <div className="flex h-9 items-center gap-2 rounded-[8px] border border-[#1E2A44] bg-[#0B1628] px-3 text-[12px] text-[#75839B]">
+            <Search className="h-3.5 w-3.5" />
+            Global search
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         {navSections.map((section, si) => (
@@ -141,10 +124,10 @@ export function CrmSidebar() {
                   key={item.href}
                   href={item.href}
                   title={collapsed ? item.label : undefined}
-                  className="flex items-center gap-3 px-3 py-2 rounded-[8px] text-[13px] font-medium transition-all duration-100 mb-0.5"
+                  className="flex items-center gap-3 px-3 py-2 rounded-[7px] text-[13px] font-medium transition-all duration-100 mb-0.5"
                   style={{
-                    background: active ? 'rgba(201,168,76,0.12)' : 'transparent',
-                    color: active ? '#C9A84C' : '#5A6A85',
+                    background: active ? 'rgba(201,168,76,0.14)' : 'transparent',
+                    color: active ? '#F0D27A' : '#7B8AA4',
                     fontWeight: active ? '600' : '500',
                   }}
                   onMouseEnter={(e) => {
