@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { getOAuth2Client } from '@/lib/gmail';
 import { google } from 'googleapis';
 
 export const dynamic = 'force-dynamic';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +17,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/crm?error=no_code', request.url));
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll() {
+            // The callback only needs to read the existing CRM session.
+          },
+        },
+      }
+    );
+
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
