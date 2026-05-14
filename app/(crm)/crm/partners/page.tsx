@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useCrmUser } from '@/lib/crm-auth';
 import { supabase } from '@/lib/supabase';
 import type { FundingPartner } from '@/types/database';
@@ -18,8 +19,18 @@ const emptyPartner = {
   email: '',
   min_funding_amount: '',
   max_funding_amount: '',
+  min_monthly_revenue: '',
+  min_time_in_business_months: '',
+  states_served: '',
+  restricted_industries: '',
+  product_types: 'MCA, Revenue based financing',
+  submission_email: '',
+  portal_url: '',
   avg_approval_days: '',
+  notes: '',
 };
+
+const csv = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 
 export default function PartnersPage() {
   const { organizationId, loading: crmUserLoading } = useCrmUser();
@@ -68,9 +79,17 @@ export default function PartnersPage() {
       name: form.name.trim(),
       contact_name: form.contact_name.trim() || null,
       email: form.email.trim() || null,
+      submission_email: form.submission_email.trim() || null,
+      portal_url: form.portal_url.trim() || null,
+      product_types: csv(form.product_types),
       min_funding_amount: form.min_funding_amount ? Number(form.min_funding_amount) : null,
       max_funding_amount: form.max_funding_amount ? Number(form.max_funding_amount) : null,
+      min_monthly_revenue: form.min_monthly_revenue ? Number(form.min_monthly_revenue) : null,
+      min_time_in_business_months: form.min_time_in_business_months ? Number(form.min_time_in_business_months) : null,
+      states_served: csv(form.states_served.toUpperCase()),
+      restricted_industries: csv(form.restricted_industries),
       avg_approval_days: form.avg_approval_days ? Number(form.avg_approval_days) : null,
+      notes: form.notes.trim() || null,
       is_active: true,
     });
 
@@ -129,6 +148,11 @@ export default function PartnersPage() {
                   <div className="text-[13px] font-semibold text-[#09090B]">{partner.avg_approval_days ? `${partner.avg_approval_days}d` : '-'}</div>
                 </div>
               </div>
+              <div className="mt-3 grid gap-2 text-xs text-[#475569]">
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Revenue min: <span className="font-semibold text-[#0F172A]">{fmt(partner.min_monthly_revenue)}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">States: <span className="font-semibold text-[#0F172A]">{partner.states_served?.length ? partner.states_served.join(', ') : 'All states'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
+              </div>
               {partner.email && (
                 <a href={`mailto:${partner.email}`} className="mt-3 block text-[12px] text-[#2563EB] hover:underline">
                   {partner.email}
@@ -149,9 +173,17 @@ export default function PartnersPage() {
             <div><Label>Name *</Label><Input data-testid="partner-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
             <div><Label>Contact Name</Label><Input data-testid="partner-contact-name" value={form.contact_name} onChange={(event) => setForm({ ...form, contact_name: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Email</Label><Input data-testid="partner-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
+            <div><Label>Submission Email</Label><Input value={form.submission_email} onChange={(event) => setForm({ ...form, submission_email: event.target.value })} /></div>
+            <div><Label>Portal URL</Label><Input value={form.portal_url} onChange={(event) => setForm({ ...form, portal_url: event.target.value })} /></div>
             <div><Label>Min Funding</Label><Input type="number" value={form.min_funding_amount} onChange={(event) => setForm({ ...form, min_funding_amount: event.target.value })} /></div>
             <div><Label>Max Funding</Label><Input type="number" value={form.max_funding_amount} onChange={(event) => setForm({ ...form, max_funding_amount: event.target.value })} /></div>
+            <div><Label>Min Monthly Revenue</Label><Input type="number" value={form.min_monthly_revenue} onChange={(event) => setForm({ ...form, min_monthly_revenue: event.target.value })} /></div>
+            <div><Label>Min Months in Business</Label><Input type="number" value={form.min_time_in_business_months} onChange={(event) => setForm({ ...form, min_time_in_business_months: event.target.value })} /></div>
             <div><Label>Average Decision Days</Label><Input type="number" value={form.avg_approval_days} onChange={(event) => setForm({ ...form, avg_approval_days: event.target.value })} /></div>
+            <div><Label>States Served</Label><Input placeholder="NY, NJ, FL" value={form.states_served} onChange={(event) => setForm({ ...form, states_served: event.target.value })} /></div>
+            <div><Label>Product Types</Label><Input value={form.product_types} onChange={(event) => setForm({ ...form, product_types: event.target.value })} /></div>
+            <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : 'Save Partner'}</Button></DialogFooter>
         </DialogContent>

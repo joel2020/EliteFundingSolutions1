@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getDealScore, getMissingDocuments } from '@/lib/crm-intelligence';
 
 const riskLevels = [
   { value: 'low', label: 'Low Risk', color: 'bg-green-100 text-green-700', icon: CheckCircle },
@@ -29,8 +30,11 @@ type UnderwritingApplication = Application & {
     dba?: string | null;
     monthly_gross_revenue?: number | null;
     start_date?: string | null;
+    industry?: string | null;
+    state?: string | null;
   } | null;
-  documents?: Array<{ id: string; status?: string | null }> | null;
+  documents?: Array<{ id: string; status?: string | null; document_type?: string | null }> | null;
+  deal?: { id: string; stage_slug?: string | null; requested_amount?: number | null; business_id?: string | null; businesses?: Record<string, any> | null } | null;
 };
 
 const getBusinessName = (app?: UnderwritingApplication | null) =>
@@ -71,7 +75,7 @@ export default function UnderwritingPage() {
     if (!organizationId) return;
     const { data, error } = await supabase
       .from('applications')
-      .select('id,organization_id,business_id,status,requested_amount,submitted_at,created_at,businesses(legal_name,dba,monthly_gross_revenue,start_date),documents(id,status)')
+      .select('id,organization_id,business_id,status,requested_amount,submitted_at,created_at,negative_days_count,nsf_count,businesses(legal_name,dba,monthly_gross_revenue,start_date,industry,state),documents(id,status,document_type)')
       .eq('organization_id', organizationId)
       .in('status', ['submitted', 'under_review'])
       .order('submitted_at', { ascending: false, nullsFirst: false });
@@ -80,7 +84,12 @@ export default function UnderwritingPage() {
       toast.error('Failed to load applications');
       console.error(error);
     } else if (data) {
-      setApplications(data as UnderwritingApplication[]);
+      const ids = data.map((app: any) => app.id);
+      const { data: deals } = ids.length
+        ? await supabase.from('deals').select('id,application_id,business_id,stage_slug,requested_amount,title').in('application_id', ids).eq('organization_id', organizationId)
+        : { data: [] as any[] };
+      const dealsByApplication = Object.fromEntries((deals || []).map((deal: any) => [deal.application_id, deal]));
+      setApplications(data.map((app: any) => ({ ...app, deal: dealsByApplication[app.id] || null })) as UnderwritingApplication[]);
     }
     setLoading(false);
   }, [organizationId]);
@@ -101,6 +110,10 @@ export default function UnderwritingPage() {
 
   const submitReview = async () => {
     if (!selectedApp) return;
+    if (!selectedApp.deal?.id) {
+      toast.error('No linked deal found for this application.');
+      return;
+    }
 
     setSaving(true);
 
@@ -121,15 +134,29 @@ export default function UnderwritingPage() {
     }
 
     // Create underwriting review record
+    const score = calculateScore(selectedApp);
     const { error: reviewError } = await supabase
       .from('underwriting_reviews')
       .insert({
         organization_id: organizationId,
+        deal_id: selectedApp.deal?.id,
         application_id: selectedApp.id,
-        risk_level: riskAssessment,
+        monthly_gross_revenue: getMonthlyRevenue(selectedApp) || null,
+        nsf_count: selectedApp.nsf_count || 0,
+        negative_days: selectedApp.negative_days_count || 0,
+        industry: selectedApp.businesses?.industry || null,
+        time_in_business_months: getTimeInBusinessMonths(selectedApp),
+        document_completeness_pct: Math.max(0, 100 - getMissingDocuments(selectedApp.deal || selectedApp, selectedApp.documents || []).length * 20),
+        estimated_funding_max: recommendedAmount ? parseFloat(recommendedAmount) : null,
+        risk_tier: riskAssessment === 'declined' ? 'decline' : score >= 75 ? 'A' : score >= 60 ? 'B' : score >= 45 ? 'C' : 'D',
+        underwriting_score: score,
+        risk_flags: getMissingDocuments(selectedApp.deal || selectedApp, selectedApp.documents || []).map((doc) => `${doc.label} missing`),
         notes: reviewNotes,
-        recommended_amount: recommendedAmount ? parseFloat(recommendedAmount) : null,
-        status: riskAssessment === 'declined' ? 'declined' : 'approved',
+        decision: riskAssessment === 'declined' ? 'declined' : 'approved',
+        decision_at: new Date().toISOString(),
+        decision_by: crmProfile?.id || null,
+        decision_notes: reviewNotes,
+        status: 'completed',
       });
 
     if (reviewError) {
@@ -143,7 +170,14 @@ export default function UnderwritingPage() {
   };
 
   const calculateScore = (app: UnderwritingApplication) => {
-    // Simple scoring algorithm
+    const computed = getDealScore(
+      { ...app.deal, requested_amount: app.requested_amount, businesses: app.businesses, nsf_count: app.nsf_count, negative_days_count: app.negative_days_count },
+      app.documents || [],
+      []
+    );
+    if (computed.score !== 52 || computed.flags[0] !== 'No major flags') return computed.score;
+
+    // Fallback scoring when only the legacy fields are available.
     let score = 50;
     const monthlyRevenue = getMonthlyRevenue(app);
     const timeInBusinessMonths = getTimeInBusinessMonths(app);

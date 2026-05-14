@@ -58,6 +58,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
+import {
+  getComplianceBlocks,
+  getDealScore,
+  getDisclosureState,
+  getIsoQuality,
+  getMissingDocuments,
+  getPartnerMatches,
+  getRenewalSignal,
+} from '@/lib/crm-intelligence';
 
 type RecordMap = Record<string, any>;
 
@@ -679,26 +688,30 @@ export function CrmLeadsExperience() {
   );
 }
 
-function DealTable({ rows }: { rows: RecordMap[] }) {
+function DealTable({ rows, documents, currentPositions }: { rows: RecordMap[]; documents: RecordMap[]; currentPositions: RecordMap[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1420px] text-left text-sm">
+      <table className="w-full min-w-[1560px] text-left text-sm">
         <thead className="bg-[#F8FAFC] text-[11px] uppercase tracking-normal text-[#64748B]">
           <tr>
-            {['Deal ID', 'Business', 'Owner', 'Requested', 'Offered', 'Funded', 'Stage', 'Offer', 'Funded Status', 'Renewal', 'Current Balance', '% Paid', 'Assigned Rep', 'Funding Partner', 'Last Activity', 'Created'].map((head) => <th key={head} className="px-4 py-3 font-semibold">{head}</th>)}
+            {['Deal ID', 'Business', 'Score', 'Missing Docs', 'Requested', 'Offered', 'Funded', 'Stage', 'Offer', 'Funded Status', 'Renewal', 'Current Balance', '% Paid', 'Assigned Rep', 'Funding Partner', 'Last Activity', 'Created'].map((head) => <th key={head} className="px-4 py-3 font-semibold">{head}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E2E8F0]">
           {rows.map((deal) => {
             const offer = Array.isArray(deal.offers) ? deal.offers[0] : null;
             const renewal = Array.isArray(deal.renewals) ? deal.renewals[0] : null;
+            const dealDocs = documents.filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
+            const positions = currentPositions.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
+            const score = getDealScore(deal, dealDocs, positions);
             const currentBalance = renewal?.current_balance || Math.max(Number(offer?.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
             const percentPaid = renewal?.percent_paid_down || (deal.stage_slug === 'funded' ? 55 : 0);
             return (
               <tr key={deal.id} className="hover:bg-[#F8FAFC]" data-testid={`deal-row-${deal.id}`}>
                 <td className="px-4 py-3"><Link href={`/crm/deals/${deal.id}`} className="font-semibold text-[#0F2B5B]">{shortId(deal.id)}</Link></td>
                 <td className="px-4 py-3 font-semibold text-[#0F172A]">{businessName(deal)}</td>
-                <td className="px-4 py-3 text-[#334155]">{deal.businesses?.contact_name || deal.businesses?.email || 'Merchant owner'}</td>
+                <td className="px-4 py-3"><span className={`font-semibold ${score.score >= 70 ? 'text-[#059669]' : score.score >= 50 ? 'text-[#D97706]' : 'text-[#DC2626]'}`}>{score.score}</span><span className="ml-1 text-xs text-[#64748B]">{score.tier}</span></td>
+                <td className="px-4 py-3">{score.missingDocs.length ? <span className="font-semibold text-[#D97706]">{score.missingDocs.length}</span> : <span className="text-[#059669]">Clear</span>}</td>
                 <td className="px-4 py-3 font-semibold">{currency(deal.requested_amount)}</td>
                 <td className="px-4 py-3">{currency(offer?.approved_amount || deal.approved_amount)}</td>
                 <td className="px-4 py-3">{currency(deal.funded_amount)}</td>
@@ -723,7 +736,7 @@ function DealTable({ rows }: { rows: RecordMap[] }) {
 }
 
 export function CrmDealsExperience() {
-  const { deals, users, organizationId, loading, reload } = useCrmDataset();
+  const { deals, users, documents, currentPositions, organizationId, loading, reload } = useCrmDataset();
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -767,7 +780,7 @@ export function CrmDealsExperience() {
           </Select>
           <Button variant="outline" className="h-10 rounded-[7px]" onClick={() => exportCsv('deals', filtered)}><Download className="mr-2 h-4 w-4" />Export</Button>
         </Toolbar>
-        <DealTable rows={filtered} />
+        <DealTable rows={filtered} documents={documents} currentPositions={currentPositions} />
       </CrmCard>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -815,7 +828,7 @@ export function CrmDealsExperience() {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, documents, activities, notes, renewals, currentPositions, dealFinancials, organizationId, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, renewals, currentPositions, dealFinancials, organizationId, loading, reload } = useCrmDataset();
   if (loading) return <LoadingScreen title="Deal Detail" />;
   const deal = deals.find((row: RecordMap) => row.id === dealId) || deals[0];
   if (!deal) return <PageFrame title="Deal Detail" subtitle="No deal selected"><EmptyState title="Deal not found" body="The requested deal could not be loaded." /></PageFrame>;
@@ -825,9 +838,17 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const financial = dealFinancials.find((row: RecordMap) => row.deal_id === deal.id) || {};
   const positions = currentPositions.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
   const offer = dealOffers[0] || {};
+  const intelligence = getDealScore(deal, dealDocs, positions);
+  const complianceBlocks = getComplianceBlocks(deal, dealDocs);
+  const disclosureState = getDisclosureState(deal.businesses);
+  const partnerMatches = getPartnerMatches(deal, partners, dealDocs, positions).slice(0, 5);
   const currentBalance = dealRenewals[0]?.current_balance || financial.current_balance || Math.max(Number(offer.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
   const percentPaid = dealRenewals[0]?.percent_paid_down || financial.percent_paid_down || (deal.stage_slug === 'funded' ? 55 : 0);
   const updateStage = async (stage_slug: string) => {
+    if (stage_slug === 'funded' && complianceBlocks.length > 0) {
+      toast.error(`Funding blocked: ${complianceBlocks[0]}`);
+      return;
+    }
     const { error } = await supabase.from('deals').update({ stage_slug }).eq('id', deal.id).eq('organization_id', organizationId);
     if (error) toast.error(error.message);
     else {
@@ -840,9 +861,9 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
       <div className="mb-4 grid gap-3 md:grid-cols-4">
         <MetricCard title="Requested" value={currency(deal.requested_amount)} subtitle="Merchant ask" icon={<Target className="h-4 w-4" />} />
-        <MetricCard title="Best Offer" value={currency(offer.approved_amount || deal.approved_amount)} subtitle={`${offer.factor_rate || 'N/A'} factor`} icon={<FileText className="h-4 w-4" />} tone="#2563EB" />
-        <MetricCard title="Funded" value={currency(deal.funded_amount)} subtitle={date(deal.funded_at)} icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" />
-        <MetricCard title="Current Balance" value={currency(currentBalance)} subtitle={`${pct(percentPaid)} paid down`} icon={<WalletCards className="h-4 w-4" />} tone="#D97706" />
+        <MetricCard title="Underwriting Score" value={intelligence.score} subtitle={`Tier ${intelligence.tier} · ${currency(intelligence.maxFunding)} max fit`} icon={<Sparkles className="h-4 w-4" />} tone={intelligence.score >= 70 ? '#059669' : intelligence.score >= 50 ? '#D97706' : '#DC2626'} />
+        <MetricCard title="Best Funder Fit" value={partnerMatches[0]?.partner?.name || 'No match'} subtitle={partnerMatches[0] ? `${partnerMatches[0].fitScore}/100 fit score` : 'Add partner criteria'} icon={<Building2 className="h-4 w-4" />} tone="#2563EB" />
+        <MetricCard title="Compliance Gate" value={complianceBlocks.length ? 'Blocked' : 'Clear'} subtitle={disclosureState ? `${disclosureState} disclosure watch` : 'No state disclosure flag'} icon={<AlertTriangle className="h-4 w-4" />} tone={complianceBlocks.length ? '#DC2626' : '#059669'} />
       </div>
 
       <CrmCard className="p-4">
@@ -860,6 +881,9 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           <TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">
             {[
               ['info', 'Deal Info'],
+              ['underwriting', 'Underwriting'],
+              ['funder-fit', 'Funder Fit'],
+              ['compliance', 'Compliance'],
               ['documents', 'Documents'],
               ['files', 'Files'],
               ['notes', 'Notes'],
@@ -873,6 +897,31 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
             ].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}
           </TabsList>
           <TabsContent value="info"><InfoGrid rows={[['Stage', stageLabel(deal.stage_slug)], ['Assigned rep', repName(deal)], ['Funding partner', partnerName(offer)], ['Created', date(deal.created_at)], ['Last activity', date(deal.updated_at)], ['Probability', pct(deal.funding_probability)]]} /></TabsContent>
+          <TabsContent value="underwriting">
+            <InfoGrid rows={[
+              ['Score', `${intelligence.score}/100`],
+              ['Risk tier', intelligence.tier],
+              ['Monthly revenue', currency(intelligence.monthlyRevenue)],
+              ['Time in business', intelligence.timeInBusiness ? `${intelligence.timeInBusiness} months` : 'Unknown'],
+              ['Active positions', intelligence.activePositionCount],
+              ['Max fit amount', currency(intelligence.maxFunding)],
+              ['Max safe daily payment', currency(intelligence.maxDailyPayment)],
+              ['Risk flags', intelligence.flags.join(', ')],
+            ]} />
+          </TabsContent>
+          <TabsContent value="funder-fit">
+            <SimpleRows rows={partnerMatches.map((match) => ({ id: match.partner.id, ...match }))} empty="No funding partners matched." render={(row) => <div className="grid gap-2 md:grid-cols-[1fr_120px_1.5fr_1fr]"><b>{row.partner.name}</b><span>{row.fitScore}/100 fit</span><span>{row.misses.length ? row.misses.join(', ') : 'Criteria match'}</span><span>{row.partner.submission_email || row.partner.email || row.partner.portal_url || 'No submission route'}</span></div>} />
+          </TabsContent>
+          <TabsContent value="compliance">
+            <InfoGrid rows={[
+              ['Funding gate', complianceBlocks.length ? 'Blocked' : 'Clear'],
+              ['Open blockers', complianceBlocks.length ? complianceBlocks.join(' ') : 'No blocking issues found.'],
+              ['Disclosure state', disclosureState || 'Not flagged'],
+              ['Missing documents', intelligence.missingDocs.length ? intelligence.missingDocs.map((doc) => doc.label).join(', ') : 'Complete for current stage'],
+              ['Audit trail', 'Stage changes and signed URL access are logged through existing activity and audit records.'],
+              ['Sensitive reveals', ['super_admin', 'admin'].includes(deal.current_user_role || '') ? 'Admin controlled' : 'Admin only'],
+            ]} />
+          </TabsContent>
           <TabsContent value="documents"><SimpleRows rows={dealDocs} empty="No documents attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.label || row.file_name}</b><span>{row.document_type}</span><span>{row.file_name}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
           <TabsContent value="files"><SimpleRows rows={dealDocs} empty="No files attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.file_name}</b><span>{row.mime_type || 'File'}</span><span>{row.storage_path ? 'Private storage' : 'No storage path'}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
           <TabsContent value="notes"><SimpleRows rows={notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id)} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
@@ -1022,10 +1071,18 @@ export function CrmRenewalsExperience() {
     status: deal.stage_slug === 'renewal_eligible' ? 'eligible' : 'eligible_soon',
     notes: 'Review latest bank statements before outreach.',
   }));
+  const readyCount = rows.filter((row: RecordMap) => getRenewalSignal(row).status === 'renewal_ready').length;
+  const soonCount = rows.filter((row: RecordMap) => getRenewalSignal(row).status === 'renewal_soon').length;
   return (
     <PageFrame title="Renewals" subtitle="Paydown, eligibility, probability, and renewal alerts">
+      <div className="mb-4 grid gap-3 md:grid-cols-4">
+        <MetricCard title="Renewal Ready" value={readyCount} subtitle="Refresh bank statements now" icon={<RefreshCw className="h-4 w-4" />} tone="#059669" />
+        <MetricCard title="Coming Soon" value={soonCount} subtitle="Schedule merchant check-ins" icon={<CalendarClock className="h-4 w-4" />} tone="#D97706" />
+        <MetricCard title="Portfolio Watch" value={rows.length} subtitle="Funded merchants monitored" icon={<WalletCards className="h-4 w-4" />} tone="#0F2B5B" />
+        <MetricCard title="Avg Probability" value={rows.length ? pct(rows.reduce((sum: number, row: RecordMap) => sum + getRenewalSignal(row).probability, 0) / rows.length) : '0%'} subtitle="Based on paydown and age" icon={<TrendingUp className="h-4 w-4" />} tone="#2563EB" />
+      </div>
       <CrmCard className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['Merchant', 'Funded date', 'Funded amount', 'Total payback', 'Current balance', '% paid down', 'Remaining term', 'Eligibility date', 'Probability', 'Alerts'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{rows.map((row: RecordMap) => <tr key={row.id}><td className="px-4 py-3 font-semibold">{businessName(row.deals || row)}</td><td className="px-4 py-3">{date(row.deals?.funded_at)}</td><td className="px-4 py-3">{currency(row.original_funded_amount || row.deals?.funded_amount)}</td><td className="px-4 py-3">{currency(Number(row.original_funded_amount || row.deals?.funded_amount || 0) * 1.35)}</td><td className="px-4 py-3">{currency(row.current_balance)}</td><td className="px-4 py-3">{pct(row.percent_paid_down)}</td><td className="px-4 py-3">42 days</td><td className="px-4 py-3">{date(row.renewal_date)}</td><td className="px-4 py-3">{pct(row.renewal_probability || 72)}</td><td className="px-4 py-3"><StatusBadge value={row.status} /></td></tr>)}</tbody></table>
+        <table className="w-full min-w-[1180px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['Merchant', 'Funded date', 'Funded amount', 'Current balance', '% paid down', 'Days funded', 'Eligibility', 'Probability', 'Next action', 'Status'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{rows.map((row: RecordMap) => { const signal = getRenewalSignal(row); return <tr key={row.id}><td className="px-4 py-3 font-semibold">{businessName(row.deals || row)}</td><td className="px-4 py-3">{date(row.deals?.funded_at)}</td><td className="px-4 py-3">{currency(row.original_funded_amount || row.deals?.funded_amount)}</td><td className="px-4 py-3">{currency(row.current_balance)}</td><td className="px-4 py-3">{pct(signal.paidDown)}</td><td className="px-4 py-3">{signal.daysSinceFunding}</td><td className="px-4 py-3">{date(row.renewal_date)}</td><td className="px-4 py-3">{pct(signal.probability)}</td><td className="px-4 py-3 text-[#334155]">{signal.nextAction}</td><td className="px-4 py-3"><StatusBadge value={signal.status} /></td></tr>; })}</tbody></table>
       </CrmCard>
     </PageFrame>
   );

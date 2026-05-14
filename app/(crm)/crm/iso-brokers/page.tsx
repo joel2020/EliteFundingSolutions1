@@ -14,22 +14,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { getIsoQuality } from '@/lib/crm-intelligence';
 
 interface BrokerFormData {
   company_name: string;
-  contact_name: string;
+  broker_name: string;
   email: string;
   phone: string;
-  commission_percentage: string;
+  commission_pct: string;
+  payment_terms: string;
   notes: string;
 }
 
 const emptyForm: BrokerFormData = {
   company_name: '',
-  contact_name: '',
+  broker_name: '',
   email: '',
   phone: '',
-  commission_percentage: '5',
+  commission_pct: '5',
+  payment_terms: 'Paid on funded deals',
   notes: '',
 };
 
@@ -37,6 +40,8 @@ export default function IsoBrokersPage() {
   const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
 
   const [brokers, setBrokers] = useState<IsoBroker[]>([]);
+  const [commissions, setCommissions] = useState<Record<string, any>[]>([]);
+  const [deals, setDeals] = useState<Record<string, any>[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState<BrokerFormData>(emptyForm);
@@ -44,17 +49,19 @@ export default function IsoBrokersPage() {
 
   const loadBrokers = useCallback(async () => {
     if (!organizationId) return;
-    const { data, error } = await supabase
-      .from('iso_brokers')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false });
+    const [brokerResult, commissionResult, dealResult] = await Promise.all([
+      supabase.from('iso_brokers').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false }),
+      supabase.from('commissions').select('id,iso_broker_id,deal_id,commission_amount,payment_status').eq('organization_id', organizationId),
+      supabase.from('deals').select('id,stage_slug,funded_at,funded_amount').eq('organization_id', organizationId).is('deleted_at', null),
+    ]);
 
-    if (error) {
+    if (brokerResult.error) {
       toast.error('Failed to load brokers');
-      console.error(error);
-    } else if (data) {
-      setBrokers(data as IsoBroker[]);
+      console.error(brokerResult.error);
+    } else if (brokerResult.data) {
+      setBrokers(brokerResult.data as IsoBroker[]);
+      setCommissions(commissionResult.data || []);
+      setDeals(dealResult.data || []);
     }
     setLoading(false);
   }, [organizationId]);
@@ -66,8 +73,8 @@ export default function IsoBrokersPage() {
   }, [crmUserLoading, organizationId, loadBrokers]);
 
   const saveBroker = async () => {
-    if (!formData.company_name || !formData.contact_name) {
-      toast.error('Company and contact name are required');
+    if (!formData.company_name || !formData.broker_name) {
+      toast.error('Company and broker name are required');
       return;
     }
 
@@ -76,10 +83,11 @@ export default function IsoBrokersPage() {
     const brokerData = {
       organization_id: organizationId,
       company_name: formData.company_name,
-      contact_name: formData.contact_name,
+      broker_name: formData.broker_name,
       email: formData.email || null,
       phone: formData.phone || null,
-      commission_percentage: parseFloat(formData.commission_percentage) || 5,
+      commission_pct: parseFloat(formData.commission_pct) || 5,
+      payment_terms: formData.payment_terms || null,
       notes: formData.notes || null,
       is_active: true,
     };
@@ -156,7 +164,7 @@ export default function IsoBrokersPage() {
             <CardContent>
               <div className="text-2xl font-bold text-[#09090B]">
                 {brokers.length > 0 
-                  ? `${(brokers.reduce((sum, b) => sum + (b.commission_percentage || 0), 0) / brokers.length).toFixed(1)}%`
+                  ? `${(brokers.reduce((sum, b) => sum + (b.commission_pct || 0), 0) / brokers.length).toFixed(1)}%`
                   : '0%'
                 }
               </div>
@@ -178,7 +186,9 @@ export default function IsoBrokersPage() {
               </Button>
             </div>
           ) : (
-            brokers.map((broker) => (
+            brokers.map((broker) => {
+              const quality = getIsoQuality(broker, commissions, deals);
+              return (
               <div
                 key={broker.id}
                 className="bg-white border border-[#E4E4E7] rounded-[16px] p-5 hover:shadow-md transition-shadow"
@@ -186,7 +196,7 @@ export default function IsoBrokersPage() {
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="font-semibold text-[#09090B] mb-1">{broker.company_name}</h3>
-                    <p className="text-sm text-[#71717A]">{broker.contact_name}</p>
+                    <p className="text-sm text-[#71717A]">{broker.broker_name}</p>
                   </div>
                   <Badge className={broker.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
                     {broker.is_active ? 'Active' : 'Inactive'}
@@ -213,9 +223,14 @@ export default function IsoBrokersPage() {
                   <div className="flex items-center gap-2 text-sm">
                     <DollarSign className="w-4 h-4 text-[#71717A]" />
                     <span className="font-semibold text-[#09090B]">
-                      {broker.commission_percentage}% Commission
+                      {broker.commission_pct}% Commission
                     </span>
                   </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+                  <div className="rounded-[8px] bg-[#F4F4F5] p-2"><div className="text-[11px] text-[#A1A1AA]">Quality</div><div className="text-[13px] font-semibold text-[#09090B]">{quality.score}</div></div>
+                  <div className="rounded-[8px] bg-[#F4F4F5] p-2"><div className="text-[11px] text-[#A1A1AA]">Approval</div><div className="text-[13px] font-semibold text-[#09090B]">{quality.approvalRate}%</div></div>
+                  <div className="rounded-[8px] bg-[#F4F4F5] p-2"><div className="text-[11px] text-[#A1A1AA]">Funded</div><div className="text-[13px] font-semibold text-[#09090B]">${Math.round(quality.fundedVolume / 1000)}K</div></div>
                 </div>
 
                 {broker.notes && (
@@ -233,7 +248,7 @@ export default function IsoBrokersPage() {
                   {broker.is_active ? 'Deactivate' : 'Activate'}
                 </Button>
               </div>
-            ))
+            ); })
           )}
         </div>
       </div>
@@ -258,11 +273,11 @@ export default function IsoBrokersPage() {
               />
             </div>
             <div>
-              <Label htmlFor="contact_name">Contact Name *</Label>
+              <Label htmlFor="broker_name">Broker Name *</Label>
               <Input
-                id="contact_name"
-                value={formData.contact_name}
-                onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                id="broker_name"
+                value={formData.broker_name}
+                onChange={(e) => setFormData({ ...formData, broker_name: e.target.value })}
               />
             </div>
             <div>
@@ -284,13 +299,21 @@ export default function IsoBrokersPage() {
               />
             </div>
             <div>
-              <Label htmlFor="commission_percentage">Commission %</Label>
+              <Label htmlFor="commission_pct">Commission %</Label>
               <Input
-                id="commission_percentage"
+                id="commission_pct"
                 type="number"
                 step="0.1"
-                value={formData.commission_percentage}
-                onChange={(e) => setFormData({ ...formData, commission_percentage: e.target.value })}
+                value={formData.commission_pct}
+                onChange={(e) => setFormData({ ...formData, commission_pct: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="payment_terms">Payment Terms</Label>
+              <Input
+                id="payment_terms"
+                value={formData.payment_terms}
+                onChange={(e) => setFormData({ ...formData, payment_terms: e.target.value })}
               />
             </div>
             <div>

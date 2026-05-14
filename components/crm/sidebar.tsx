@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ChartBar as BarChart3,
+  Building2,
   DollarSign,
+  FileText,
   LayoutDashboard,
   LogOut,
   RefreshCw,
@@ -23,6 +25,10 @@ const navItems = [
   { href: '/crm', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/crm/leads', label: 'Leads', icon: Tag },
   { href: '/crm/deals', label: 'Deals', icon: Search },
+  { href: '/crm/underwriting', label: 'Underwriting', icon: FileText },
+  { href: '/crm/documents', label: 'Documents', icon: FileText },
+  { href: '/crm/partners', label: 'Funders', icon: Building2 },
+  { href: '/crm/iso-brokers', label: 'ISO', icon: Users },
   { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },
   { href: '/crm/earnings', label: 'Earnings', icon: DollarSign },
   { href: '/crm/reports', label: 'Reports', icon: BarChart3 },
