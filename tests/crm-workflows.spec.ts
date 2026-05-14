@@ -67,6 +67,26 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     expect(calls.some((call) => call.method === 'POST' && call.table === 'deals')).toBe(true);
   });
 
+  test('bulk imports leads from CSV', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page);
+
+    await page.goto('/crm/leads');
+    await expect(page.getByTestId('crm-page-leads')).toBeVisible();
+
+    await page.getByTestId('import-leads').click();
+    await page.getByTestId('lead-import-file').setInputFiles({
+      name: 'elite-leads.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('business_name,first_name,last_name,phone,email,lead_source,requested_amount,notes\nBlue Oak Cafe,Bianca,Reed,2125550101,bianca@blueoak.test,iso,65000,Needs fast review\nMetro Supply,Marco,Vega,7185550133,marco@metro.test,referral,120000,Has two locations'),
+    });
+    await expect(page.getByText('Blue Oak Cafe')).toBeVisible();
+    await page.getByTestId('save-lead-import').click();
+
+    await expect.poll(() => state.leads.some((lead) => lead.business_name === 'Blue Oak Cafe')).toBe(true);
+    await expect.poll(() => state.leads.some((lead) => lead.business_name === 'Metro Supply')).toBe(true);
+    expect(calls.some((call) => call.method === 'POST' && call.table === 'leads' && Array.isArray(call.body) && call.body.length === 2)).toBe(true);
+  });
+
   test('creates a deal and updates deal stages', async ({ page }) => {
     const { state } = await mockCrmApis(page);
 

@@ -29,6 +29,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Upload,
   Users,
   WalletCards,
 } from 'lucide-react';
@@ -257,6 +258,65 @@ function exportCsv(name: string, rows: RecordMap[]) {
   a.download = `${name}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ',' && !quoted) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim());
+  return values;
+}
+
+function parseLeadCsv(text: string) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map((header) => normalize(header).replaceAll(' ', '_'));
+  const aliases: Record<string, string> = {
+    company: 'business_name',
+    business: 'business_name',
+    business_name: 'business_name',
+    first: 'first_name',
+    first_name: 'first_name',
+    last: 'last_name',
+    last_name: 'last_name',
+    contact_first_name: 'first_name',
+    contact_last_name: 'last_name',
+    mobile: 'phone',
+    phone_number: 'phone',
+    phone: 'phone',
+    email_address: 'email',
+    email: 'email',
+    source: 'lead_source',
+    lead_source: 'lead_source',
+    amount: 'requested_amount',
+    requested_amount: 'requested_amount',
+    notes: 'notes',
+    status: 'status',
+  };
+  return lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    return headers.reduce<RecordMap>((row, header, index) => {
+      const key = aliases[header] || header;
+      row[key] = values[index] || '';
+      return row;
+    }, {});
+  }).filter((row) => row.business_name || row.first_name || row.last_name || row.email || row.phone);
 }
 
 function useCrmDataset() {
@@ -537,6 +597,11 @@ export function CrmLeadsExperience() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importRows, setImportRows] = useState<RecordMap[]>([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<RecordMap | null>(null);
   const [form, setForm] = useState<RecordMap>(emptyLead);
   if (loading) return <LoadingScreen title="Leads" />;
@@ -596,8 +661,56 @@ export function CrmLeadsExperience() {
     }
   };
 
+  const readImportFile = async (file?: File | null) => {
+    setImportError('');
+    setImportRows([]);
+    setImportFileName(file?.name || '');
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setImportError('Upload a CSV file.');
+      return;
+    }
+    const rows = parseLeadCsv(await file.text());
+    if (!rows.length) {
+      setImportError('No importable leads found. Include a header row and at least one lead row.');
+      return;
+    }
+    setImportRows(rows);
+  };
+
+  const importLeads = async () => {
+    if (!importRows.length) {
+      setImportError('Choose a CSV with at least one lead.');
+      return;
+    }
+    setImporting(true);
+    const payload = importRows.map((row) => ({
+      organization_id: organizationId,
+      business_name: row.business_name || null,
+      first_name: row.first_name || null,
+      last_name: row.last_name || null,
+      phone: row.phone || null,
+      email: row.email || null,
+      lead_source: row.lead_source || 'manual_entry',
+      status: row.status || 'new',
+      requested_amount: row.requested_amount ? Number(String(row.requested_amount).replace(/[$,]/g, '')) || null : null,
+      notes: row.notes || null,
+    }));
+    const { error } = await supabase.from('leads').insert(payload);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(`${payload.length} leads imported`);
+      setImportOpen(false);
+      setImportRows([]);
+      setImportFileName('');
+      reload();
+    }
+    setImporting(false);
+  };
+
   return (
-    <PageFrame title="Leads" subtitle="Lead intake, ownership, notes, and conversion workflow" actions={<Button data-testid="add-lead" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => openLead()}><Plus className="mr-2 h-4 w-4" />Add lead</Button>}>
+    <PageFrame title="Leads" subtitle="Lead intake, ownership, notes, import, and conversion workflow" actions={<div className="flex gap-2"><Button data-testid="import-leads" variant="outline" className="h-9 rounded-[7px]" onClick={() => setImportOpen(true)}><Upload className="mr-2 h-4 w-4" />Import CSV</Button><Button data-testid="add-lead" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => openLead()}><Plus className="mr-2 h-4 w-4" />Add lead</Button></div>}>
       <CrmCard>
         <Toolbar search={search} setSearch={setSearch}>
           <Select value={status} onValueChange={setStatus}>
@@ -682,6 +795,29 @@ export function CrmLeadsExperience() {
             </div>
           </div>
           <DialogFooter><Button data-testid="save-lead" onClick={saveLead} className="rounded-[7px] bg-[#0F2B5B]">Save lead</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-3xl rounded-[8px]">
+          <DialogHeader><DialogTitle>Import leads from CSV</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#475569]">
+              Required: one row per lead. Supported columns: business_name, first_name, last_name, phone, email, lead_source, requested_amount, notes, status.
+            </div>
+            <Input data-testid="lead-import-file" type="file" accept=".csv,text/csv" onChange={(event) => readImportFile(event.target.files?.[0])} />
+            {importFileName && <p className="text-sm text-[#64748B]">{importFileName}</p>}
+            {importError && <p className="text-sm font-semibold text-[#DC2626]">{importError}</p>}
+            {importRows.length > 0 && (
+              <div className="max-h-[260px] overflow-y-auto rounded-[8px] border border-[#E2E8F0]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['Business', 'Contact', 'Phone', 'Email', 'Amount'].map((head) => <th key={head} className="px-3 py-2">{head}</th>)}</tr></thead>
+                  <tbody className="divide-y divide-[#E2E8F0]">{importRows.slice(0, 8).map((row, index) => <tr key={`${row.email}-${index}`}><td className="px-3 py-2 font-semibold">{row.business_name || '-'}</td><td className="px-3 py-2">{[row.first_name, row.last_name].filter(Boolean).join(' ') || '-'}</td><td className="px-3 py-2">{row.phone || '-'}</td><td className="px-3 py-2">{row.email || '-'}</td><td className="px-3 py-2">{row.requested_amount || '-'}</td></tr>)}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setImportOpen(false)}>Cancel</Button><Button data-testid="save-lead-import" onClick={importLeads} disabled={importing || !importRows.length}>{importing ? 'Importing...' : `Import ${importRows.length || ''} leads`}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </PageFrame>
