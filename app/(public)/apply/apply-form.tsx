@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Shield, UploadCloud, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, Shield, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { CONSENT_VERSION } from '@/lib/company';
+import { COMPANY, CONSENT_VERSION } from '@/lib/company';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type OwnerKey = 'owner1' | 'owner2';
@@ -418,7 +418,7 @@ export default function ApplyForm() {
           {currentStep === 8 && <StepConfirmation data={form} />}
           {currentStep < 8 && <><div className="mt-8 rounded-2xl border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]"><Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" />Secure, encrypted application. Your information is used only to evaluate funding options.</div><div className="flex items-center justify-between mt-6 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex h-11 items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#061326] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1730] disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div></>}
         </div>
-        {currentStep < 8 && <div className="mt-6 flex items-center justify-center gap-6 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span></div>}
+        {currentStep < 8 && <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span><a href={`tel:${COMPANY.phoneHref}`} className="flex items-center gap-1.5 font-semibold text-[#e7c579]"><Phone className="w-3.5 h-3.5" />Need help? Call {COMPANY.phone}</a></div>}
       </div>
     </div>
   );

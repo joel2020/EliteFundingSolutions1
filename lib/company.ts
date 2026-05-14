@@ -1,8 +1,8 @@
 export const COMPANY = {
   name: 'Elite Funding Solutions',
   legalName: 'Elite Funding Solutions LLC',
-  phone: '(888) 400-2580',
-  phoneHref: '+18884002580',
+  phone: '(813) 702-8787',
+  phoneHref: '8137028787',
   email: 'info@elitefundingsolution.com',
   domain: 'https://elitefundingsolution.com',
   street: '2202 N Westshore Blvd.',

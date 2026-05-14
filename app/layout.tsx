@@ -42,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     name: 'Elite Funding Solutions',
     url: siteUrl,
     logo: `${siteUrl}/elite-funding-logo.png`,
-    telephone: COMPANY.phoneHref,
+    telephone: COMPANY.phone,
     email: COMPANY.email,
     address: {
       '@type': 'PostalAddress',

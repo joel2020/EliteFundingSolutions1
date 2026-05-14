@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, Phone, X } from 'lucide-react';
+import { COMPANY } from '@/lib/company';
 
 const navLinks = [
   {
@@ -118,6 +119,10 @@ export function PublicNavbar() {
         </nav>
 
         <div className="hidden items-center gap-5 xl:flex">
+          <a href={`tel:${COMPANY.phoneHref}`} className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-200 transition hover:text-[#e7c579]">
+            <Phone className="h-3.5 w-3.5 text-[#e7c579]" />
+            {COMPANY.phone}
+          </a>
           <Link href="https://crm.elitefundingsolution.com/login" className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-200 transition hover:text-[#e7c579]">CRM Login</Link>
           <Link
             href="/apply"
@@ -186,6 +191,14 @@ export function PublicNavbar() {
             >
               Get Pre-Qualified
             </Link>
+            <a
+              href={`tel:${COMPANY.phoneHref}`}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-sm border border-[#d6af62]/35 px-6 text-[12px] font-bold uppercase tracking-[0.15em] text-white"
+              onClick={() => setMenuOpen(false)}
+            >
+              <Phone className="h-4 w-4 text-[#e7c579]" />
+              {COMPANY.phone}
+            </a>
             <Link
               href="https://crm.elitefundingsolution.com/login"
               className="inline-flex h-12 items-center justify-center rounded-sm border border-[#d6af62]/45 px-6 text-[12px] font-bold uppercase tracking-[0.15em] text-white"
