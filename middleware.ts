@@ -43,6 +43,10 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('host')?.split(':')[0].toLowerCase() ?? '';
   const isCrmHost = host.startsWith('crm.');
 
+  if (process.env.E2E_AUTH_BYPASS === '1' && (pathname.startsWith('/crm') || pathname.startsWith('/portal'))) {
+    return res;
+  }
+
   // CRM subdomains should open the CRM login experience by default.
   if (isCrmHost && pathname === '/') {
     const redirectUrl = req.nextUrl.clone();

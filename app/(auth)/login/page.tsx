@@ -122,6 +122,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-[13px] font-medium mb-1.5" style={{ color: '#8C9BB5' }}>Email Address</label>
               <input
+                data-testid="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -144,6 +145,7 @@ export default function LoginPage() {
               </div>
               <div className="relative">
                 <input
+                  data-testid="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -167,6 +169,7 @@ export default function LoginPage() {
             </div>
 
             <button
+              data-testid="login-submit"
               type="submit"
               disabled={loading}
               className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"

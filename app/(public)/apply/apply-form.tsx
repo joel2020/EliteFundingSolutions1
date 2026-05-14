@@ -126,11 +126,15 @@ const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean
   { key: 'bank_statements', label: 'Last 3 Business Bank Statements', required: true, help: 'Upload one combined PDF with the last 3 business bank statements, or upload each statement separately.' },
 ];
 
+function fieldTestId(label: string) {
+  return `application-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+}
+
 function InputField({ label, value, onChange, type = 'text', required = false, placeholder = '', hint = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string; hint?: string }) {
   return (
     <div>
       <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">{label} {required && <span className="text-[#EF4444]">*</span>}</label>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className="input-field w-full" />
+      <input data-testid={fieldTestId(label)} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className="input-field w-full" />
       {hint && <p className="text-[12px] text-[#A1A1AA] mt-1">{hint}</p>}
     </div>
   );
@@ -140,7 +144,7 @@ function SelectField({ label, value, onChange, options, required = false }: { la
   return (
     <div>
       <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">{label} {required && <span className="text-[#EF4444]">*</span>}</label>
-      <select value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field w-full appearance-none bg-white">
+      <select data-testid={fieldTestId(label)} value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field w-full appearance-none bg-white">
         <option value="">Select…</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -406,7 +410,7 @@ export default function ApplyForm() {
     <div className="min-h-screen bg-[#030812] pt-10 pb-20 text-white">
       <div className="mx-auto max-w-[980px] px-5 md:px-8">
         <div className="mx-auto mb-10 max-w-3xl text-center"><p className="eyebrow mb-3">Secure funding intake</p><h1 className="mb-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">Complete one protected application.</h1><p className="text-[16px] leading-7 text-slate-300">We ask for full EIN, full SSN, owner mobile phone, and the last 3 business bank statements for authorized underwriting. We do not ask for routing numbers, full account numbers, rent/landlord details, average daily balance, or NSF count during initial prequalification. Review our <a href="/disclosures" className="font-semibold text-[#e7c579] underline underline-offset-4">Disclosures</a> before applying.</p></div>
-        {currentStep < 8 && <div className="mb-8"><div className="flex items-center justify-between mb-3"><span className="text-[14px] font-bold text-white">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="rounded-full bg-[#061326] px-3 py-1 text-[12px] font-bold text-white">{Math.round(progressPct)}% complete</span></div><div className="h-3 bg-white/15 rounded-full overflow-hidden" aria-label="Application progress"><div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} /></div></div>}
+        {currentStep < 8 && <div className="mb-8" data-testid="application-step"><div className="flex items-center justify-between mb-3"><span className="text-[14px] font-bold text-white">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="rounded-full bg-[#061326] px-3 py-1 text-[12px] font-bold text-white">{Math.round(progressPct)}% complete</span></div><div className="h-3 bg-white/15 rounded-full overflow-hidden" aria-label="Application progress"><div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} /></div></div>}
         <div className="premium-card p-5 md:p-8" >
           {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
           {currentStep === 2 && <StepBanking data={form} update={updateField} />}
