@@ -306,6 +306,7 @@ export interface Database {
           priority: TaskPriority;
           status: TaskStatus;
           completed_at: string | null;
+          related_checklist_item_id: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -387,6 +388,8 @@ export interface Database {
           body: string | null;
           direction: string | null;
           performed_by: string | null;
+          resource_type: string | null;
+          resource_id: string | null;
           created_at: string;
         };
         Insert: Omit<Database['public']['Tables']['activities']['Row'], 'id' | 'created_at'>;
@@ -530,6 +533,10 @@ export interface Database {
           due_date: string | null;
           assigned_user_id: string | null;
           notes: string | null;
+          category: string;
+          related_document_id: string | null;
+          waived_by: string | null;
+          waived_at: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -549,6 +556,7 @@ export interface Database {
           decline_reason: string | null;
           response_date: string | null;
           notes: string | null;
+          conditions: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -603,8 +611,8 @@ export type EntityType = 'sole_proprietor' | 'llc' | 's_corp' | 'c_corp' | 'part
 export type CreditScoreRange = 'below_500' | '500_549' | '550_599' | '600_649' | '650_699' | '700_749' | '750_plus';
 export type ApplicationStatus = 'started' | 'submitted' | 'under_review' | 'approved' | 'declined' | 'withdrawn';
 export type OfferStatus = 'received' | 'presented' | 'accepted' | 'rejected' | 'expired' | 'withdrawn';
-export type DocumentStatus = 'uploaded' | 'in_review' | 'approved' | 'rejected' | 'needs_replacement';
-export type DocRequestStatus = 'requested' | 'uploaded' | 'in_review' | 'approved' | 'rejected' | 'needs_replacement' | 'waived';
+export type DocumentStatus = 'uploaded' | 'in_review' | 'approved' | 'rejected' | 'needs_replacement' | 'expired';
+export type DocRequestStatus = 'missing' | 'requested' | 'uploaded' | 'received' | 'in_review' | 'approved' | 'rejected' | 'needs_replacement' | 'waived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type TaskStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
 export type RiskTier = 'A' | 'B' | 'C' | 'D' | 'decline';
