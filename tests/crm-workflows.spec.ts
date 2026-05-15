@@ -117,20 +117,15 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Deal Info', 'Documents', 'Files', 'Notes', 'Merchant Interview', 'Financials', 'Merchant Info', 'Current Positions', 'Offers', 'Activity', 'Renewals']) {
+    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
 
     await page.getByRole('tab', { name: 'Offers' }).click();
-    await expect(page.getByText('Apex Business Funding')).toBeVisible();
+    await expect(page.getByText('Apex Business Funding').first()).toBeVisible();
     await expect(page.getByText('presented')).toBeVisible();
-
-    await page.getByRole('tab', { name: 'Renewals' }).click();
-    await expect(page.getByText('Percent paid down')).toBeVisible();
-    await expect(page.getByText('55%', { exact: true })).toBeVisible();
-    await expect(page.getByText('Renewal probability')).toBeVisible();
-    await expect(page.getByText('72%')).toBeVisible();
+    await expect(page.getByText('Recommended Offer')).toBeVisible();
   });
 
   test('loads earnings and reports pages', async ({ page }) => {
@@ -178,6 +173,65 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(salesPage.getByTestId('crm-page-user-management')).toBeVisible();
     await expect(salesPage.getByTestId('create-user')).toHaveCount(0);
     await salesPage.close();
+  });
+
+
+
+  test('deal detail command center workflows render and log operational events', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page);
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
+    await expect(page.getByText('Submission Ready')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Readiness' }).click();
+    await expect(page.getByText('Submission readiness')).toBeVisible();
+    await expect(page.getByTestId('missing-document-checklist')).toContainText('Voided check');
+
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    await expect(page.getByText('Missing required documents')).toBeVisible();
+    await expect(page.getByText('Bank Statement').first()).toBeVisible();
+
+    await page.getByTestId('deal-upload-document').click();
+    await page.getByTestId('deal-document-file').setInputFiles({ name: 'voided-check.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 voided check') });
+    await page.getByTestId('deal-document-type').click();
+    await page.getByRole('option', { name: 'Voided Check' }).click();
+    await page.getByTestId('deal-save-document').click();
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'voided-check.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
+
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await page.getByTestId('deal-add-note').click();
+    await page.getByTestId('deal-note-body').fill('Processor requested final statements.');
+    await page.getByTestId('deal-save-note').click();
+    await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'note' && String(activity.body).includes('Processor requested'))).toBe(true);
+
+    await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
+    await page.getByTestId('deal-submit-lender').click();
+    await page.getByTestId('deal-save-submission').click();
+    await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'partner_submission')).toBe(true);
+    expect(calls.some((call) => call.method === 'POST' && call.table === 'partner_submissions')).toBe(true);
+
+    await page.getByRole('tab', { name: 'Offers' }).click();
+    await expect(page.getByTestId('offer-comparison-view')).toContainText('Recommended Offer');
+
+    await page.getByRole('tab', { name: 'Tasks' }).click();
+    await expect(page.getByText('Follow up with Apex')).toBeVisible();
+  });
+
+  test('deal detail command center empty states render without documents, lenders, or offers', async ({ page }) => {
+    const { state } = await mockCrmApis(page);
+    state.documents = [];
+    state.partner_submissions = [];
+    state.offers = [];
+    state.tasks = [];
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    await expect(page.getByText('No documents attached.')).toBeVisible();
+    await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
+    await expect(page.getByText('No lender submissions yet.')).toBeVisible();
+    await page.getByRole('tab', { name: 'Offers' }).click();
+    await expect(page.getByText('No offers received yet.')).toBeVisible();
   });
 
   test('creates funding partners and presents offers from CRM action buttons', async ({ page }) => {

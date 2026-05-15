@@ -145,7 +145,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         created_at: now,
       },
     ],
-    activities: [{ id: 'activity-1', organization_id: ORG_ID, deal_id: DEAL_ID, title: 'Offer presented', created_at: now }],
+    activities: [{ id: 'activity-1', organization_id: ORG_ID, deal_id: DEAL_ID, activity_type: 'offer', title: 'Offer presented', body: 'Merchant is reviewing terms.', created_at: now }],
     documents: [
       {
         id: DOC_ID,
@@ -163,6 +163,11 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
       },
     ],
     notes: [{ id: 'note-1', organization_id: ORG_ID, deal_id: DEAL_ID, body: 'Merchant is reviewing offer.', is_internal: true, created_at: now }],
+    partner_submissions: [{ id: 'submission-1', organization_id: ORG_ID, deal_id: DEAL_ID, funding_partner_id: '88888888-8888-8888-8888-888888888888', submitted_by: ADMIN_PROFILE_ID, submitted_at: now, status: 'in_review', notes: 'Submitted via portal.', created_at: now, updated_at: now }],
+    document_requests: [{ id: 'request-1', organization_id: ORG_ID, deal_id: DEAL_ID, document_type: 'voided_check', label: 'Voided check', status: 'requested', category: 'submission', required: true, due_date: '2026-05-20', notes: 'Needed before submission.', created_at: now, updated_at: now }],
+    tasks: [{ id: 'task-1', organization_id: ORG_ID, deal_id: DEAL_ID, title: 'Follow up with Apex', priority: 'high', status: 'open', due_date: '2026-05-16T12:00:00.000Z', assigned_user_id: ADMIN_PROFILE_ID, created_at: now, updated_at: now }],
+    stipulations: [{ id: 'stip-1', organization_id: ORG_ID, deal_id: DEAL_ID, offer_id: OFFER_ID, name: 'Final bank verification', status: 'requested', due_date: '2026-05-20', assigned_user_id: ADMIN_PROFILE_ID, created_at: now, updated_at: now }],
+    owners: [{ id: 'owner-1', organization_id: ORG_ID, first_name: 'Jordan', last_name: 'Lee', phone: '2125550100', ssn_last4: '1234', created_at: now, updated_at: now }],
     current_positions: [{ id: 'position-1', organization_id: ORG_ID, deal_id: DEAL_ID, funder_name: 'Old Advance Co', original_funded_amount: 30000, current_balance: 9000, daily_payment: 250, status: 'active' }],
     deal_financials: [{ id: 'financial-1', organization_id: ORG_ID, deal_id: DEAL_ID, current_balance: 31500, percent_paid_down: 55, total_payback: 93800, daily_payment: 781, remaining_term_days: 42 }],
     applications: [],
