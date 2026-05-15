@@ -1,5 +1,5 @@
-import { CrmDealDetailExperience } from '@/components/crm/crm-platform';
+import { DealDetailClient } from '@/components/crm/deal-detail-client';
 
 export default function DealDetailPage({ params }: { params: { id: string } }) {
-  return <CrmDealDetailExperience dealId={params.id} />;
+  return <DealDetailClient dealId={params.id} />;
 }
