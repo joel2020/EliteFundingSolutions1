@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +47,7 @@ const emptyForm: DealFormData = {
 };
 
 export default function PipelinePage() {
+  const router = useRouter();
   const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
 
   const [deals, setDeals] = useState<any[]>([]);
@@ -183,6 +185,10 @@ export default function PipelinePage() {
                     stageDeals.map((deal) => (
                       <div
                         key={deal.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => router.push(`/crm/deals/${deal.id}`)}
+                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') router.push(`/crm/deals/${deal.id}`); }}
                         className="bg-white border border-[#E4E4E7] rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-2">
@@ -207,21 +213,23 @@ export default function PipelinePage() {
                             {deal.requested_amount?.toLocaleString() || '0'}
                           </div>
                           
-                          <Select
-                            value={deal.stage_slug}
-                            onValueChange={(newStage) => moveToStage(deal.id, newStage)}
-                          >
-                            <SelectTrigger className="w-[100px] h-6 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {stages.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>
-                                  {s.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                            <Select
+                              value={deal.stage_slug}
+                              onValueChange={(newStage) => moveToStage(deal.id, newStage)}
+                            >
+                              <SelectTrigger className="w-[100px] h-6 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {stages.map((s) => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    {s.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         
                         <div className="text-xs text-[#A1A1AA] mt-2">
