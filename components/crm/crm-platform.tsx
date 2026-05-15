@@ -24,12 +24,14 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Send,
   Settings,
   SlidersHorizontal,
   Sparkles,
   Target,
   TrendingUp,
   Upload,
+  Eye,
   Users,
   WalletCards,
 } from 'lucide-react';
@@ -82,6 +84,7 @@ type CrmDataset = {
   activities: RecordMap[];
   documents: RecordMap[];
   notes: RecordMap[];
+  partnerSubmissions: RecordMap[];
   currentPositions: RecordMap[];
   dealFinancials: RecordMap[];
 };
@@ -130,6 +133,34 @@ const emptyDeal = {
   assigned_user_id: '',
   notes: '',
 };
+
+
+const DETAIL_DOCUMENT_TYPES = [
+  { value: 'bank_statement', label: 'Bank Statement' },
+  { value: 'tax_return', label: 'Tax Return' },
+  { value: 'voided_check', label: 'Voided Check' },
+  { value: 'drivers_license', label: "Driver's License" },
+  { value: 'proof_of_address', label: 'Proof of Address' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'other', label: 'Other' },
+];
+
+function detailDocTypeLabel(type: string) {
+  return DETAIL_DOCUMENT_TYPES.find((item) => item.value === type)?.label || type.replaceAll('_', ' ');
+}
+
+function formatBytes(bytes?: number | null) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileIcon(fileName?: string) {
+  const extension = fileName?.split('.').pop()?.toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'].includes(extension || '')) return <FileArchive className="h-4 w-4" />;
+  return <FileText className="h-4 w-4" />;
+}
 
 const emptyUser = {
   first_name: '',
@@ -335,6 +366,7 @@ function useCrmDataset() {
     activities: [],
     documents: [],
     notes: [],
+    partnerSubmissions: [],
     currentPositions: [],
     dealFinancials: [],
   });
@@ -355,6 +387,7 @@ function useCrmDataset() {
       browserSupabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('documents').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('notes').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('partner_submissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('deal_financials').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('businesses').select('*').eq('organization_id', org).is('deleted_at', null),
@@ -379,7 +412,7 @@ function useCrmDataset() {
     const rawCommissions = unwrap(4);
     const partners = unwrap(5);
     const users = unwrap(6);
-    const businesses = unwrap(12);
+    const businesses = unwrap(13);
     const usersById = Object.fromEntries(users.map((user: RecordMap) => [user.id, user]));
     const partnersById = Object.fromEntries(partners.map((partner: RecordMap) => [partner.id, partner]));
     const businessesById = Object.fromEntries(businesses.map((business: RecordMap) => [business.id, business]));
@@ -413,8 +446,9 @@ function useCrmDataset() {
       activities: unwrap(7),
       documents: unwrap(8),
       notes: unwrap(9),
-      currentPositions: unwrap(10),
-      dealFinancials: unwrap(11),
+      partnerSubmissions: unwrap(10).map((submission: RecordMap) => ({ ...submission, funding_partners: partnersById[submission.funding_partner_id] })),
+      currentPositions: unwrap(11),
+      dealFinancials: unwrap(12),
     });
     setLoading(false);
   }, [browserSupabase, organizationId]);
@@ -964,7 +998,20 @@ export function CrmDealsExperience() {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, partners, documents, activities, notes, renewals, currentPositions, dealFinancials, organizationId, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, currentPositions, dealFinancials, organizationId, profile, loading, reload } = useCrmDataset();
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [submissionDialogOpen, setSubmissionDialogOpen] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [savingSubmission, setSavingSubmission] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentType, setDocumentType] = useState('bank_statement');
+  const [documentDescription, setDocumentDescription] = useState('');
+  const [noteBody, setNoteBody] = useState('');
+  const [noteInternal, setNoteInternal] = useState(true);
+  const [submissionPartnerId, setSubmissionPartnerId] = useState('');
+  const [submissionNotes, setSubmissionNotes] = useState('');
   if (loading) return <LoadingScreen title="Deal Detail" />;
   const deal = deals.find((row: RecordMap) => row.id === dealId) || deals[0];
   if (!deal) return <PageFrame title="Deal Detail" subtitle="No deal selected"><EmptyState title="Deal not found" body="The requested deal could not be loaded." /></PageFrame>;
@@ -980,6 +1027,126 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const partnerMatches = getPartnerMatches(deal, partners, dealDocs, positions).slice(0, 5);
   const currentBalance = dealRenewals[0]?.current_balance || financial.current_balance || Math.max(Number(offer.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
   const percentPaid = dealRenewals[0]?.percent_paid_down || financial.percent_paid_down || (deal.stage_slug === 'funded' ? 55 : 0);
+  const dealNotes = notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id);
+  const dealSubmissions = partnerSubmissions.filter((row: RecordMap) => row.deal_id === deal.id);
+  const noteEvents = dealNotes.map((row: RecordMap) => ({
+    id: `note-${row.id}`,
+    created_at: row.created_at,
+    title: row.is_internal ? 'Internal note added' : 'Shared note added',
+    body: row.body || row.note,
+    activity_type: 'note',
+  }));
+  const documentEvents = dealDocs.map((row: RecordMap) => ({
+    id: `document-${row.id}`,
+    created_at: row.created_at,
+    title: `Document uploaded: ${row.label || row.file_name}`,
+    body: row.file_name,
+    activity_type: 'document',
+  }));
+  const dealActivity = [
+    ...activities.filter((row: RecordMap) => row.deal_id === deal.id || row.resource_id === deal.id || row.application_id === deal.application_id),
+    ...noteEvents,
+    ...documentEvents,
+  ].sort((a: RecordMap, b: RecordMap) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 20);
+
+  const resetDocumentDialog = () => {
+    setDocumentFile(null);
+    setDocumentDescription('');
+    setDocumentType('bank_statement');
+  };
+
+  const uploadDealDocument = async () => {
+    if (!documentFile) { toast.error('Please select a document.'); return; }
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif'];
+    const extension = documentFile.name.split('.').pop()?.toLowerCase();
+    if (documentFile.size > 10 * 1024 * 1024 || (!allowed.includes(documentFile.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''))) {
+      toast.error('Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.');
+      return;
+    }
+
+    setUploadingDocument(true);
+    try {
+      const fileExt = documentFile.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `${organizationId}/${deal.id}/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from('application-documents').upload(filePath, documentFile, { contentType: documentFile.type || 'application/octet-stream', upsert: false });
+      if (uploadError) throw uploadError;
+      const label = detailDocTypeLabel(documentType);
+      const { error: dbError } = await supabase.from('documents').insert({
+        organization_id: organizationId,
+        deal_id: deal.id,
+        application_id: deal.application_id || null,
+        document_type: documentType,
+        label,
+        file_name: documentFile.name,
+        file_size: documentFile.size,
+        mime_type: documentFile.type || null,
+        storage_path: filePath,
+        status: 'uploaded',
+        uploaded_by_user_id: profile?.id || null,
+        review_notes: documentDescription || null,
+      });
+      if (dbError) throw dbError;
+      await supabase.from('activities').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, activity_type: 'document', title: `Document uploaded: ${label}`, body: documentFile.name, performed_by: profile?.id || null });
+      toast.success('Deal document uploaded');
+      setDocumentDialogOpen(false);
+      resetDocumentDialog();
+      reload();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload document');
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const saveDealNote = async () => {
+    if (!noteBody.trim()) { toast.error('Enter a note before saving.'); return; }
+    setSavingNote(true);
+    try {
+      const body = noteBody.trim();
+      const { error: noteError } = await supabase.from('notes').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, body, is_internal: noteInternal, created_by: profile?.id || null });
+      if (noteError) throw noteError;
+      await supabase.from('activities').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, activity_type: 'note', title: noteInternal ? 'Internal note added' : 'Shared note added', body, performed_by: profile?.id || null });
+      toast.success('Note added');
+      setNoteDialogOpen(false);
+      setNoteBody('');
+      setNoteInternal(true);
+      reload();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save note');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const submitToLender = async () => {
+    const fundingPartnerId = submissionPartnerId || partnerMatches[0]?.partner?.id || partners[0]?.id;
+    if (!fundingPartnerId) { toast.error('Add a funding partner before submitting.'); return; }
+    const partner = partners.find((row: RecordMap) => row.id === fundingPartnerId);
+    setSavingSubmission(true);
+    try {
+      const { error: submissionError } = await supabase.from('partner_submissions').insert({ organization_id: organizationId, deal_id: deal.id, funding_partner_id: fundingPartnerId, submitted_by: profile?.id || null, submitted_at: new Date().toISOString(), status: 'submitted', notes: submissionNotes || null });
+      if (submissionError) throw submissionError;
+      await supabase.from('activities').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, activity_type: 'partner_submission', title: `Submitted to lender: ${partner?.name || 'Funding partner'}`, body: submissionNotes || null, performed_by: profile?.id || null });
+      toast.success('Lender submission logged');
+      setSubmissionDialogOpen(false);
+      setSubmissionPartnerId('');
+      setSubmissionNotes('');
+      reload();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to submit deal to lender');
+    } finally {
+      setSavingSubmission(false);
+    }
+  };
+
+  const openDealDocument = async (doc: RecordMap, disposition: 'preview' | 'download') => {
+    const response = await fetch(`/api/documents/${doc.id}/signed-url`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disposition }) });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to open document'); return; }
+    window.open(result.url, '_blank', 'noopener,noreferrer');
+  };
+
   const updateStage = async (stage_slug: string) => {
     if (stage_slug === 'funded' && complianceBlocks.length > 0) {
       toast.error(`Funding blocked: ${complianceBlocks[0]}`);
@@ -1021,8 +1188,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               ['funder-fit', 'Funder Fit'],
               ['compliance', 'Compliance'],
               ['documents', 'Documents'],
-              ['files', 'Files'],
               ['notes', 'Notes'],
+              ['lenders', 'Lenders Sent To'],
               ['merchant-interview', 'Merchant Interview'],
               ['financials', 'Financials'],
               ['merchant', 'Merchant Info'],
@@ -1058,15 +1225,30 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               ['Sensitive reveals', ['super_admin', 'admin'].includes(deal.current_user_role || '') ? 'Admin controlled' : 'Admin only'],
             ]} />
           </TabsContent>
-          <TabsContent value="documents"><SimpleRows rows={dealDocs} empty="No documents attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.label || row.file_name}</b><span>{row.document_type}</span><span>{row.file_name}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
-          <TabsContent value="files"><SimpleRows rows={dealDocs} empty="No files attached." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.file_name}</b><span>{row.mime_type || 'File'}</span><span>{row.storage_path ? 'Private storage' : 'No storage path'}</span><StatusBadge value={row.status} /><span>{date(row.created_at)}</span></div>} /></TabsContent>
-          <TabsContent value="notes"><SimpleRows rows={notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id)} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
+          <TabsContent value="documents">
+            <div className="mb-3 flex justify-end">
+              <Button data-testid="deal-upload-document" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload document</Button>
+            </div>
+            <SimpleRows rows={dealDocs} empty="No documents attached." render={(row) => <div className="grid gap-2 md:grid-cols-[24px_1.4fr_1fr_100px_120px_130px]"><span className="text-[#64748B]">{fileIcon(row.file_name)}</span><b>{row.label || row.file_name}</b><span>{detailDocTypeLabel(row.document_type || 'other')}</span><span>{formatBytes(row.file_size)}</span><StatusBadge value={row.status} /><span className="flex gap-2"><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'preview')}><Eye className="mr-1 h-3 w-3" />Preview</Button><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'download')}><Download className="h-3 w-3" /></Button></span></div>} />
+          </TabsContent>
+          <TabsContent value="notes">
+            <div className="mb-3 flex justify-end">
+              <Button data-testid="deal-add-note" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setNoteDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Add note</Button>
+            </div>
+            <SimpleRows rows={dealNotes} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} />
+          </TabsContent>
+          <TabsContent value="lenders">
+            <div className="mb-3 flex justify-end">
+              <Button data-testid="deal-submit-lender" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => { setSubmissionPartnerId(partnerMatches[0]?.partner?.id || partners[0]?.id || ''); setSubmissionDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Submit to lender</Button>
+            </div>
+            <SimpleRows rows={dealSubmissions} empty="No lender submissions yet." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{partnerName(row)}</b><StatusBadge value={row.status} /><span>Sent {date(row.submitted_at || row.created_at)}</span><span>{row.response_date ? `Response ${date(row.response_date)}` : 'Awaiting response'}</span><span>{row.notes || row.decline_reason || 'No notes'}</span></div>} />
+          </TabsContent>
           <TabsContent value="merchant-interview"><EmptyState title="Merchant interview coming soon" body="Interview notes are not connected yet. Use Notes for demo-safe merchant context today." /></TabsContent>
           <TabsContent value="financials"><InfoGrid rows={[['Requested amount', currency(deal.requested_amount)], ['Offered amount', currency(offer.approved_amount || deal.approved_amount)], ['Funded amount', currency(deal.funded_amount)], ['Total payback', currency(offer.payback_amount || financial.total_payback)], ['Current balance', currency(currentBalance)], ['Percent paid', pct(percentPaid)], ['Daily payment', currency(offer.daily_payment || financial.daily_payment)], ['Weekly payment', currency(offer.weekly_payment || financial.weekly_payment)]]} /></TabsContent>
           <TabsContent value="merchant"><InfoGrid rows={[['Legal name', deal.businesses?.legal_name || businessName(deal)], ['DBA', deal.businesses?.dba || 'None'], ['Industry', deal.businesses?.industry || 'Unknown'], ['Phone', deal.businesses?.phone || 'Unknown'], ['Email', deal.businesses?.email || 'Unknown'], ['Monthly revenue', currency(deal.businesses?.monthly_gross_revenue)], ['Location', [deal.businesses?.city, deal.businesses?.state].filter(Boolean).join(', ') || 'Unknown']]} /></TabsContent>
           <TabsContent value="positions"><SimpleRows rows={positions} empty="No current positions tracked." render={(row) => <div className="grid gap-2 md:grid-cols-5"><b>{row.funder_name}</b><span>{currency(row.original_funded_amount)}</span><span>{currency(row.current_balance)}</span><span>{currency(row.daily_payment || row.weekly_payment)}</span><StatusBadge value={row.status || 'active'} /></div>} /></TabsContent>
           <TabsContent value="offers"><SimpleRows rows={dealOffers} empty="No offers received yet." render={(row) => <div className="grid gap-2 md:grid-cols-6"><b>{partnerName(row)}</b><span>{currency(row.approved_amount)}</span><span>{row.factor_rate || 'N/A'} factor</span><span>{currency(row.payback_amount)}</span><span>{row.term_days || 'N/A'} days</span><StatusBadge value={row.status} /></div>} /></TabsContent>
-          <TabsContent value="activity"><SimpleRows rows={activities.filter((row: RecordMap) => row.deal_id === deal.id || row.resource_id === deal.id).slice(0, 12)} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
+          <TabsContent value="activity"><SimpleRows rows={dealActivity} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{row.activity_type ? `${row.activity_type.replaceAll('_', ' ')} · ` : ''}{date(row.created_at)}</p></div>} /></TabsContent>
           <TabsContent value="renewals">
             <InfoGrid rows={[
               ['Funded date', date(deal.funded_at)],
@@ -1084,6 +1266,65 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           </TabsContent>
         </Tabs>
       </CrmCard>
+
+      <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}>
+        <DialogContent className="max-w-xl rounded-[8px]">
+          <DialogHeader><DialogTitle>Upload deal document</DialogTitle></DialogHeader>
+          <div className="grid gap-4">
+            <div>
+              <Label className="text-xs text-[#64748B]">Document file</Label>
+              <Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />
+              {documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}
+            </div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Document type</Label>
+              <Select value={documentType} onValueChange={setDocumentType}>
+                <SelectTrigger data-testid="deal-document-type" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{DETAIL_DOCUMENT_TYPES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Description</Label>
+              <Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" />
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent className="max-w-xl rounded-[8px]">
+          <DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader>
+          <div className="grid gap-4">
+            <div>
+              <Label className="text-xs text-[#64748B]">Note</Label>
+              <Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." />
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note</label>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>
+        <DialogContent className="max-w-xl rounded-[8px]">
+          <DialogHeader><DialogTitle>Submit deal to lender</DialogTitle></DialogHeader>
+          <div className="grid gap-4">
+            <div>
+              <Label className="text-xs text-[#64748B]">Funding partner</Label>
+              <Select value={submissionPartnerId} onValueChange={setSubmissionPartnerId}>
+                <SelectTrigger data-testid="deal-submission-partner" className="mt-1 rounded-[7px]"><SelectValue placeholder="Select a lender" /></SelectTrigger>
+                <SelectContent>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Submission notes</Label>
+              <Textarea data-testid="deal-submission-notes" value={submissionNotes} onChange={(event) => setSubmissionNotes(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="Package details, requested amount, or lender portal reference..." />
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Log lender submission'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageFrame>
   );
 }
