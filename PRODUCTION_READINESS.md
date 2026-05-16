@@ -30,8 +30,8 @@ Required:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `FIELD_ENCRYPTION_KEY`
 - `FIELD_LOOKUP_PEPPER`
-- `RESEND_API_KEY`
-- `SENDER_EMAIL`
+- `RESEND_API_KEY`, for public/contact/system notifications unless fully replaced
+- `SENDER_EMAIL`, for public/contact/system notifications unless fully replaced
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `GOOGLE_REDIRECT_URI`
@@ -166,7 +166,7 @@ Documents upload through server routes. The browser receives only short-lived si
 
 Gmail auth, status, disconnect, and send routes require authenticated CRM users. Gmail token reads/deletes are not performed directly from browser Supabase clients. Confirm Google OAuth redirect URL exactly matches the production callback.
 
-Lender email sending uses the CRM lender submission route. It generates the completed application PDF, pulls selected private documents server-side, attaches files directly when under the provider limit, falls back to 24-hour signed links for oversized packages, records the submission/audit trail, and sends through Resend when `RESEND_API_KEY` and `SENDER_EMAIL` are configured. If Resend is not configured, the route logs the submission and returns a mail draft fallback instead of requiring browser storage access.
+Lender email sending uses the CRM lender submission route and the connected Google Workspace account for the CRM user sending the package. It generates the completed application PDF, pulls selected private documents server-side, attaches files directly when under the Gmail-safe size limit, falls back to 24-hour signed links for oversized packages, records the submission/audit trail, and sends through Gmail from the user's connected Workspace mailbox. If the user has not connected Google Workspace, the route logs the submission and returns a mail draft fallback instead of requiring browser storage access.
 
 ## Supabase Advisor Status
 
@@ -185,7 +185,7 @@ Manual remaining:
 ## Known Limitations
 
 - Live CRM verification requires real Supabase Auth users and production Vercel environment variables.
-- E2E tests use mocked Supabase/route fixtures for repeatability and do not prove production Gmail, Resend, or Google OAuth deliverability.
+- E2E tests use mocked Supabase/route fixtures for repeatability and do not prove production Google OAuth or Gmail deliverability.
 - Lender package links are still signed URLs sent by email and must be kept at or below 24 hours.
 - Some legacy CRM list pages still read directly from Supabase using RLS, but browser mutations have been moved behind API routes.
 
@@ -197,7 +197,7 @@ Manual remaining:
 - Enable leaked password protection if available, or document the compensating controls and accepted risk.
 - Confirm Auth redirect URLs.
 - Confirm storage bucket settings.
-- Confirm `RESEND_API_KEY` and a verified-domain `SENDER_EMAIL` are set before expecting CRM lender emails to send directly.
+- Confirm each CRM user who sends lender packages connects Google Workspace from `/crm/settings`.
 - Confirm Vercel environment variables.
 - Run `npm run typecheck`, `npm run lint`, `npm run build`, and `npm run test:e2e:ci`.
 - Complete `LIVE_E2E_CHECKLIST.md` against production or a protected production-like preview.

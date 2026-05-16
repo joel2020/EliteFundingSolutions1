@@ -29,10 +29,10 @@ If storage policy SQL is blocked, keep `application-documents` private and conti
 
 Email prerequisite:
 
-1. Set `RESEND_API_KEY` in Vercel Production.
-2. Set `SENDER_EMAIL` to a verified sender/domain in Resend.
+1. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and the production Google OAuth callback URL in Vercel.
+2. Connect Google Workspace from `/crm/settings` for each CRM user who will send lender packages.
 3. Add a funding partner with `submission_email` or `email`.
-4. If Resend is not configured, the lender route should log the submission and open a draft fallback instead of claiming the email was sent.
+4. If Google Workspace is not connected for the sender, the lender route should log the submission and open a draft fallback instead of claiming the email was sent.
 
 ## Public Application Form Validation
 
@@ -104,8 +104,8 @@ Email prerequisite:
 2. Select allowed documents.
 3. Submit to lender.
 4. Expected records: `partner_submissions`, `lender_submission_attachments`, `documents` for generated package if applicable, `messages`, `activities`, and `audit_logs`.
-5. Expected email: with Resend configured, the lender receives the email with the generated application and selected attachments, or 24-hour secure links if the package is too large for direct attachment.
-6. Expected fallback: without Resend configured, the CRM logs the submission and opens an email draft. This is not a direct-send pass.
+5. Expected email: with Google Workspace connected for the sender, the lender receives the email from that user's mailbox with the generated application and selected attachments, or 24-hour secure links if the package is too large for direct attachment.
+6. Expected fallback: without Google Workspace connected for the sender, the CRM logs the submission and opens an email draft. This is not a direct-send pass.
 7. Expected UI: lender appears in Lenders Sent To on the deal.
 
 ## Submission Outcome

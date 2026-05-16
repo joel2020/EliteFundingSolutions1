@@ -45,24 +45,85 @@ export async function sendEmail({
   to,
   subject,
   body,
+  html,
   from,
+  attachments,
 }: {
   accessToken: string;
   refreshToken?: string;
   to: string;
   subject: string;
   body: string;
+  html?: string;
   from?: string;
+  attachments?: {
+    filename?: string | false;
+    content?: string | Buffer;
+    contentType?: string;
+  }[];
 }) {
   const gmail = await getGmailClient(accessToken, refreshToken);
+  const boundary = `elite-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const altBoundary = `${boundary}-alt`;
 
-  const message = [
+  const encodeHeader = (value: string) => value.replace(/\r?\n/g, ' ').trim();
+  const encodeBody = (value: string | Buffer) => Buffer.isBuffer(value) ? value.toString('base64') : Buffer.from(value).toString('base64');
+  const hasAttachments = Boolean(attachments?.length);
+  const textBody = body || html?.replace(/<[^>]+>/g, ' ') || '';
+
+  const messageParts = [
     `From: ${from || 'me'}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    '',
-    body,
-  ].join('\n');
+    `To: ${encodeHeader(to)}`,
+    `Subject: ${encodeHeader(subject)}`,
+    'MIME-Version: 1.0',
+  ];
+
+  if (hasAttachments) {
+    messageParts.push(
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      textBody,
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      html || textBody.replace(/\n/g, '<br />'),
+      '',
+      `--${altBoundary}--`,
+    );
+
+    for (const attachment of attachments || []) {
+      if (!attachment.content || !attachment.filename) continue;
+      messageParts.push(
+        '',
+        `--${boundary}`,
+        `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${encodeHeader(String(attachment.filename))}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${encodeHeader(String(attachment.filename))}"`,
+        '',
+        encodeBody(attachment.content).match(/.{1,76}/g)?.join('\n') || '',
+      );
+    }
+
+    messageParts.push('', `--${boundary}--`);
+  } else {
+    messageParts.push(
+      `Content-Type: ${html ? 'text/html' : 'text/plain'}; charset="UTF-8"`,
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      html || textBody,
+    );
+  }
+
+  const message = messageParts.join('\n');
 
   const encodedMessage = Buffer.from(message)
     .toString('base64')
