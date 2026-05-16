@@ -18,26 +18,10 @@ export async function createUserProfile(userId: string, email: string, firstName
     return { success: true, profile: existingProfile };
   }
 
-  const { data: profile, error } = await supabase
-    .from('user_profiles')
-    .insert({
-      user_id: userId,
-      organization_id: DEFAULT_ORG_ID,
-      email,
-      first_name: firstName || '',
-      last_name: lastName || '',
-      role: 'sales_rep',
-      is_active: true,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating user profile:', error);
-    return { success: false, error };
-  }
-
-  return { success: true, profile };
+  return {
+    success: false,
+    error: new Error('Profiles are created by authenticated server routes only.'),
+  };
 }
 
 /**

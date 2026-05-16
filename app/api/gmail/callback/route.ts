@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { getOAuth2Client } from '@/lib/gmail';
 import { google } from 'googleapis';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
+import { INTERNAL_CRM_ROLES } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,17 @@ export async function GET(request: NextRequest) {
     const { data: userInfo } = await oauth2.userinfo.get();
 
     const supabase = createServiceSupabaseClient();
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('id,role,is_active')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!profile || !INTERNAL_CRM_ROLES.includes(profile.role as any)) {
+      return NextResponse.redirect(new URL('/login?error=forbidden', request.url));
+    }
+
     const { error } = await supabase
       .from('gmail_tokens')
       .upsert({

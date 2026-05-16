@@ -115,36 +115,21 @@ export default function TasksPage() {
     
     const taskData = {
       ...formData,
-      organization_id: organizationId,
     };
 
-    if (selectedTask) {
-      const { error } = await supabase
-        .from('tasks')
-        .update(taskData)
-        .eq('id', selectedTask.id);
+    const response = await fetch(selectedTask ? `/api/crm/tasks/${selectedTask.id}` : '/api/crm/tasks', {
+      method: selectedTask ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskData),
+    });
+    const result = await response.json().catch(() => ({}));
 
-      if (error) {
-        toast.error('Failed to update task');
-        console.error(error);
-      } else {
-        toast.success('Task updated successfully');
-        setShowDialog(false);
-        loadTasks();
-      }
+    if (!response.ok || !result.success) {
+      toast.error(result.error || (selectedTask ? 'Failed to update task' : 'Failed to create task'));
     } else {
-      const { error } = await supabase
-        .from('tasks')
-        .insert([taskData]);
-
-      if (error) {
-        toast.error('Failed to create task');
-        console.error(error);
-      } else {
-        toast.success('Task created successfully');
-        setShowDialog(false);
-        loadTasks();
-      }
+      toast.success(selectedTask ? 'Task updated successfully' : 'Task created successfully');
+      setShowDialog(false);
+      loadTasks();
     }
     
     setSaving(false);
@@ -152,16 +137,18 @@ export default function TasksPage() {
 
   const toggleComplete = async (task: Task) => {
     const newStatus = task.status === 'completed' ? 'open' : 'completed';
-    const { error } = await supabase
-      .from('tasks')
-      .update({ 
+    const response = await fetch(`/api/crm/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         status: newStatus,
         completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
-      })
-      .eq('id', task.id);
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error('Failed to update task');
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to update task');
     } else {
       toast.success(newStatus === 'completed' ? 'Task completed' : 'Task reopened');
       loadTasks();
@@ -172,14 +159,11 @@ export default function TasksPage() {
     if (!selectedTask) return;
     
     setSaving(true);
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('id', selectedTask.id);
+    const response = await fetch(`/api/crm/tasks/${selectedTask.id}`, { method: 'DELETE' });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error('Failed to delete task');
-      console.error(error);
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to delete task');
     } else {
       toast.success('Task deleted successfully');
       setShowDeleteDialog(false);

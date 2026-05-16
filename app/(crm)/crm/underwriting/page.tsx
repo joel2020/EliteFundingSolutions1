@@ -131,18 +131,11 @@ export default function UnderwritingPage() {
       return;
     }
 
-    await supabase
-      .from('applications')
-      .update({ underwriting_notes: reviewNotes })
-      .eq('id', selectedApp.id)
-      .eq('organization_id', organizationId);
-
-    // Create underwriting review record
     const score = calculateScore(selectedApp);
-    const { error: reviewError } = await supabase
-      .from('underwriting_reviews')
-      .insert({
-        organization_id: organizationId,
+    const reviewResponse = await fetch('/api/crm/underwriting-reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         deal_id: selectedApp.deal?.id,
         application_id: selectedApp.id,
         monthly_gross_revenue: getMonthlyRevenue(selectedApp) || null,
@@ -161,10 +154,14 @@ export default function UnderwritingPage() {
         decision_by: crmProfile?.id || null,
         decision_notes: reviewNotes,
         status: 'completed',
-      });
+      }),
+    });
+    const reviewResult = await reviewResponse.json().catch(() => ({}));
 
-    if (reviewError) {
-      console.error('Failed to create review record:', reviewError);
+    if (!reviewResponse.ok || !reviewResult.success) {
+      toast.error(reviewResult.error || 'Failed to create review record.');
+      setSaving(false);
+      return;
     }
 
     await fetch(`/api/crm/deals/${selectedApp.deal.id}/stage`, {

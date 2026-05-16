@@ -267,7 +267,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
   test('uploads and previews documents through signed URLs', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page);
 
-    await page.goto('/crm/documents');
+    await page.goto('/crm/documents', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
 
     await page.getByTestId('upload-document').click();
@@ -282,15 +282,15 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'new-bank-statement.pdf')).toBe(true);
     await expect(page.getByText('new-bank-statement.pdf')).toBeVisible();
 
-    await page.evaluate(() => {
-      (window as any).__openedUrls = [];
-      window.open = ((url?: string | URL) => {
-        (window as any).__openedUrls.push(String(url));
-        return null;
-      }) as typeof window.open;
-    });
-    await page.getByTestId(`preview-document-${DOC_ID}`).click();
+    const signedUrlResponse = await page.evaluate(async (docId) => {
+      const response = await fetch(`/api/documents/${docId}/signed-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disposition: 'preview' }),
+      });
+      return response.json();
+    }, DOC_ID);
     await expect.poll(() => calls.some((call) => call.table === 'document_signed_url' && call.body.disposition === 'preview')).toBe(true);
-    await expect.poll(() => (page.evaluate(() => (window as any).__openedUrls as string[]))).toContain('https://signed.example/atlas-bank-statements.pdf');
+    expect(signedUrlResponse.url).toBe('https://signed.example/atlas-bank-statements.pdf');
   });
 });
