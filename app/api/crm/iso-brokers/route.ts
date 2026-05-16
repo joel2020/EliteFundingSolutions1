@@ -37,6 +37,29 @@ function isMissingApplicationSlugColumn(error: { code?: string; message?: string
   return error.code === 'PGRST204' || (message.includes('application_slug') && (message.includes('schema cache') || message.includes('column')));
 }
 
+export async function GET() {
+  const auth = await requireCrmProfile();
+  if ('response' in auth) return auth.response;
+  const { profile, supabase } = auth;
+
+  const [brokerResult, commissionResult, dealResult] = await Promise.all([
+    supabase.from('iso_brokers').select('*').eq('organization_id', profile.organization_id).order('created_at', { ascending: false }),
+    supabase.from('commissions').select('id,iso_broker_id,deal_id,commission_amount,payment_status').eq('organization_id', profile.organization_id),
+    supabase.from('deals').select('id,stage_slug,funded_at,funded_amount').eq('organization_id', profile.organization_id).is('deleted_at', null),
+  ]);
+
+  if (brokerResult.error) {
+    return NextResponse.json({ success: false, error: brokerResult.error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    brokers: brokerResult.data || [],
+    commissions: commissionResult.data || [],
+    deals: dealResult.data || [],
+  });
+}
+
 export async function POST(request: Request) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;

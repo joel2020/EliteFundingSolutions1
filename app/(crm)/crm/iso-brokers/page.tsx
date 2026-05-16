@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
-import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
 import { Copy, Plus, Users, TrendingUp, DollarSign, Mail, Phone } from 'lucide-react';
 import type { IsoBroker } from '@/types/database';
@@ -55,19 +54,16 @@ export default function IsoBrokersPage() {
 
   const loadBrokers = useCallback(async () => {
     if (!organizationId) return;
-    const [brokerResult, commissionResult, dealResult] = await Promise.all([
-      supabase.from('iso_brokers').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false }),
-      supabase.from('commissions').select('id,iso_broker_id,deal_id,commission_amount,payment_status').eq('organization_id', organizationId),
-      supabase.from('deals').select('id,stage_slug,funded_at,funded_amount').eq('organization_id', organizationId).is('deleted_at', null),
-    ]);
+    const response = await fetch('/api/crm/iso-brokers');
+    const result = await response.json().catch(() => ({}));
 
-    if (brokerResult.error) {
-      toast.error('Failed to load brokers');
-      console.error(brokerResult.error);
-    } else if (brokerResult.data) {
-      setBrokers(brokerResult.data as IsoBroker[]);
-      setCommissions(commissionResult.data || []);
-      setDeals(dealResult.data || []);
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to load brokers');
+      console.error(result);
+    } else {
+      setBrokers(result.brokers || []);
+      setCommissions(result.commissions || []);
+      setDeals(result.deals || []);
     }
     setLoading(false);
   }, [organizationId]);
@@ -118,13 +114,15 @@ export default function IsoBrokersPage() {
   };
 
   const toggleActive = async (brokerId: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from('iso_brokers')
-      .update({ is_active: !currentStatus })
-      .eq('id', brokerId);
+    const response = await fetch(`/api/crm/iso-brokers/${brokerId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !currentStatus }),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error('Failed to update status');
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to update status');
     } else {
       toast.success(`Broker ${!currentStatus ? 'activated' : 'deactivated'}`);
       loadBrokers();
