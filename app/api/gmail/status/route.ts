@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('gmail_tokens')
-    .select('email')
+    .select('email,access_token')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -22,7 +22,7 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    connected: Boolean(data?.email),
+    connected: Boolean(data?.email && data?.access_token),
     email: data?.email || null,
   });
 }

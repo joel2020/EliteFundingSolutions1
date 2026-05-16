@@ -61,6 +61,24 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
 
+  const recipientEmail = partner.submission_email || partner.email || '';
+  if (!recipientEmail) {
+    return NextResponse.json({ success: false, error: 'Funding partner has no submission email. Add a submission email before sending this deal.' }, { status: 400 });
+  }
+
+  const { data: gmailTokens, error: gmailTokenError } = await supabase
+    .from('gmail_tokens')
+    .select('email,access_token,refresh_token')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (gmailTokenError) {
+    return NextResponse.json({ success: false, error: 'Unable to check the sender Google Workspace connection.' }, { status: 500 });
+  }
+  if (!gmailTokens?.email || !gmailTokens?.access_token) {
+    return NextResponse.json({ success: false, error: 'Google Workspace is not connected for this CRM user. Connect it from CRM Settings before sending lender emails.' }, { status: 400 });
+  }
+
   const selectedDocumentIds = parsed.data.attachment_document_ids;
   const { data: selectedDocuments, error: docError } = selectedDocumentIds.length
     ? await supabase
@@ -206,7 +224,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (attachmentError) return NextResponse.json({ success: false, error: attachmentError.message }, { status: 500 });
   }
 
-  const recipientEmail = partner.submission_email || partner.email || '';
   const totalAttachmentBytes = (documents || []).reduce((total: number, doc: any) => total + Number(doc.file_size || 0), 0);
   const canAttachFiles = totalAttachmentBytes > 0 && totalAttachmentBytes <= MAX_GMAIL_ATTACHMENT_BYTES;
   const providerAttachments: { filename?: string | false; content?: Buffer; contentType?: string }[] = [];
@@ -269,41 +286,26 @@ export async function POST(request: Request, { params }: { params: { id: string 
     </div>
   `;
 
-  let emailDeliveryStatus = recipientEmail ? 'drafted' : 'missing_recipient';
+  let emailDeliveryStatus = 'failed';
   let emailProviderData: unknown = null;
   let emailProviderError: string | null = null;
-  const { data: gmailTokens, error: gmailTokenError } = recipientEmail
-    ? await supabase
-      .from('gmail_tokens')
-      .select('email,access_token,refresh_token')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    : { data: null, error: null };
-  const gmailConnected = Boolean(gmailTokens?.email && gmailTokens?.access_token);
+  const senderTokens = gmailTokens;
 
-  if (gmailTokenError) {
-    emailProviderError = 'Unable to check the sender Google Workspace connection.';
-  } else if (recipientEmail && gmailTokens?.email && gmailTokens?.access_token) {
-    const senderTokens = gmailTokens;
-    try {
-      const emailResult = await sendGmailEmail({
-        accessToken: senderTokens.access_token,
-        refreshToken: senderTokens.refresh_token || undefined,
-        to: recipientEmail,
-        subject: emailSubject,
-        body: emailText,
-        html: emailHtml,
-        from: senderTokens.email,
-        attachments: providerAttachments,
-      });
-      emailDeliveryStatus = 'sent';
-      emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: senderTokens.email };
-    } catch (error: any) {
-      emailDeliveryStatus = 'failed';
-      emailProviderError = error?.message || 'Unable to send lender email through Google Workspace.';
-    }
-  } else if (recipientEmail) {
-    emailProviderError = 'Google Workspace is not connected for this CRM user. The lender submission was logged and an email draft was generated.';
+  try {
+    const emailResult = await sendGmailEmail({
+      accessToken: senderTokens.access_token,
+      refreshToken: senderTokens.refresh_token || undefined,
+      to: recipientEmail,
+      subject: emailSubject,
+      body: emailText,
+      html: emailHtml,
+      from: senderTokens.email,
+      attachments: providerAttachments,
+    });
+    emailDeliveryStatus = 'sent';
+    emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: senderTokens.email };
+  } catch (error: any) {
+    emailProviderError = error?.message || 'Unable to send lender email through Google Workspace.';
   }
 
   await Promise.allSettled([
@@ -344,7 +346,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         prior_default_count: priorDefaults?.length || 0,
         email_delivery_status: emailDeliveryStatus,
         email_provider: 'gmail',
-        email_provider_configured: gmailConnected,
+        email_provider_configured: true,
         email_provider_data: emailProviderData,
         email_provider_error: emailProviderError,
         attachment_warnings: attachmentWarnings,
@@ -368,20 +370,31 @@ export async function POST(request: Request, { params }: { params: { id: string 
       : Promise.resolve(),
   ]);
 
+  if (emailDeliveryStatus !== 'sent') {
+    return NextResponse.json({
+      success: false,
+      submissionId: submission.id,
+      error: emailProviderError || 'Unable to send lender email through Google Workspace.',
+      emailDeliveryStatus,
+      emailProviderConfigured: true,
+      emailProvider: 'gmail',
+      senderEmail: senderTokens.email,
+      warnings: attachmentWarnings,
+    }, { status: 502 });
+  }
+
   return NextResponse.json({
     success: true,
     submissionId: submission.id,
     emailDeliveryStatus,
-    emailProviderConfigured: gmailConnected,
+    emailProviderConfigured: true,
     emailProvider: 'gmail',
-    senderEmail: gmailTokens?.email || null,
+    senderEmail: senderTokens.email,
     storageAccessMode: 'server_service_role_private_bucket',
     emailProviderError,
     warnings: [
       ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
       ...attachmentWarnings,
-      ...(!recipientEmail ? ['Funding partner has no submission email, so the lender package was logged but not emailed.'] : []),
-      ...(emailProviderError ? [gmailConnected ? `Email was recorded but not sent: ${emailProviderError}` : 'Google Workspace is not connected for this CRM user, so a lender email draft was generated.'] : []),
     ],
     emailDraft: {
       to: recipientEmail,
