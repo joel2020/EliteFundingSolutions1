@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, randomBytes } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import type { createServiceSupabaseClient } from '@/lib/server-supabase';
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -21,6 +21,18 @@ export function encryptSensitiveField(value?: string | null) {
   const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return `v1:${iv.toString('base64')}:${authTag.toString('base64')}:${ciphertext.toString('base64')}`;
+}
+
+export function decryptSensitiveField(value?: string | null) {
+  if (!value) return null;
+  const [version, iv, authTag, ciphertext] = value.split(':');
+  if (version !== 'v1' || !iv || !authTag || !ciphertext) return null;
+  const decipher = createDecipheriv('aes-256-gcm', getRequiredFieldEncryptionKey(), Buffer.from(iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(authTag, 'base64'));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertext, 'base64')),
+    decipher.final(),
+  ]).toString('utf8');
 }
 
 export function hashSensitiveLookup(value?: string | null) {

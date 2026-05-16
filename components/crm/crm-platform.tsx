@@ -1544,7 +1544,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                   </label>
                 )) : <p className="p-3 text-sm text-[#64748B]">No documents attached to this deal yet.</p>}
               </div>
-              <p className="mt-1 text-xs text-[#64748B]">Only selected files are recorded for this lender package.</p>
+              <p className="mt-1 text-xs text-[#64748B]">The completed application PDF is generated and included automatically. Select any additional statements or documents to send with it.</p>
             </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Send to Lender'}</Button></DialogFooter>

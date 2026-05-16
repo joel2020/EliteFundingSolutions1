@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/email';
+import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { requireCrmProfile } from '@/lib/server-auth';
+import { decryptSensitiveField } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,20 +57,102 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
 
-  const documentIds = parsed.data.attachment_document_ids;
-  const { data: documents, error: docError } = documentIds.length
+  const selectedDocumentIds = parsed.data.attachment_document_ids;
+  const { data: selectedDocuments, error: docError } = selectedDocumentIds.length
     ? await supabase
       .from('documents')
       .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size')
       .eq('organization_id', profile.organization_id)
-      .in('id', documentIds)
+      .in('id', selectedDocumentIds)
     : { data: [], error: null };
 
   if (docError) return NextResponse.json({ success: false, error: docError.message }, { status: 500 });
-  if ((documents || []).length !== documentIds.length) return NextResponse.json({ success: false, error: 'One or more selected documents could not be found.' }, { status: 400 });
+  if ((selectedDocuments || []).length !== selectedDocumentIds.length) return NextResponse.json({ success: false, error: 'One or more selected documents could not be found.' }, { status: 400 });
 
-  const invalidDocument = (documents || []).find((doc: any) => doc.deal_id !== deal.id && doc.application_id !== deal.application_id);
+  const invalidDocument = (selectedDocuments || []).find((doc: any) => doc.deal_id !== deal.id && doc.application_id !== deal.application_id);
   if (invalidDocument) return NextResponse.json({ success: false, error: 'Selected attachments must belong to this deal.' }, { status: 400 });
+
+  const [{ data: application }, { data: business }] = await Promise.all([
+    deal.application_id
+      ? supabase
+        .from('applications')
+        .select('id,organization_id,business_id,requested_amount,has_existing_advances,bank_name,account_type,submitted_at,signed_name,signature_date,application_payload')
+        .eq('id', deal.application_id)
+        .eq('organization_id', profile.organization_id)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
+    deal.business_id
+      ? supabase
+        .from('businesses')
+        .select('id,organization_id,legal_name,dba,entity_type,ein_encrypted,ein_last4,industry,start_date,phone,email,website,address,city,state,zip,monthly_gross_revenue,has_tax_lien,has_bankruptcy')
+        .eq('id', deal.business_id)
+        .eq('organization_id', profile.organization_id)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  let owners: any[] = [];
+  if (deal.business_id) {
+    const { data: ownerLinks } = await supabase
+      .from('business_owners')
+      .select('is_primary,ownership_percentage,owners(id,first_name,last_name,email,phone,address,city,state,zip,dob_encrypted,ssn_encrypted,ssn_last4,ownership_percentage,credit_score_range)')
+      .eq('organization_id', profile.organization_id)
+      .eq('business_id', deal.business_id)
+      .order('is_primary', { ascending: false });
+    owners = (ownerLinks || []).map((link: any) => ({
+      ...(link.owners || {}),
+      ownership_percentage: link.ownership_percentage || link.owners?.ownership_percentage,
+      dob_decrypted: decryptSensitiveField(link.owners?.dob_encrypted),
+      ssn_decrypted: decryptSensitiveField(link.owners?.ssn_encrypted),
+    }));
+  }
+
+  const applicationPdf = await generateLenderApplicationPdf({
+    deal,
+    application,
+    business,
+    owners,
+    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+  });
+  const safeDealName = (deal.title || (business as any)?.legal_name || 'merchant-application')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 64) || 'merchant-application';
+  const generatedApplicationPath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${safeDealName}.pdf`;
+  const { error: applicationUploadError } = await supabase.storage
+    .from('application-documents')
+    .upload(generatedApplicationPath, applicationPdf, { contentType: 'application/pdf', upsert: false });
+
+  if (applicationUploadError) {
+    return NextResponse.json({ success: false, error: `Unable to generate lender application PDF: ${applicationUploadError.message}` }, { status: 500 });
+  }
+
+  const { data: generatedApplicationDocument, error: applicationDocError } = await supabase
+    .from('documents')
+    .insert({
+      organization_id: profile.organization_id,
+      deal_id: deal.id,
+      application_id: deal.application_id,
+      uploaded_by_user_id: profile.id,
+      document_type: 'completed_application',
+      label: 'Completed lender application',
+      file_name: `${safeDealName}-application.pdf`,
+      file_size: applicationPdf.length,
+      mime_type: 'application/pdf',
+      storage_path: generatedApplicationPath,
+      status: 'uploaded',
+      review_notes: `Generated automatically for lender submission to ${partner.name}.`,
+    })
+    .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size')
+    .single();
+
+  if (applicationDocError) {
+    return NextResponse.json({ success: false, error: `Unable to record lender application PDF: ${applicationDocError.message}` }, { status: 500 });
+  }
+
+  const documents = [generatedApplicationDocument, ...(selectedDocuments || [])];
+  const documentIds = documents.map((doc: any) => doc.id);
 
   const { data: priorDefaults } = await supabase
     .from('deal_risk_events')
