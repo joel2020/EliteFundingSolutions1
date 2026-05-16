@@ -8,6 +8,7 @@ import { COMPANY } from '@/lib/company';
 const revenueOptions = ['$10K-$25K', '$25K-$50K', '$50K-$100K', '$100K-$250K', '$250K+'];
 const timeOptions = ['Under 6 months', '6-12 months', '1-2 years', '2-5 years', '5+ years'];
 const timingOptions = ['ASAP', 'This week', '2-4 weeks', 'Exploring options'];
+type FitField = 'name' | 'business' | 'email' | 'phone' | 'monthlyRevenue' | 'timeInBusiness' | 'requestedAmount' | 'fundingTiming' | 'useOfFunds';
 
 export default function FundingFitCheckForm() {
   const [form, setForm] = useState({
@@ -25,19 +26,36 @@ export default function FundingFitCheckForm() {
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [touched, setTouched] = useState<Partial<Record<FitField, boolean>>>({});
+  const [submittedOnce, setSubmittedOnce] = useState(false);
 
-  const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const update = (key: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    if (key !== 'bot_field') setTouched((current) => ({ ...current, [key]: true }));
+  };
+
+  const fieldErrors: Partial<Record<FitField, string>> = {
+    name: form.name.trim() ? '' : 'Enter your full name.',
+    business: form.business.trim() ? '' : 'Enter the business name.',
+    email: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email) ? '' : 'Enter a valid email address.',
+    phone: form.phone.replace(/\D/g, '').length >= 10 ? '' : 'Enter a valid phone number.',
+    monthlyRevenue: form.monthlyRevenue ? '' : 'Select monthly revenue.',
+    timeInBusiness: form.timeInBusiness ? '' : 'Select time in business.',
+    requestedAmount: form.requestedAmount.trim() ? '' : 'Enter the requested amount.',
+    fundingTiming: form.fundingTiming ? '' : 'Select funding timing.',
+    useOfFunds: form.useOfFunds.trim() ? '' : 'Describe the use of funds.',
+  };
+
+  const visibleError = (field: FitField) => (submittedOnce || touched[field]) ? fieldErrors[field] || '' : '';
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setSubmittedOnce(true);
 
-    if (!form.name.trim() || !form.business.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email) || form.phone.replace(/\D/g, '').length < 10) {
-      setError('Please provide your name, business, valid email, and phone number.');
-      return;
-    }
-    if (!form.monthlyRevenue || !form.timeInBusiness || !form.requestedAmount || !form.fundingTiming || !form.useOfFunds.trim()) {
-      setError('Please complete the funding profile so an advisor can review fit.');
+    const firstError = (Object.values(fieldErrors).filter(Boolean)[0] || '') as string;
+    if (firstError) {
+      setError('Please fix the highlighted fields. This check does not ask for SSN, EIN, bank statements, or account numbers.');
       return;
     }
 
@@ -112,20 +130,21 @@ export default function FundingFitCheckForm() {
                   <h2 className="text-2xl font-semibold text-white">Quick funding profile</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-400">This is not the full application and does not collect SSN, EIN, or bank statements.</p>
                 </div>
-                {error && <div className="rounded-sm border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>}
+                {error && <div role="alert" className="rounded-sm border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">{error}</div>}
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Full name" value={form.name} onChange={(value) => update('name', value)} required />
-                  <Field label="Business name" value={form.business} onChange={(value) => update('business', value)} required />
-                  <Field label="Email" value={form.email} onChange={(value) => update('email', value)} type="email" required />
-                  <Field label="Phone" value={form.phone} onChange={(value) => update('phone', value)} type="tel" required />
-                  <Select label="Monthly revenue" value={form.monthlyRevenue} onChange={(value) => update('monthlyRevenue', value)} options={revenueOptions} required />
-                  <Select label="Time in business" value={form.timeInBusiness} onChange={(value) => update('timeInBusiness', value)} options={timeOptions} required />
-                  <Field label="Requested amount" value={form.requestedAmount} onChange={(value) => update('requestedAmount', value)} placeholder="$100,000" required />
-                  <Select label="Funding timing" value={form.fundingTiming} onChange={(value) => update('fundingTiming', value)} options={timingOptions} required />
+                  <Field label="Full name" value={form.name} onChange={(value) => update('name', value)} error={visibleError('name')} required />
+                  <Field label="Business name" value={form.business} onChange={(value) => update('business', value)} error={visibleError('business')} required />
+                  <Field label="Email" value={form.email} onChange={(value) => update('email', value)} type="email" error={visibleError('email')} required />
+                  <Field label="Phone" value={form.phone} onChange={(value) => update('phone', value)} type="tel" error={visibleError('phone')} required />
+                  <Select label="Monthly revenue" value={form.monthlyRevenue} onChange={(value) => update('monthlyRevenue', value)} options={revenueOptions} placeholder="Select revenue range" error={visibleError('monthlyRevenue')} required />
+                  <Select label="Time in business" value={form.timeInBusiness} onChange={(value) => update('timeInBusiness', value)} options={timeOptions} placeholder="Select operating history" error={visibleError('timeInBusiness')} required />
+                  <Field label="Requested amount" value={form.requestedAmount} onChange={(value) => update('requestedAmount', value)} placeholder="$100,000" error={visibleError('requestedAmount')} required />
+                  <Select label="Funding timing" value={form.fundingTiming} onChange={(value) => update('fundingTiming', value)} options={timingOptions} placeholder="Select timing" error={visibleError('fundingTiming')} required />
                 </div>
                 <label className="block text-sm font-semibold text-white">
                   Use of funds *
-                  <textarea value={form.useOfFunds} onChange={(event) => update('useOfFunds', event.target.value)} rows={4} className="mt-2 w-full resize-none rounded-[10px] border border-[#DDE3EF] bg-white px-4 py-3 text-[15px] text-[#0A1628] outline-none transition focus:border-[#C9A84C] focus:ring-4 focus:ring-[#C9A84C]/15" placeholder="Inventory, payroll, equipment, expansion, receivables timing..." />
+                  <textarea value={form.useOfFunds} onChange={(event) => update('useOfFunds', event.target.value)} aria-invalid={Boolean(visibleError('useOfFunds'))} aria-describedby={visibleError('useOfFunds') ? 'fit-use-of-funds-error' : undefined} rows={4} className="mt-2 w-full resize-none rounded-[10px] border border-[#DDE3EF] bg-white px-4 py-3 text-[15px] text-[#0A1628] outline-none transition focus:border-[#C9A84C] focus:ring-4 focus:ring-[#C9A84C]/15" placeholder="Inventory, payroll, equipment, expansion, receivables timing" />
+                  {visibleError('useOfFunds') && <p id="fit-use-of-funds-error" className="mt-1 text-xs font-medium text-red-100">{visibleError('useOfFunds')}</p>}
                 </label>
                 <div className="rounded-sm border border-[#d6af62]/18 bg-[#030812]/70 p-4 text-sm leading-6 text-slate-300">
                   <ShieldCheck className="mr-2 inline h-4 w-4 text-[#d6af62]" />
@@ -160,23 +179,33 @@ export default function FundingFitCheckForm() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder = '', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; required?: boolean }) {
+function fieldId(label: string) {
+  return `fit-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+}
+
+function Field({ label, value, onChange, type = 'text', placeholder = '', required = false, error = '' }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string; required?: boolean; error?: string }) {
+  const id = fieldId(label);
+  const errorId = `${id}-error`;
   return (
-    <label className="block text-sm font-semibold text-white">
-      {label} {required && '*'}
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className="input-field mt-2" />
-    </label>
+    <div>
+      <label htmlFor={id} className="block text-sm font-semibold text-white">{label} {required && '*'}</label>
+      <input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="input-field mt-2" />
+      {error && <p id={errorId} className="mt-1 text-xs font-medium text-red-100">{error}</p>}
+    </div>
   );
 }
 
-function Select({ label, value, onChange, options, required = false }: { label: string; value: string; onChange: (value: string) => void; options: string[]; required?: boolean }) {
+function Select({ label, value, onChange, options, placeholder, required = false, error = '' }: { label: string; value: string; onChange: (value: string) => void; options: string[]; placeholder: string; required?: boolean; error?: string }) {
+  const id = fieldId(label);
+  const errorId = `${id}-error`;
   return (
-    <label className="block text-sm font-semibold text-white">
-      {label} {required && '*'}
-      <select value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field mt-2 appearance-none bg-white">
-        <option value="">Select...</option>
+    <div>
+      <label htmlFor={id} className="block text-sm font-semibold text-white">{label} {required && '*'}</label>
+      <select id={id} value={value} onChange={(event) => onChange(event.target.value)} required={required} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} className="input-field mt-2 appearance-none bg-white">
+        <option value="">{placeholder}</option>
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
-    </label>
+      {error && <p id={errorId} className="mt-1 text-xs font-medium text-red-100">{error}</p>}
+    </div>
   );
 }

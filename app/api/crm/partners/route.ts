@@ -1,0 +1,95 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireCrmProfile } from '@/lib/server-auth';
+
+export const dynamic = 'force-dynamic';
+
+const WRITE_ROLES = ['super_admin', 'admin', 'manager'];
+
+const csv = (value?: string) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+
+const partnerSchema = z.object({
+  name: z.string().trim().min(1, 'Company name is required.'),
+  contact_name: z.string().trim().optional().default(''),
+  email: z.string().trim().email('Enter a valid contact email.').optional().or(z.literal('')).default(''),
+  phone: z.string().trim().optional().default(''),
+  submission_email: z.string().trim().email('Enter a valid submission email.').optional().or(z.literal('')).default(''),
+  portal_url: z.string().trim().url('Enter a valid portal URL.').optional().or(z.literal('')).default(''),
+  product_types: z.string().trim().optional().default(''),
+  min_funding_amount: z.coerce.number().nonnegative().optional().nullable(),
+  max_funding_amount: z.coerce.number().nonnegative().optional().nullable(),
+  min_monthly_revenue: z.coerce.number().nonnegative().optional().nullable(),
+  min_time_in_business_months: z.coerce.number().int().nonnegative().optional().nullable(),
+  states_served: z.string().trim().optional().default(''),
+  restricted_industries: z.string().trim().optional().default(''),
+  avg_approval_days: z.coerce.number().int().nonnegative().optional().nullable(),
+  notes: z.string().trim().optional().default(''),
+});
+
+export async function POST(request: Request) {
+  const auth = await requireCrmProfile(WRITE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+
+  const parsed = partnerSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ success: false, error: 'Invalid funding partner payload.', issues: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const form = parsed.data;
+  if (form.max_funding_amount != null && form.min_funding_amount != null && form.max_funding_amount < form.min_funding_amount) {
+    return NextResponse.json({ success: false, error: 'Max funding must be greater than min funding.' }, { status: 400 });
+  }
+
+  const { data: partner, error } = await supabase
+    .from('funding_partners')
+    .insert({
+      organization_id: profile.organization_id,
+      name: form.name,
+      contact_name: form.contact_name || null,
+      email: form.email || null,
+      phone: form.phone || null,
+      submission_email: form.submission_email || null,
+      portal_url: form.portal_url || null,
+      product_types: csv(form.product_types),
+      min_funding_amount: form.min_funding_amount ?? null,
+      max_funding_amount: form.max_funding_amount ?? null,
+      min_monthly_revenue: form.min_monthly_revenue ?? null,
+      min_time_in_business_months: form.min_time_in_business_months ?? null,
+      states_served: csv(form.states_served.toUpperCase()),
+      restricted_industries: csv(form.restricted_industries),
+      avg_approval_days: form.avg_approval_days ?? null,
+      notes: form.notes || null,
+      is_active: true,
+      created_by: profile.id,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+
+  await Promise.allSettled([
+    supabase.from('audit_logs').insert({
+      organization_id: profile.organization_id,
+      user_id: user.id,
+      action: 'funding_partner_created',
+      resource_type: 'funding_partners',
+      resource_id: partner.id,
+      new_data: { name: form.name, submission_email: form.submission_email || null, product_types: csv(form.product_types) },
+    }),
+    supabase.from('activities').insert({
+      organization_id: profile.organization_id,
+      activity_type: 'system',
+      title: 'Funding partner created',
+      body: `${form.name} was added to the lender network.`,
+      direction: 'internal',
+      performed_by: profile.id,
+      resource_type: 'funding_partners',
+      resource_id: partner.id,
+    }),
+  ]);
+
+  return NextResponse.json({ success: true, partner });
+}

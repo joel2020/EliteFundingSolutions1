@@ -31,8 +31,6 @@ const emptyPartner = {
   notes: '',
 };
 
-const csv = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
-
 export default function PartnersPage() {
   const { organizationId, loading: crmUserLoading } = useCrmUser();
   const [partners, setPartners] = useState<FundingPartner[]>([]);
@@ -75,28 +73,22 @@ export default function PartnersPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.from('funding_partners').insert({
-      organization_id: organizationId,
-      name: form.name.trim(),
-      contact_name: form.contact_name.trim() || null,
-      email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
-      submission_email: form.submission_email.trim() || null,
-      portal_url: form.portal_url.trim() || null,
-      product_types: csv(form.product_types),
-      min_funding_amount: form.min_funding_amount ? Number(form.min_funding_amount) : null,
-      max_funding_amount: form.max_funding_amount ? Number(form.max_funding_amount) : null,
-      min_monthly_revenue: form.min_monthly_revenue ? Number(form.min_monthly_revenue) : null,
-      min_time_in_business_months: form.min_time_in_business_months ? Number(form.min_time_in_business_months) : null,
-      states_served: csv(form.states_served.toUpperCase()),
-      restricted_industries: csv(form.restricted_industries),
-      avg_approval_days: form.avg_approval_days ? Number(form.avg_approval_days) : null,
-      notes: form.notes.trim() || null,
-      is_active: true,
+    const response = await fetch('/api/crm/partners', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...form,
+        min_funding_amount: form.min_funding_amount || null,
+        max_funding_amount: form.max_funding_amount || null,
+        min_monthly_revenue: form.min_monthly_revenue || null,
+        min_time_in_business_months: form.min_time_in_business_months || null,
+        avg_approval_days: form.avg_approval_days || null,
+      }),
     });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error(error.message);
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to add funding partner');
     } else {
       toast.success('Funding partner added');
       setShowDialog(false);

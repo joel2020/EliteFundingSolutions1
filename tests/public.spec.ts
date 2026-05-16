@@ -33,4 +33,15 @@ test.describe('public site production smoke tests', () => {
     await page.getByRole('button', { name: /send message/i }).click();
     await expect(page.getByText(/please provide your name/i)).toBeVisible();
   });
+
+  test('funding fit check does not show invalid state before interaction', async ({ page }) => {
+    await page.goto('/funding-fit-check');
+    await expect(page.getByText(/does not collect SSN, EIN, or bank statements/i)).toBeVisible();
+    await expect(page.locator('[aria-invalid="true"]')).toHaveCount(0);
+
+    await page.getByRole('button', { name: /request fit check/i }).click();
+    await expect(page.getByText(/please fix the highlighted fields/i)).toBeVisible();
+    await expect(page.locator('[aria-invalid="true"]').first()).toBeVisible();
+    await expect(page.getByText(/does not ask for SSN, EIN, bank statements/i)).toBeVisible();
+  });
 });

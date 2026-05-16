@@ -299,6 +299,35 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, submissionId: submission.id, warnings: [], emailDraft: { to: partner?.submission_email || partner?.email || '', subject: 'Mock lender package', body: payload.custom_message, attachmentDocumentIds: payload.attachment_document_ids || [] } }) });
   });
 
+  await page.route('**/api/crm/partners**', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const partner = {
+      id: `partner-${state.funding_partners.length + 1}`,
+      organization_id: ORG_ID,
+      name: payload.name,
+      contact_name: payload.contact_name || null,
+      email: payload.email || null,
+      phone: payload.phone || null,
+      submission_email: payload.submission_email || null,
+      portal_url: payload.portal_url || null,
+      product_types: String(payload.product_types || '').split(',').map((item) => item.trim()).filter(Boolean),
+      min_funding_amount: payload.min_funding_amount ? Number(payload.min_funding_amount) : null,
+      max_funding_amount: payload.max_funding_amount ? Number(payload.max_funding_amount) : null,
+      min_monthly_revenue: payload.min_monthly_revenue ? Number(payload.min_monthly_revenue) : null,
+      min_time_in_business_months: payload.min_time_in_business_months ? Number(payload.min_time_in_business_months) : null,
+      states_served: String(payload.states_served || '').split(',').map((item) => item.trim().toUpperCase()).filter(Boolean),
+      restricted_industries: String(payload.restricted_industries || '').split(',').map((item) => item.trim()).filter(Boolean),
+      avg_approval_days: payload.avg_approval_days ? Number(payload.avg_approval_days) : null,
+      notes: payload.notes || null,
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    };
+    state.funding_partners.unshift(partner);
+    calls.push({ method: route.request().method(), table: 'funding_partners_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, partner }) });
+  });
+
   await page.route('**/api/crm/users', async (route) => {
     const payload = route.request().postDataJSON() as any;
     const id = `user-${state.user_profiles.length + 1}`;

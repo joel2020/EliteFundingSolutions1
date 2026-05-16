@@ -37,6 +37,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       const shell = page.getByTestId('crm-nexus-shell');
       await expect(shell).toBeVisible();
       await expect(shell).toContainText('Elite CRM Nexus v2');
+      await expect(page.getByLabel('Notifications coming soon')).toHaveCount(0);
       for (const label of ['Dashboard', 'Leads', 'Deals', 'Renewals', 'Earnings', 'Reports', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
         await expect(shell.getByText(label, { exact: true })).toBeVisible();
       }
@@ -236,15 +237,18 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
   });
 
   test('creates funding partners and presents offers from CRM action buttons', async ({ page }) => {
-    const { state } = await mockCrmApis(page, 'admin');
+    const { state, calls } = await mockCrmApis(page, 'admin');
 
     await page.goto('/crm/partners');
     await page.getByTestId('add-partner').click();
     await page.getByTestId('partner-name').fill('Keystone Capital');
     await page.getByTestId('partner-contact-name').fill('Kim Partner');
     await page.getByTestId('partner-email').fill('kim@keystone.test');
+    const partnerResponse = page.waitForResponse('**/api/crm/partners');
     await page.getByTestId('save-partner').click();
+    await expect.poll(async () => (await partnerResponse).ok()).toBe(true);
     await expect.poll(() => state.funding_partners.some((partner) => partner.name === 'Keystone Capital')).toBe(true);
+    expect(calls.some((call) => call.table === 'funding_partners_api' && call.body.name === 'Keystone Capital')).toBe(true);
     await expect(page.getByText('Keystone Capital')).toBeVisible();
 
     await page.goto('/crm/offers');

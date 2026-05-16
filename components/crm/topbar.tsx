@@ -23,16 +23,16 @@ export function CrmTopbar({ title, subtitle, actions }: TopbarProps) {
           <Search className="w-4 h-4" />
           Search CRM
         </Link>
-        <button
-          type="button"
-          disabled
-          title="Notifications are coming soon."
-          aria-label="Notifications coming soon"
-          className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-[7px] text-[#94A3B8] opacity-70"
+        <Link
+          href="/crm/tasks"
+          prefetch={false}
+          title="Review open tasks and follow-ups"
+          aria-label="Review open tasks and follow-ups"
+          className="relative flex h-9 w-9 items-center justify-center rounded-[7px] text-[#64748B] transition-colors hover:bg-[#F8FAFC] hover:text-[#0F172A]"
         >
           <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#EF4444]" />
-        </button>
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#C9A84C]" />
+        </Link>
         <Link
           href="/crm/settings"
           prefetch={false}
