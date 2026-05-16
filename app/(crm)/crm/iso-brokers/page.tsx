@@ -36,12 +36,6 @@ const emptyForm: BrokerFormData = {
   notes: '',
 };
 
-function slugifyBroker(companyName: string, brokerName: string) {
-  const base = [companyName, brokerName].filter(Boolean).join('-') || 'iso-broker';
-  const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 72);
-  return slug || 'iso-broker';
-}
-
 function brokerApplicationUrl(slug?: string | null) {
   if (!slug) return '';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -93,7 +87,6 @@ export default function IsoBrokersPage() {
     setSaving(true);
     
     const brokerData = {
-      organization_id: organizationId,
       company_name: formData.company_name,
       broker_name: formData.broker_name,
       email: formData.email || null,
@@ -101,19 +94,20 @@ export default function IsoBrokersPage() {
       commission_pct: parseFloat(formData.commission_pct) || 5,
       payment_terms: formData.payment_terms || null,
       notes: formData.notes || null,
-      is_active: true,
-      application_slug: `${slugifyBroker(formData.company_name, formData.broker_name)}-${Date.now().toString(36)}`,
     };
 
-    const { error } = await supabase
-      .from('iso_brokers')
-      .insert([brokerData]);
+    const response = await fetch('/api/crm/iso-brokers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(brokerData),
+    });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error('Failed to add broker');
-      console.error(error);
+    if (!response.ok || !result.success) {
+      toast.error(result.error ? `Failed to add broker: ${result.error}` : 'Failed to add broker');
+      console.error(result);
     } else {
-      toast.success('Broker added successfully');
+      toast.success(result.warning || 'Broker added successfully');
       setShowDialog(false);
       setFormData(emptyForm);
       loadBrokers();
