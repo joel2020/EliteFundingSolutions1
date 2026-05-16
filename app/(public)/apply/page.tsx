@@ -7,7 +7,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/apply' },
 };
 
-export default function ApplyPage({ searchParams }: { searchParams?: { rep?: string } }) {
-  const code = searchParams?.rep?.trim() || '';
-  return <ApplyForm referral={code ? { code, path: `/apply?rep=${encodeURIComponent(code)}` } : undefined} />;
+export default function ApplyPage({ searchParams }: { searchParams?: { rep?: string; iso?: string } }) {
+  const repCode = searchParams?.rep?.trim() || '';
+  const isoCode = searchParams?.iso?.trim() || '';
+  const code = repCode || isoCode;
+  const source = isoCode ? 'iso' : 'rep';
+  return <ApplyForm referral={code ? { code, path: `/apply?${source}=${encodeURIComponent(code)}` } : undefined} />;
 }

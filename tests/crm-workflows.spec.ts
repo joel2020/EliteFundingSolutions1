@@ -117,7 +117,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -195,7 +195,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('deal-upload-document').click();
     await page.getByTestId('deal-document-file').setInputFiles({ name: 'voided-check.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 voided check') });
     await page.getByTestId('deal-document-type').click();
-    await page.getByRole('option', { name: 'Voided Check' }).click();
+    await page.getByRole('option', { name: 'Other' }).click();
     await page.getByTestId('deal-save-document').click();
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'voided-check.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
 

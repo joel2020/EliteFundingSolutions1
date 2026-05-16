@@ -115,6 +115,17 @@ const STATUS_COLORS = ['#0F2B5B', '#C9A84C', '#2563EB', '#059669', '#D97706', '#
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const LEAD_SOURCE_OPTIONS = [
+  ['website', 'Website'],
+  ['referral', 'Referral'],
+  ['broker', 'Broker'],
+  ['iso', 'ISO'],
+  ['paid_ads', 'Paid ads'],
+  ['organic_search', 'Organic search'],
+  ['cold_email', 'Cold email'],
+  ['partner', 'Partner'],
+  ['manual_entry', 'Manual entry'],
+] as const;
 
 const emptyLead = {
   business_name: '',
@@ -136,6 +147,9 @@ const emptyDeal = {
   funded_amount: '',
   stage_slug: 'lead_captured',
   assigned_user_id: '',
+  junior_closer_id: '',
+  senior_closer_id: '',
+  lead_source: 'manual_entry',
   notes: '',
 };
 
@@ -143,17 +157,8 @@ const emptyDeal = {
 const DETAIL_DOCUMENT_TYPES = [
   { value: 'bank_statement', label: 'Bank Statement' },
   { value: 'bank_statements', label: 'Bank Statements' },
-  { value: 'completed_application', label: 'Completed Application' },
-  { value: 'tax_return', label: 'Tax Return' },
-  { value: 'voided_check', label: 'Voided Check' },
+  { value: 'license_verification', label: 'License Verification' },
   { value: 'drivers_license', label: "Driver's License" },
-  { value: 'owner_id_verification', label: 'Owner ID Verification' },
-  { value: 'business_verification', label: 'Business Verification' },
-  { value: 'advance_statements', label: 'Advance Statements' },
-  { value: 'signed_contract', label: 'Signed Contract' },
-  { value: 'payoff_letter', label: 'Payoff Letter' },
-  { value: 'proof_of_address', label: 'Proof of Address' },
-  { value: 'contract', label: 'Contract' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -726,6 +731,8 @@ export function CrmLeadsExperience() {
       requested_amount: Number(lead.requested_amount || 0) || null,
       stage_slug: 'lead_captured',
       assigned_user_id: lead.assigned_user_id || null,
+      iso_broker_id: lead.iso_broker_id || null,
+      lead_source: lead.lead_source || 'manual_entry',
     });
     if (error) toast.error(error.message);
     else {
@@ -846,6 +853,13 @@ export function CrmLeadsExperience() {
                 <Input data-testid={`lead-${key}`} value={form[key] || ''} onChange={(event) => setForm({ ...form, [key]: event.target.value })} className="mt-1 rounded-[7px]" />
               </div>
             ))}
+            <div>
+              <Label className="text-xs text-[#64748B]">Lead source</Label>
+              <Select value={form.lead_source || 'manual_entry'} onValueChange={(value) => setForm({ ...form, lead_source: value })}>
+                <SelectTrigger data-testid="lead-source" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{LEAD_SOURCE_OPTIONS.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div>
               <Label className="text-xs text-[#64748B]">Status</Label>
               <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value })}>
@@ -968,6 +982,9 @@ export function CrmDealsExperience() {
       funded_amount: form.funded_amount ? Number(form.funded_amount) : null,
       stage_slug: form.stage_slug || 'lead_captured',
       assigned_user_id: form.assigned_user_id || null,
+      junior_closer_id: form.junior_closer_id || null,
+      senior_closer_id: form.senior_closer_id || null,
+      lead_source: form.lead_source || 'manual_entry',
       notes: form.notes || null,
     };
     const response = await fetch('/api/crm/deals', {
@@ -1021,9 +1038,36 @@ export function CrmDealsExperience() {
               </Select>
             </div>
             <div>
+              <Label className="text-xs text-[#64748B]">Lead source</Label>
+              <Select value={form.lead_source || 'manual_entry'} onValueChange={(value) => setForm({ ...form, lead_source: value })}>
+                <SelectTrigger data-testid="deal-lead-source" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                <SelectContent>{LEAD_SOURCE_OPTIONS.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label className="text-xs text-[#64748B]">Assigned rep</Label>
               <Select value={form.assigned_user_id || 'unassigned'} onValueChange={(value) => setForm({ ...form, assigned_user_id: value === 'unassigned' ? '' : value })}>
                 <SelectTrigger data-testid="deal-assigned-rep" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {users.filter((user: RecordMap) => user.role !== 'client').map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Junior closer</Label>
+              <Select value={form.junior_closer_id || 'unassigned'} onValueChange={(value) => setForm({ ...form, junior_closer_id: value === 'unassigned' ? '' : value })}>
+                <SelectTrigger data-testid="deal-junior-closer" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {users.filter((user: RecordMap) => user.role !== 'client').map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Senior closer</Label>
+              <Select value={form.senior_closer_id || 'unassigned'} onValueChange={(value) => setForm({ ...form, senior_closer_id: value === 'unassigned' ? '' : value })}>
+                <SelectTrigger data-testid="deal-senior-closer" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
                   {users.filter((user: RecordMap) => user.role !== 'client').map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}
@@ -1091,7 +1135,10 @@ const FUNDING_REQUIRED_ITEMS = [
 function sameDocType(docType: string, wanted: string) {
   const a = normalize(docType || '').replace(/s$/, '');
   const b = normalize(wanted || '').replace(/s$/, '');
-  return a === b || (wanted === 'owner_id_verification' && ['drivers_license', 'driver_license'].includes(docType)) || (wanted === 'completed_application' && ['signed_application', 'application'].includes(docType));
+  return a === b
+    || (wanted === 'license_verification' && ['drivers_license', 'driver_license', 'owner_id_verification'].includes(docType))
+    || (wanted === 'owner_id_verification' && ['drivers_license', 'driver_license', 'license_verification'].includes(docType))
+    || (wanted === 'completed_application' && ['signed_application', 'application'].includes(docType));
 }
 
 function docStatusForReadiness(doc?: RecordMap) {
@@ -1186,7 +1233,7 @@ function getOfferInsights(offers: RecordMap[]) {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, organizationId, profile, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, organizationId, profile, loading, reload } = useCrmDataset();
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(false);
@@ -1201,6 +1248,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [noteInternal, setNoteInternal] = useState(true);
   const [submissionPartnerId, setSubmissionPartnerId] = useState('');
   const [submissionNotes, setSubmissionNotes] = useState('');
+  const [submissionDocumentIds, setSubmissionDocumentIds] = useState<string[]>([]);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskPriority, setTaskPriority] = useState('medium');
@@ -1210,6 +1258,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   if (!deal) return <PageFrame title="Deal Detail" subtitle="No deal selected"><EmptyState title="Deal not found" body="The requested deal could not be loaded." /></PageFrame>;
   const app = applications.find((row: RecordMap) => row.id === deal.application_id || row.business_id === deal.business_id);
   const dealOffers = offers.filter((offer: RecordMap) => offer.deal_id === deal.id);
+  const dealCommissions = commissions.filter((row: RecordMap) => row.deal_id === deal.id);
   const dealDocs = documents.filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
   const dealRequests = documentRequests.filter((request: RecordMap) => request.deal_id === deal.id || request.application_id === deal.application_id);
   const dealStips = stipulations.filter((stip: RecordMap) => stip.deal_id === deal.id || dealOffers.some((offer: RecordMap) => offer.id === stip.offer_id));
@@ -1309,12 +1358,23 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     const fundingPartnerId = submissionPartnerId || partnerMatches[0]?.partner?.id || partners[0]?.id;
     if (!fundingPartnerId) { toast.error('Add a funding partner before submitting.'); return; }
     const partner = partners.find((row: RecordMap) => row.id === fundingPartnerId);
+    const selectedDocs = dealDocs.filter((doc: RecordMap) => submissionDocumentIds.includes(doc.id));
+    const emailSubject = `${businessName(deal)} funding package`;
+    const emailBody = [
+      `Please review ${businessName(deal)} for ${currency(deal.requested_amount || deal.approved_amount)}.`,
+      submissionNotes || 'Package notes: please review the selected statements and attached file context.',
+      selectedDocs.length ? `Selected attachments: ${selectedDocs.map((doc: RecordMap) => doc.file_name).join(', ')}` : 'No documents selected for this lender package.',
+    ].join('\n\n');
     setSavingSubmission(true);
     try {
-      const { error: submissionError } = await supabase.from('partner_submissions').insert({ organization_id: organizationId, deal_id: deal.id, funding_partner_id: fundingPartnerId, submitted_by: profile?.id || null, submitted_at: new Date().toISOString(), status: 'submitted', notes: submissionNotes || null });
+      const { error: submissionError } = await supabase.from('partner_submissions').insert({ organization_id: organizationId, deal_id: deal.id, funding_partner_id: fundingPartnerId, submitted_by: profile?.id || null, submitted_at: new Date().toISOString(), status: 'submitted', notes: submissionNotes || null, custom_message: submissionNotes || null, attachment_document_ids: submissionDocumentIds, email_subject: emailSubject, generated_email_body: emailBody });
       if (submissionError) throw submissionError;
-      await logActivity('partner_submission', `Submitted to lender: ${partner?.name || 'Funding partner'}`, submissionNotes || null);
-      toast.success('Lender submission logged'); setSubmissionDialogOpen(false); setSubmissionPartnerId(''); setSubmissionNotes(''); reload();
+      await logActivity('partner_submission', `Submitted to lender: ${partner?.name || 'Funding partner'}`, `${submissionNotes || ''}\n\nSelected attachments: ${selectedDocs.map((doc: RecordMap) => doc.file_name).join(', ') || 'None'}`);
+      if (partner?.submission_email) {
+        const mailto = `mailto:${partner.submission_email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        window.location.href = mailto;
+      }
+      toast.success('Lender submission logged'); setSubmissionDialogOpen(false); setSubmissionPartnerId(''); setSubmissionNotes(''); setSubmissionDocumentIds([]); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to submit deal to lender'); } finally { setSavingSubmission(false); }
   };
 
@@ -1394,20 +1454,44 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       </div>
       <CrmCard className="p-4">
         <div className="mb-4 flex flex-col gap-2 border-b border-[#E2E8F0] pb-4 md:flex-row md:items-center md:justify-between"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Current stage</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p></div><Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px] md:w-[220px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
-        <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
+        <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'],['finance','Finance'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
           <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]}/><div className="grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
           <TabsContent value="readiness"><div className="mb-4 grid gap-3 md:grid-cols-2"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><ChecklistTable rows={checklist} /></TabsContent>
           <TabsContent value="documents"><div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"><div className="flex gap-2"><Select value={documentFilter} onValueChange={setDocumentFilter}><SelectTrigger className="h-9 w-[180px] rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All docs</SelectItem>{['uploaded','in_review','approved','rejected','needs_replacement','expired'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}{DETAIL_DOCUMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent></Select></div><Button data-testid="deal-upload-document" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload / replace document</Button></div>{missingDocItems.length > 0 && <div className="mb-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Missing required documents</p><div className="mt-2 flex flex-wrap gap-2">{missingDocItems.map((item) => <button key={item.id} className="rounded-[6px] border border-amber-300 bg-white px-2 py-1 text-xs text-amber-900" onClick={() => updateChecklistItem(item, 'requested')}>{item.name}</button>)}</div></div>}{groupedDocs.length ? <div className="grid gap-3">{groupedDocs.map((group) => <div key={group.type.value} className="rounded-[8px] border border-[#E2E8F0]"><div className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold">{group.type.label}</div>{group.docs.map((row) => <div key={row.id} className="grid gap-2 border-b border-[#E2E8F0] p-3 text-sm last:border-b-0 md:grid-cols-[24px_1.4fr_1fr_120px_260px]"><span className="text-[#64748B]">{fileIcon(row.file_name)}</span><b>{row.label || row.file_name}<span className="ml-2 text-xs font-normal text-[#64748B]">{formatBytes(row.file_size)}</span></b><StatusBadge value={row.status} /><span>{date(row.updated_at || row.created_at)}</span><span className="flex flex-wrap gap-1"><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'preview')}><Eye className="mr-1 h-3 w-3" />Preview</Button><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'download')}><Download className="h-3 w-3" /></Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'approved')}>Approve</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'needs_replacement', window.prompt('Replacement reason') || 'Replacement requested')}>Request replacement</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'rejected', window.prompt('Reject reason') || 'Rejected')}>Reject</Button></span></div>)}</div>)}</div> : <EmptyState title="No documents attached." body="Upload documents here so this deal page remains the source of truth." />}</TabsContent>
           <TabsContent value="notes"><div className="mb-3 flex justify-end"><Button data-testid="deal-add-note" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setNoteDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Add note</Button></div><SimpleRows rows={dealNotes} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
           <TabsContent value="lenders"><div className="mb-3 flex justify-end"><Button data-testid="deal-submit-lender" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => { setSubmissionPartnerId(partnerMatches[0]?.partner?.id || partners[0]?.id || ''); setSubmissionDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Add lender submission</Button></div><SimpleRows rows={dealSubmissions} empty="No lender submissions yet." render={(row) => { const relatedOffer = dealOffers.find((o: RecordMap) => o.partner_submission_id === row.id || o.funding_partner_id === row.funding_partner_id); return <div className="grid gap-3 md:grid-cols-[1.2fr_170px_1fr_1fr_220px]"><div><b>{partnerName(row)}</b><p className="text-xs text-[#64748B]">{row.funding_partners?.submission_email || row.funding_partners?.portal_url || 'No route saved'}</p><p className="text-xs text-[#64748B]">Sent {date(row.submitted_at || row.created_at)} · Updated {date(row.updated_at)}</p></div><Select value={row.status || 'draft'} onValueChange={(status) => updateSubmission(row, { status })}><SelectTrigger data-testid={`lender-status-${row.id}`} className="h-9 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{['draft','submitted','in_review','more_info_needed','approved','declined','withdrawn','funded'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}</SelectContent></Select><div><p>{row.notes || 'No lender notes'}</p><Button size="sm" variant="outline" className="mt-2 h-8" onClick={() => updateSubmission(row, { notes: window.prompt('Lender notes', row.notes || '') || row.notes })}>Edit notes</Button></div><div><p>{row.decline_reason || row.conditions || 'No decline reason / stips'}</p><Button size="sm" variant="outline" className="mt-2 h-8" onClick={() => updateSubmission(row, { decline_reason: window.prompt('Decline reason or conditions', row.decline_reason || '') || row.decline_reason })}>Add reason/stips</Button></div><div>{relatedOffer ? <div><b>{currency(relatedOffer.approved_amount)}</b><p>{relatedOffer.factor_rate || 'N/A'} factor · {relatedOffer.term_days || 'N/A'} days</p><StatusBadge value={relatedOffer.status} /></div> : <Button size="sm" className="h-8 bg-[#0F2B5B]" onClick={() => convertSubmissionToOffer(row)}>Convert to offer</Button>}</div></div>; }} /></TabsContent>
           <TabsContent value="offers"><div data-testid="offer-comparison-view">{dealOffers.length ? <><div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{offerInsights.highlights.map(([label, value]) => <CrmCard key={label} className="p-3"><p className="text-[11px] font-semibold uppercase text-[#64748B]">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></CrmCard>)}</div><div className="grid gap-3 md:grid-cols-2">{dealOffers.map((row: RecordMap) => <CrmCard key={row.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><b>{partnerName(row)}</b><p className="text-xs text-[#64748B]">Expires {date(row.expires_at)}</p></div>{offerInsights.recommended?.id === row.id && <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Recommended Offer</span>}</div><InfoGrid rows={[["Approved", currency(row.approved_amount)], ["Factor", row.factor_rate || 'N/A'], ["Buy / sell", `${row.buy_rate || 'N/A'} / ${row.sell_rate || 'N/A'}`], ["Payback", currency(row.payback_amount)], ["Term", `${row.term_days || 'N/A'} days`], ["Payment", currency(row.daily_payment || row.weekly_payment)], ["Frequency", row.payment_frequency || 'N/A'], ["Net funding", currency(row.net_funding_amount || row.approved_amount)], ["Holdback", pct(row.holdback_pct)], ["Origination fee", currency(row.origination_fee)], ["Broker commission", `${row.broker_commission_pct || 0}%`], ["ISO commission", `${row.iso_commission_pct || 0}%`], ["Stips", Array.isArray(row.stips_required) && row.stips_required.length ? row.stips_required.join(', ') : 'None'], ["Status", <StatusBadge key="status" value={row.status} />], ["Notes", row.notes || 'None']]} /></CrmCard>)}</div></> : <EmptyState title="No offers received yet." body="Convert lender responses into offers to compare terms and recommendations." />}</div></TabsContent>
+          <TabsContent value="finance"><div className="grid gap-4 lg:grid-cols-2"><InfoGrid rows={[["Funded amount", currency(deal.funded_amount)], ["Referral partner split", `${deal.referral_partner_commission_pct ?? 20}%`], ["Junior closer split", `${deal.junior_closer_commission_pct ?? 5}%`], ["Senior closer split", `${deal.senior_closer_commission_pct ?? 10}%`], ["Clawback amount", currency(deal.commission_clawback_amount)], ["Default status", deal.defaulted_at ? `Defaulted ${date(deal.defaulted_at)}` : 'No default recorded']]} /><SimpleRows rows={dealCommissions} empty="No commissions tracked for this deal yet." render={(row) => <div className="grid gap-2 md:grid-cols-[1fr_120px_140px_120px]"><b>{row.notes || row.payment_status || 'Commission'}</b><span>{Number(row.commission_pct || 0).toFixed(2)}%</span><span>{currency(row.commission_amount)}</span><StatusBadge value={row.payment_status || 'pending'} /></div>} /></div></TabsContent>
           <TabsContent value="tasks"><div className="mb-4 grid gap-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 md:grid-cols-[1fr_170px_150px_auto]"><Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Create deal task" className="rounded-[7px]" /><Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} className="rounded-[7px]" /><Select value={taskPriority} onValueChange={setTaskPriority}><SelectTrigger className="rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{['low','medium','high','urgent'].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><Button onClick={createTask} className="bg-[#0F2B5B]">Create task</Button></div><SimpleRows rows={dealTasks} empty="No deal tasks yet." render={(row) => <div className={`grid gap-2 md:grid-cols-[1.5fr_1fr_120px_120px_100px] ${overdueTasks.some((task) => task.id === row.id) ? 'text-[#DC2626]' : ''}`}><b>{row.title}</b><span>{repName({ user_profiles: row.assigned_user })}</span><span>{date(row.due_date)}</span><StatusBadge value={row.priority} /><span>{row.status === 'completed' ? <StatusBadge value="completed" /> : <Button size="sm" variant="outline" className="h-8" onClick={() => completeTask(row)}>Complete</Button>}</span></div>} /></TabsContent>
           <TabsContent value="activity"><SimpleRows rows={dealActivity} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{row.activity_type ? `${row.activity_type.replaceAll('_', ' ')} · ` : ''}{date(row.created_at)}{row.performed_by ? ` · User ${shortId(row.performed_by)}` : ''}</p></div>} /></TabsContent>
         </Tabs>
       </CrmCard>
       <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload or replace deal document</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document file</Label><Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Document type</Label><Select value={documentType} onValueChange={setDocumentType}><SelectTrigger data-testid="deal-document-type" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{DETAIL_DOCUMENT_TYPES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Submit deal to lender</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Funding partner</Label><Select value={submissionPartnerId} onValueChange={setSubmissionPartnerId}><SelectTrigger data-testid="deal-submission-partner" className="mt-1 rounded-[7px]"><SelectValue placeholder="Select a lender" /></SelectTrigger><SelectContent>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-xs text-[#64748B]">Submission notes</Label><Textarea data-testid="deal-submission-notes" value={submissionNotes} onChange={(event) => setSubmissionNotes(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="Package details, requested amount, lender portal reference, or conditions..." /></div></div><DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Log lender submission'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-[8px]">
+          <DialogHeader><DialogTitle>Submit deal to lender</DialogTitle></DialogHeader>
+          <div className="grid gap-4">
+            <div><Label className="text-xs text-[#64748B]">Funding partner</Label><Select value={submissionPartnerId} onValueChange={setSubmissionPartnerId}><SelectTrigger data-testid="deal-submission-partner" className="mt-1 rounded-[7px]"><SelectValue placeholder="Select a lender" /></SelectTrigger><SelectContent>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label className="text-xs text-[#64748B]">Custom lender message</Label><Textarea data-testid="deal-submission-notes" value={submissionNotes} onChange={(event) => setSubmissionNotes(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Explain deal specifics, negative days, cash-flow context, account quality, or lender-specific packaging notes." /></div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Selected attachments</Label>
+              <div className="mt-2 max-h-[220px] overflow-y-auto rounded-[8px] border border-[#E2E8F0]">
+                {dealDocs.length ? dealDocs.map((doc: RecordMap) => (
+                  <label key={doc.id} className="flex items-center gap-3 border-b border-[#E2E8F0] p-3 text-sm last:border-b-0">
+                    <input type="checkbox" checked={submissionDocumentIds.includes(doc.id)} onChange={(event) => setSubmissionDocumentIds((current) => event.target.checked ? Array.from(new Set([...current, doc.id])) : current.filter((id) => id !== doc.id))} />
+                    <span className="min-w-0 flex-1 truncate">{doc.file_name}</span>
+                    <span className="text-xs text-[#64748B]">{detailDocTypeLabel(doc.document_type)}</span>
+                    <StatusBadge value={doc.status || 'uploaded'} />
+                  </label>
+                )) : <p className="p-3 text-sm text-[#64748B]">No documents attached to this deal yet.</p>}
+              </div>
+              <p className="mt-1 text-xs text-[#64748B]">Only selected files are recorded for this lender package.</p>
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Generate lender email'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageFrame>
   );
 }

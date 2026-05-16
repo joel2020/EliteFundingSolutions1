@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
-import { Plus, Users, TrendingUp, DollarSign, Mail, Phone } from 'lucide-react';
+import { Copy, Plus, Users, TrendingUp, DollarSign, Mail, Phone } from 'lucide-react';
 import type { IsoBroker } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,18 @@ const emptyForm: BrokerFormData = {
   payment_terms: 'Paid on funded deals',
   notes: '',
 };
+
+function slugifyBroker(companyName: string, brokerName: string) {
+  const base = [companyName, brokerName].filter(Boolean).join('-') || 'iso-broker';
+  const slug = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 72);
+  return slug || 'iso-broker';
+}
+
+function brokerApplicationUrl(slug?: string | null) {
+  if (!slug) return '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}/apply/iso/${slug}`;
+}
 
 export default function IsoBrokersPage() {
   const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
@@ -90,6 +102,7 @@ export default function IsoBrokersPage() {
       payment_terms: formData.payment_terms || null,
       notes: formData.notes || null,
       is_active: true,
+      application_slug: `${slugifyBroker(formData.company_name, formData.broker_name)}-${Date.now().toString(36)}`,
     };
 
     const { error } = await supabase
@@ -121,6 +134,16 @@ export default function IsoBrokersPage() {
       toast.success(`Broker ${!currentStatus ? 'activated' : 'deactivated'}`);
       loadBrokers();
     }
+  };
+
+  const copyApplicationLink = async (broker: IsoBroker) => {
+    const url = brokerApplicationUrl((broker as any).application_slug);
+    if (!url) {
+      toast.error('This broker does not have an application link yet.');
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    toast.success('Broker application link copied');
   };
 
   return (
@@ -204,6 +227,16 @@ export default function IsoBrokersPage() {
                 </div>
 
                 <div className="space-y-2 mb-4">
+                  <div className="rounded-[8px] border border-[#E4E4E7] bg-[#F8FAFC] p-2">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold uppercase text-[#71717A]">Application link</span>
+                      <Button variant="outline" size="sm" className="h-7 px-2" onClick={() => copyApplicationLink(broker)}>
+                        <Copy className="mr-1 h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <code className="block truncate text-[11px] text-[#52525B]">{(broker as any).application_slug ? `/apply/iso/${(broker as any).application_slug}` : 'Not generated'}</code>
+                  </div>
                   {broker.email && (
                     <div className="flex items-center gap-2 text-sm text-[#52525B]">
                       <Mail className="w-4 h-4 text-[#71717A]" />

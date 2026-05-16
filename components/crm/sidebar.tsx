@@ -26,7 +26,6 @@ const navItems = [
   { href: '/crm/leads', label: 'Leads', icon: Tag },
   { href: '/crm/deals', label: 'Deals', icon: Search },
   { href: '/crm/underwriting', label: 'Underwriting', icon: FileText },
-  { href: '/crm/documents', label: 'Documents', icon: FileText },
   { href: '/crm/partners', label: 'Funders', icon: Building2 },
   { href: '/crm/iso-brokers', label: 'ISO', icon: Users },
   { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },

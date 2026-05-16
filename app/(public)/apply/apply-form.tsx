@@ -8,7 +8,7 @@ import { COMPANY, CONSENT_VERSION } from '@/lib/company';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type OwnerKey = 'owner1' | 'owner2';
-type DocumentKey = 'bank_statements';
+type DocumentKey = 'bank_statements' | 'license_verification' | 'other_documents';
 
 interface OwnerFields {
   first_name: string;
@@ -125,7 +125,9 @@ const steps = [
 const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
 const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean; help: string }> = [
-  { key: 'bank_statements', label: 'Last 3 Business Bank Statements', required: true, help: 'Upload one combined PDF with the last 3 business bank statements, or upload each statement separately.' },
+  { key: 'bank_statements', label: 'Business Bank Statements', required: true, help: 'Upload as many statements as needed. Three months is the minimum, but full 12 month packages are supported.' },
+  { key: 'license_verification', label: 'License Verification', required: false, help: 'Upload up to two owner driver licenses for partnerships or multi-owner files.' },
+  { key: 'other_documents', label: 'Other Documents', required: false, help: 'Use this for flexible additions requested by underwriting or a lender.' },
 ];
 
 function fieldTestId(label: string) {
@@ -359,14 +361,18 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     referral_code: referral?.code || '',
     referral_path: referral?.path || '',
   }));
-  const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [] });
+  const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [], license_verification: [], other_documents: [] });
   const [submitting, setSubmitting] = useState(false);
 
 
   const progressPct = useMemo(() => ((currentStep - 1) / 7) * 100, [currentStep]);
   const updateField = <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => setForm((prev) => ({ ...prev, [key]: value }));
   const updateOwner = (ownerKey: OwnerKey, key: keyof OwnerFields, value: string) => setForm((prev) => ({ ...prev, [ownerKey]: { ...prev[ownerKey], [key]: value } }));
-  const setFiles = (key: DocumentKey, selectedFiles: File[]) => setFilesState((prev) => ({ ...prev, [key]: selectedFiles }));
+  const setFiles = (key: DocumentKey, selectedFiles: File[]) => {
+    const nextFiles = key === 'license_verification' ? selectedFiles.slice(0, 2) : selectedFiles;
+    if (key === 'license_verification' && selectedFiles.length > 2) toast.error('Upload no more than two license verification files.');
+    setFilesState((prev) => ({ ...prev, [key]: nextFiles }));
+  };
   const next = () => setCurrentStep((step) => Math.min(step + 1, 8) as Step);
   const back = () => setCurrentStep((step) => Math.max(step - 1, 1) as Step);
 
@@ -375,7 +381,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
     return file.size > 10 * 1024 * 1024 || !['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif'].includes(extension);
   });
-  const missingRequiredDocs = files.bank_statements.length < 1 ? ['Last 3 Business Bank Statements'] : [];
+  const missingRequiredDocs = files.bank_statements.length < 1 ? ['Business Bank Statements'] : [];
 
   const handleSubmit = async () => {
     if (digitsOnly(form.ein).length !== 9) return toast.error('EIN must be exactly 9 digits.');
@@ -392,7 +398,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     if (!form.sms_consent_accepted) return toast.error('Please accept the SMS consent disclosure.');
     if (!form.terms_accepted || !form.privacy_policy_accepted) return toast.error('Please accept the legal policies and disclosures.');
     if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
-    if (missingRequiredDocs.length > 0) return toast.error('Please upload one combined PDF with the last 3 business bank statements, or upload each statement separately.');
+    if (missingRequiredDocs.length > 0) return toast.error('Please upload at least one business bank statement file.');
 
     setSubmitting(true);
     try {

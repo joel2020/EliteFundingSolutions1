@@ -18,6 +18,9 @@ const dealSchema = z.object({
   stage_slug: z.string().optional().default('lead_captured'),
   stage: z.string().optional(),
   assigned_user_id: z.string().uuid().optional().nullable(),
+  junior_closer_id: z.string().uuid().optional().nullable(),
+  senior_closer_id: z.string().uuid().optional().nullable(),
+  lead_source: z.enum(['website', 'referral', 'broker', 'iso', 'paid_ads', 'organic_search', 'cold_email', 'partner', 'manual_entry']).optional().default('manual_entry'),
   notes: z.string().optional().nullable(),
 });
 
@@ -68,7 +71,7 @@ export async function POST(request: Request) {
     .from('leads')
     .insert({
       organization_id: profile.organization_id,
-      lead_source: 'manual_entry',
+      lead_source: form.lead_source,
       first_name: firstName,
       last_name: lastName,
       email: form.contact_email || null,
@@ -99,6 +102,9 @@ export async function POST(request: Request) {
       funded_amount: form.funded_amount ?? null,
       stage_slug: stage,
       assigned_user_id: assignedUserId,
+      junior_closer_id: form.junior_closer_id || null,
+      senior_closer_id: form.senior_closer_id || null,
+      lead_source: form.lead_source,
       notes: form.notes || null,
       created_by: profile.id,
       updated_by: profile.id,

@@ -107,9 +107,11 @@ const applicationSchema = z.object({
   referral_path: z.string().trim().max(240).optional().default(''),
 });
 
-const documentKeys = ['bank_statements'] as const;
+const documentKeys = ['bank_statements', 'license_verification', 'other_documents'] as const;
 const documentLabels: Record<(typeof documentKeys)[number], string> = {
-  bank_statements: 'Last 3 Bank Statements',
+  bank_statements: 'Business Bank Statement',
+  license_verification: 'License Verification',
+  other_documents: 'Other Document',
 };
 
 const getClientIp = (request: Request) => request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
@@ -147,9 +149,23 @@ type ReferralProfile = {
   referral_slug: string | null;
 };
 
+type IsoBrokerReferral = {
+  id: string;
+  organization_id: string;
+  company_name: string;
+  broker_name: string | null;
+  email: string | null;
+  application_slug: string | null;
+};
+
 function profileName(profile: Pick<ReferralProfile, 'first_name' | 'last_name' | 'email'> | null | undefined) {
   if (!profile) return '';
   return [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.email;
+}
+
+function brokerName(broker: IsoBrokerReferral | null | undefined) {
+  if (!broker) return '';
+  return broker.broker_name ? `${broker.company_name} - ${broker.broker_name}` : broker.company_name;
 }
 
 async function resolveReferralProfile(supabase: ReturnType<typeof createServiceSupabaseClient>, referralCode: string) {
@@ -170,6 +186,25 @@ async function resolveReferralProfile(supabase: ReturnType<typeof createServiceS
   }
 
   return (data ?? null) as ReferralProfile | null;
+}
+
+async function resolveIsoBrokerReferral(supabase: ReturnType<typeof createServiceSupabaseClient>, referralCode: string) {
+  if (!referralCode) return null;
+
+  const { data, error } = await supabase
+    .from('iso_brokers')
+    .select('id,organization_id,company_name,broker_name,email,application_slug')
+    .eq('organization_id', DEFAULT_ORG_ID)
+    .eq('application_slug', referralCode)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Unable to resolve ISO broker referral.', error.message);
+    return null;
+  }
+
+  return (data ?? null) as IsoBrokerReferral | null;
 }
 
 async function resolveRohanEmail(supabase: ReturnType<typeof createServiceSupabaseClient>) {
@@ -197,22 +232,28 @@ function internalApplicationNotification({
   appId,
   dealId,
   rep,
+  broker,
   uploadedDocuments,
 }: {
   form: z.infer<typeof applicationSchema>;
   appId: string;
   dealId: string;
   rep: ReferralProfile | null;
+  broker: IsoBrokerReferral | null;
   uploadedDocuments: Array<{ name: string }>;
 }) {
   const repLine = rep
     ? `<p><strong>Assigned rep:</strong> ${escapeHtml(profileName(rep))} (${escapeHtml(rep.email)})</p>`
     : '<p><strong>Assigned rep:</strong> No referral rep matched this submission.</p>';
+  const brokerLine = broker
+    ? `<p><strong>ISO / broker:</strong> ${escapeHtml(brokerName(broker))}${broker.email ? ` (${escapeHtml(broker.email)})` : ''}</p>`
+    : '';
 
   return `
     <p>A new digital application was submitted by ${escapeHtml(form.owner1.first_name)} ${escapeHtml(form.owner1.last_name)} for ${escapeHtml(form.legal_name)}.</p>
     <p><strong>Requested amount:</strong> $${Number(form.requested_amount).toLocaleString()}</p>
     ${repLine}
+    ${brokerLine}
     <p><strong>Referral code:</strong> ${escapeHtml(form.referral_code || 'none')}</p>
     <p><strong>Application ID:</strong> ${escapeHtml(appId)}</p>
     <p><strong>Deal ID:</strong> ${escapeHtml(dealId)}</p>
@@ -265,8 +306,10 @@ export async function POST(request: Request) {
   }
 
   const referralProfile = await resolveReferralProfile(supabase, form.referral_code);
+  const isoBrokerReferral = referralProfile ? null : await resolveIsoBrokerReferral(supabase, form.referral_code);
   const referralCode = referralProfile?.referral_slug || form.referral_code || null;
   const referralPath = form.referral_path || null;
+  const leadSource = isoBrokerReferral ? 'iso' : referralProfile ? 'referral' : 'website';
 
   const bankStatementFiles = parsedBody.files.filter((item) => item.key === 'bank_statements');
   if (bankStatementFiles.length < 1) {
@@ -314,7 +357,7 @@ export async function POST(request: Request) {
 
     const { data: lead, error: leadErr } = await supabase
       .from('leads')
-      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: referralProfile ? 'rep_referral' : 'website', first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.mobile || form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, referral_code: referralCode, referral_path: referralPath, notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.${referralProfile ? ` Referred by ${profileName(referralProfile)}.` : ''}` })
+      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: leadSource, first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.mobile || form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, referral_code: referralCode, referral_path: referralPath, notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.${referralProfile ? ` Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? ` Referred by ${brokerName(isoBrokerReferral)}.` : ''}` })
       .select('id')
       .single();
     if (leadErr) throw leadErr;
@@ -371,6 +414,8 @@ export async function POST(request: Request) {
         application_payload: payloadForCrm,
         assigned_user_id: referralProfile?.id || null,
         referred_by_user_profile_id: referralProfile?.id || null,
+        iso_broker_id: isoBrokerReferral?.id || null,
+        lead_source: leadSource,
         referral_code: referralCode,
         referral_path: referralPath,
         certification_accepted: form.certification_accepted,
@@ -399,7 +444,7 @@ export async function POST(request: Request) {
 
     const { data: deal, error: dealErr } = await supabase
       .from('deals')
-      .insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: `${form.legal_name} funding request`, requested_amount: toNumber(form.requested_amount), assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, referral_code: referralCode, referral_path: referralPath, notes: emptyToNull(form.notes || (referralProfile ? `Referred by ${profileName(referralProfile)}.` : '')) })
+      .insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: `${form.legal_name} funding request`, requested_amount: toNumber(form.requested_amount), assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, lead_source: leadSource, referral_code: referralCode, referral_path: referralPath, notes: emptyToNull(form.notes || (referralProfile ? `Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? `Referred by ${brokerName(isoBrokerReferral)}.` : '')) })
       .select('id')
       .single();
     if (dealErr) throw dealErr;
@@ -425,16 +470,16 @@ export async function POST(request: Request) {
     }));
 
     await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
-    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : ''}. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
-    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
+    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
+    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
 
     if (form.existing_advances.length > 0) {
       await supabase.from('existing_advances').insert(form.existing_advances.map((advance) => ({ organization_id: DEFAULT_ORG_ID, application_id: app.id, funder_name: emptyToNull(advance.funder_name), original_funded_amount: toNumber(advance.original_amount), current_balance: toNumber(advance.current_balance), daily_payment: toNumber(advance.daily_payment), payment_frequency: emptyToNull(advance.payment_frequency), notes: emptyToNull(advance.notes) })));
     }
 
     const rohanEmail = await resolveRohanEmail(supabase);
-    const internalRecipients = uniqueEmails([rohanEmail, referralProfile?.email]);
-    const internalHtml = internalApplicationNotification({ form, appId: app.id, dealId: deal.id, rep: referralProfile, uploadedDocuments });
+    const internalRecipients = uniqueEmails([rohanEmail, referralProfile?.email, isoBrokerReferral?.email]);
+    const internalHtml = internalApplicationNotification({ form, appId: app.id, dealId: deal.id, rep: referralProfile, broker: isoBrokerReferral, uploadedDocuments });
 
     await Promise.allSettled([
       sendEmail({ to: form.owner1.email || form.business_email, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount)) }),
