@@ -15,13 +15,29 @@ ALTER TABLE public.applications
 ALTER TABLE public.deals
   ADD COLUMN IF NOT EXISTS public_id text;
 
-UPDATE public.applications
-SET public_id = 'APP-' || upper(left(replace(id::text, '-', ''), 10))
-WHERE public_id IS NULL;
+WITH numbered AS (
+  SELECT
+    id,
+    'APP-' || lpad(row_number() OVER (PARTITION BY organization_id ORDER BY submitted_at NULLS LAST, created_at, id)::text, 10, '0') AS generated_public_id
+  FROM public.applications
+  WHERE public_id IS NULL
+)
+UPDATE public.applications applications
+SET public_id = numbered.generated_public_id
+FROM numbered
+WHERE applications.id = numbered.id;
 
-UPDATE public.deals
-SET public_id = 'DEAL-' || upper(left(replace(id::text, '-', ''), 10))
-WHERE public_id IS NULL;
+WITH numbered AS (
+  SELECT
+    id,
+    'DEAL-' || lpad(row_number() OVER (PARTITION BY organization_id ORDER BY created_at, id)::text, 10, '0') AS generated_public_id
+  FROM public.deals
+  WHERE public_id IS NULL
+)
+UPDATE public.deals deals
+SET public_id = numbered.generated_public_id
+FROM numbered
+WHERE deals.id = numbered.id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_public_id
   ON public.applications (organization_id, public_id)
