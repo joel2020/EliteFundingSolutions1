@@ -3,6 +3,14 @@ import { COMPANY } from '@/lib/company';
 
 const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
 
+export function getEmailProviderStatus() {
+  return {
+    provider: 'resend' as const,
+    configured: Boolean(process.env.RESEND_API_KEY),
+    senderEmail,
+  };
+}
+
 export interface EmailData {
   to: string | string[];
   subject: string;
@@ -18,13 +26,14 @@ export interface EmailData {
 
 export async function sendEmail({ to, subject, html, text, attachments }: EmailData) {
   try {
-    if (!process.env.RESEND_API_KEY) {
+    const providerStatus = getEmailProviderStatus();
+    if (!providerStatus.configured) {
       return { success: false, error: 'RESEND_API_KEY is not configured' };
     }
 
     const resend = new Resend(process.env.RESEND_API_KEY);
     const data = await resend.emails.send({
-      from: senderEmail,
+      from: providerStatus.senderEmail,
       to: Array.isArray(to) ? to : [to],
       subject,
       html,

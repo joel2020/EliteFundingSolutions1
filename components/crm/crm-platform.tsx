@@ -1295,6 +1295,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const dealNotes = notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id);
   const dealSubmissions = partnerSubmissions.filter((row: RecordMap) => row.deal_id === deal.id);
   const historyDeals = [deal, ...repeatDeals].sort((a: RecordMap, b: RecordMap) => Number(a.submission_sequence || 0) - Number(b.submission_sequence || 0) || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+  const selectedSubmissionPartner = partners.find((row: RecordMap) => row.id === submissionPartnerId);
   const selectedPartnerDefaultEvents = riskEvents.filter((row: RecordMap) => row.business_id === deal.business_id && row.funding_partner_id === submissionPartnerId && row.event_type === 'defaulted');
   const canSendToLenders = ['super_admin', 'admin', 'sales_rep'].includes(profile?.role || '');
   const checklist = buildDealChecklist(deal, dealDocs, dealRequests, dealOffers, positions, dealStips, app, businessOwners);
@@ -1533,6 +1534,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           <DialogHeader><DialogTitle>Submit deal to lender</DialogTitle></DialogHeader>
           <div className="grid gap-4">
             <div><Label className="text-xs text-[#64748B]">Funding partner</Label><Select value={submissionPartnerId} onValueChange={setSubmissionPartnerId}><SelectTrigger data-testid="deal-submission-partner" className="mt-1 rounded-[7px]"><SelectValue placeholder="Select a lender" /></SelectTrigger><SelectContent>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent></Select></div>
+            {selectedSubmissionPartner && !(selectedSubmissionPartner.submission_email || selectedSubmissionPartner.email) && <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No submission email is saved for this lender. Add one on the funding partner profile before expecting direct email delivery.</div>}
             {selectedPartnerDefaultEvents.length > 0 && <div data-testid="lender-default-warning" className="rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-900"><b>Prior default with this lender.</b><p className="mt-1">This merchant has {selectedPartnerDefaultEvents.length} default event(s) tied to {partners.find((partner: RecordMap) => partner.id === submissionPartnerId)?.name || 'this lender'}. Review history before sending.</p></div>}
             <div><Label className="text-xs text-[#64748B]">Custom lender message</Label><Textarea data-testid="deal-submission-notes" value={submissionNotes} onChange={(event) => setSubmissionNotes(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Explain deal specifics, negative days, cash-flow context, account quality, or lender-specific packaging notes." /></div>
             <div>

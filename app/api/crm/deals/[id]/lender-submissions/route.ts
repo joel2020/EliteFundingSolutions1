@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { sendEmail } from '@/lib/email';
+import { getEmailProviderStatus, sendEmail } from '@/lib/email';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
@@ -272,8 +272,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
   let emailDeliveryStatus = recipientEmail ? 'drafted' : 'missing_recipient';
   let emailProviderData: unknown = null;
   let emailProviderError: string | null = null;
+  const emailProviderStatus = getEmailProviderStatus();
 
-  if (recipientEmail) {
+  if (recipientEmail && emailProviderStatus.configured) {
     const emailResult = await sendEmail({
       to: recipientEmail,
       subject: emailSubject,
@@ -289,6 +290,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       emailDeliveryStatus = 'failed';
       emailProviderError = emailResult.error || 'Unable to send lender email.';
     }
+  } else if (recipientEmail) {
+    emailProviderError = 'RESEND_API_KEY is not configured. The lender submission was logged and an email draft was generated.';
   }
 
   await Promise.allSettled([
@@ -328,6 +331,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
         attachment_document_ids: documentIds,
         prior_default_count: priorDefaults?.length || 0,
         email_delivery_status: emailDeliveryStatus,
+        email_provider: emailProviderStatus.provider,
+        email_provider_configured: emailProviderStatus.configured,
         email_provider_data: emailProviderData,
         email_provider_error: emailProviderError,
         attachment_warnings: attachmentWarnings,
@@ -339,11 +344,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
     success: true,
     submissionId: submission.id,
     emailDeliveryStatus,
+    emailProviderConfigured: emailProviderStatus.configured,
+    emailProvider: emailProviderStatus.provider,
+    storageAccessMode: 'server_service_role_private_bucket',
     emailProviderError,
     warnings: [
       ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
       ...attachmentWarnings,
-      ...(emailProviderError ? [`Email was recorded but not sent: ${emailProviderError}`] : []),
+      ...(!recipientEmail ? ['Funding partner has no submission email, so the lender package was logged but not emailed.'] : []),
+      ...(emailProviderError ? [emailProviderStatus.configured ? `Email was recorded but not sent: ${emailProviderError}` : 'Email provider is not configured, so a lender email draft was generated.'] : []),
     ],
     emailDraft: {
       to: recipientEmail,

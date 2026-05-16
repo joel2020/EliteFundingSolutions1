@@ -86,9 +86,12 @@ Migration file:
 
 In SQL Editor, paste the actual SQL contents of the file. Do not paste the file path. After it runs, verify storage policies, security advisors, and bucket privacy before launch.
 
+If the storage policy section cannot be applied before launch, keep the bucket private and keep all document operations server-mediated. The current CRM, portal, public application, document signed URL, and lender submission routes use authenticated server APIs and service-role storage access, so browser clients do not need direct `storage.objects` permissions to upload, preview, download, or package lender documents. Do not add broad anon/authenticated storage policies as a workaround.
+
 ## Supabase Auth Manual Settings
 
-- Enable leaked password protection in Supabase Auth.
+- Enable leaked password protection in Supabase Auth if the project plan exposes that control.
+- If leaked password protection is unavailable, use compensating controls: strong CRM password policy, short JWT lifetime, limited admin seats, MFA where available, immediate deactivation of departed users, and audit log review for sensitive actions.
 - Confirm email auth settings and templates.
 - Confirm production redirect URLs include:
   - `https://elitefundingsolution.com/auth/callback`
@@ -163,6 +166,8 @@ Documents upload through server routes. The browser receives only short-lived si
 
 Gmail auth, status, disconnect, and send routes require authenticated CRM users. Gmail token reads/deletes are not performed directly from browser Supabase clients. Confirm Google OAuth redirect URL exactly matches the production callback.
 
+Lender email sending uses the CRM lender submission route. It generates the completed application PDF, pulls selected private documents server-side, attaches files directly when under the provider limit, falls back to 24-hour signed links for oversized packages, records the submission/audit trail, and sends through Resend when `RESEND_API_KEY` and `SENDER_EMAIL` are configured. If Resend is not configured, the route logs the submission and returns a mail draft fallback instead of requiring browser storage access.
+
 ## Supabase Advisor Status
 
 Fixed by the final hardening migration:
@@ -174,7 +179,7 @@ Fixed by the final hardening migration:
 
 Manual remaining:
 
-- Leaked password protection must be enabled in Supabase Auth.
+- Leaked password protection should be enabled if available. If unavailable, document the compensating controls above as accepted launch risk.
 - Re-run Supabase security and performance advisors after applying the migration.
 
 ## Known Limitations
@@ -189,9 +194,10 @@ Manual remaining:
 - Apply latest migration to production Supabase.
 - Re-run Supabase security advisor.
 - Re-run Supabase performance advisor.
-- Enable leaked password protection.
+- Enable leaked password protection if available, or document the compensating controls and accepted risk.
 - Confirm Auth redirect URLs.
 - Confirm storage bucket settings.
+- Confirm `RESEND_API_KEY` and a verified-domain `SENDER_EMAIL` are set before expecting CRM lender emails to send directly.
 - Confirm Vercel environment variables.
 - Run `npm run typecheck`, `npm run lint`, `npm run build`, and `npm run test:e2e:ci`.
 - Complete `LIVE_E2E_CHECKLIST.md` against production or a protected production-like preview.

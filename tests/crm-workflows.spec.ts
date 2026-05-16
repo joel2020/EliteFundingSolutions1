@@ -286,7 +286,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('deal-save-document').click();
 
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'new-bank-statement.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
-    await expect(page.getByText('new-bank-statement.pdf')).toBeVisible();
+    await expect(page.getByText('new-bank-statement.pdf').first()).toBeVisible();
 
     const signedUrlResponse = await page.evaluate(async (docId) => {
       const response = await fetch(`/api/documents/${docId}/signed-url`, {
