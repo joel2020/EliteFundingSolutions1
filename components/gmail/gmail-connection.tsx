@@ -115,10 +115,10 @@ export function GmailConnection() {
               <div className="font-medium text-[#09090B]">{connectedEmail}</div>
             </div>
             <div className="text-sm text-[#71717A]">
-              ✓ Send emails from your Gmail account<br />
-              ✓ Track all email communications<br />
-              ✓ Link emails to deals and applications<br />
-              ✓ View email history in CRM
+              Send emails from your Gmail account<br />
+              Track all email communications<br />
+              Link emails to deals and applications<br />
+              View email history in CRM
             </div>
             <Button variant="outline" onClick={handleDisconnect}>
               Disconnect Gmail

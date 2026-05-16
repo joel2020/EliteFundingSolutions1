@@ -465,7 +465,7 @@ export async function POST(request: Request) {
 
     const uploadedDocuments = await Promise.all(parsedBody.files.map(async ({ key, file }) => {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const storagePath = `${app.id}/${key}/${Date.now()}-${safeName}`;
+      const storagePath = `${DEFAULT_ORG_ID}/${app.id}/${key}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage.from('application-documents').upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
       if (uploadError) throw uploadError;
       const { error: docError } = await supabase.from('documents').insert({

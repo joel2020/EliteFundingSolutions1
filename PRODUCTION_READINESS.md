@@ -76,6 +76,16 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY`, `FIELD_ENCRYPTION_KEY`, Gmail tokens, 
 - SECURITY DEFINER functions used by RLS live in the private schema where possible.
 - Public SECURITY DEFINER helper functions are not executable by normal authenticated browser clients.
 
+## Applying The Final Supabase Migration
+
+The final hardening migration modifies `storage.objects` policies. The Codex/Supabase MCP role may fail with `ERROR: 42501: must be owner of relation objects`. Apply it from Supabase Dashboard SQL Editor as a project owner/admin, or through the Supabase CLI/direct database connection using an owner-capable role.
+
+Migration file:
+
+`supabase/migrations/20260516075153_final_production_readiness_hardening.sql`
+
+In SQL Editor, paste the actual SQL contents of the file. Do not paste the file path. After it runs, verify storage policies, security advisors, and bucket privacy before launch.
+
 ## Supabase Auth Manual Settings
 
 - Enable leaked password protection in Supabase Auth.
@@ -120,7 +130,8 @@ Admins manage CRM users from `/crm/users`. Use active roles only: `super_admin`,
 2. Complete business, owner, funding, consent, and bank statement fields.
 3. Submit with a PDF under 10 MB.
 4. Expected records: `businesses`, `owners`, `business_owners`, `leads`, `applications`, `deals`, `documents`, `deal_status_history`, `activities`, and `audit_logs`.
-5. Confirm SSN/EIN/DOB are encrypted or masked and not visible in regular CRM tables.
+5. Expected storage path: uploaded files should be under `organization_id/application_id/...` inside `application-documents`.
+6. Confirm SSN/EIN/DOB are encrypted or masked and not visible in regular CRM tables.
 
 ## CRM Deal Workflow Test
 

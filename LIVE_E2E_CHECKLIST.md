@@ -17,6 +17,14 @@ Test files:
 - One PNG or JPEG under 10 MB.
 - No real bank statements unless approved for production testing.
 
+Migration prerequisite:
+
+1. Open `supabase/migrations/20260516075153_final_production_readiness_hardening.sql`.
+2. Copy the actual SQL contents.
+3. Paste the SQL contents into Supabase Dashboard SQL Editor as project owner/admin.
+4. Do not paste the file path into SQL Editor.
+5. Re-run Supabase advisors before starting live E2E.
+
 ## Public Application Form Validation
 
 1. Open `/apply`.
@@ -29,7 +37,8 @@ Test files:
 2. Submit.
 3. Expected UI: application submitted success state.
 4. Expected records: one `businesses`, one or more `owners`, `business_owners`, one `leads`, one `applications`, one `deals`, one or more `documents`, one `deal_status_history`, one `activities`, and one `audit_logs`.
-5. Expected security: full SSN/EIN/DOB are not visible in public CRM table columns.
+5. Expected storage: each uploaded `documents.storage_path` starts with the production organization ID and application ID.
+6. Expected security: full SSN/EIN/DOB are not visible in public CRM table columns.
 
 ## Document Upload Flow
 

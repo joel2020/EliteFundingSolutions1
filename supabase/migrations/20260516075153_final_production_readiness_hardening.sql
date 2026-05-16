@@ -1,6 +1,20 @@
 /*
   Final production-readiness hardening.
 
+  IMPORTANT:
+  This migration modifies storage.objects policies and must be applied through
+  the Supabase Dashboard SQL Editor or the Supabase CLI/direct database
+  connection as the project owner/admin. The Codex/Supabase MCP role may fail
+  on the storage.objects section with:
+
+    ERROR: 42501: must be owner of relation objects
+
+  Dashboard instructions:
+  - Open this SQL file.
+  - Copy the actual SQL contents.
+  - Paste the SQL contents into Supabase SQL Editor.
+  - Do not paste this file path into SQL Editor.
+
   - Moves RLS helper execution to private, non-exposed functions.
   - Removes broad authenticated RPC execute access from public SECURITY DEFINER functions.
   - Keeps rate_limits server-only and documents that model.

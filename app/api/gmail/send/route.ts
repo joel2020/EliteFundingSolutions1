@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
 
   const auth = await requireCrmProfile(SEND_ROLES);
   if ('response' in auth) return auth.response;
-  const { user } = auth;
+  const { user, profile } = auth;
 
   try {
     const { to, subject, body } = await request.json();
@@ -52,7 +52,9 @@ export async function POST(request: NextRequest) {
     // Log email in CRM
     await supabase.from('email_logs').insert({
       user_id: user.id,
+      organization_id: profile.organization_id,
       to_email: to,
+      from_email: tokens.email,
       subject,
       body,
       provider: 'gmail',
