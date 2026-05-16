@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       file_size: file.size,
       mime_type: file.type || null,
       review_notes: reviewNotes || null,
-      uploaded_by_user_id: profile.id,
+      uploaded_by_user_id: user.id,
       status: 'uploaded',
     })
     .select('id')

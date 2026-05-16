@@ -75,7 +75,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       mime_type: file.type || null,
       storage_path: storagePath,
       status: 'uploaded',
-      uploaded_by_user_id: profile.id,
+      uploaded_by_user_id: user.id,
       review_notes: reviewNotes || null,
     })
     .select('id,file_name,label,status,created_at')

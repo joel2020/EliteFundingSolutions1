@@ -138,7 +138,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       organization_id: profile.organization_id,
       deal_id: deal.id,
       application_id: deal.application_id,
-      uploaded_by_user_id: profile.id,
+      uploaded_by_user_id: user.id,
       document_type: 'completed_application',
       label: 'Completed lender application',
       file_name: `${safeDealName}-application.pdf`,

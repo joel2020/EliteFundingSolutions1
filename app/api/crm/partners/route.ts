@@ -9,7 +9,8 @@ const WRITE_ROLES = ['super_admin', 'admin', 'manager'];
 const csv = (value?: string) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
 
 const partnerSchema = z.object({
-  name: z.string().trim().min(1, 'Company name is required.'),
+  name: z.string().trim().optional().default(''),
+  company_name: z.string().trim().optional().default(''),
   contact_name: z.string().trim().optional().default(''),
   email: z.string().trim().email('Enter a valid contact email.').optional().or(z.literal('')).default(''),
   phone: z.string().trim().optional().default(''),
@@ -24,7 +25,7 @@ const partnerSchema = z.object({
   restricted_industries: z.string().trim().optional().default(''),
   avg_approval_days: z.coerce.number().int().nonnegative().optional().nullable(),
   notes: z.string().trim().optional().default(''),
-});
+}).transform((value) => ({ ...value, name: value.name || value.company_name }));
 
 export async function POST(request: Request) {
   const csrf = requireSameOrigin(request);
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
   }
 
   const form = parsed.data;
+  if (!form.name) {
+    return NextResponse.json({ success: false, error: 'Company name is required.' }, { status: 400 });
+  }
+
   if (form.max_funding_amount != null && form.min_funding_amount != null && form.max_funding_amount < form.min_funding_amount) {
     return NextResponse.json({ success: false, error: 'Max funding must be greater than min funding.' }, { status: 400 });
   }
