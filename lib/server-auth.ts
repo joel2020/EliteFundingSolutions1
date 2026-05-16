@@ -32,6 +32,23 @@ export function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
 }
 
+export function requireSameOrigin(request: Request) {
+  const origin = request.headers.get('origin');
+  if (!origin) return null;
+
+  const host = request.headers.get('host');
+  if (!host) return jsonError('Forbidden', 403);
+
+  try {
+    const originUrl = new URL(origin);
+    if (originUrl.host !== host) return jsonError('Forbidden', 403);
+  } catch {
+    return jsonError('Forbidden', 403);
+  }
+
+  return null;
+}
+
 export async function getAuthenticatedUser(): Promise<{ user: User | null; error: string | null }> {
   const cookieStore = cookies();
   const authClient = createServerClient(supabaseUrl, supabaseAnonKey, {

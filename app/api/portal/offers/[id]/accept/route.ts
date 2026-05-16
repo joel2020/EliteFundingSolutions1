@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getPortalApplicationIds, requirePortalProfile } from '@/lib/server-auth';
+import { getPortalApplicationIds, requirePortalProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(_request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requirePortalProfile();
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;

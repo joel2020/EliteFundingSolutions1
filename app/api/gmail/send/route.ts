@@ -3,10 +3,14 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { sendEmail } from '@/lib/gmail';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
+import { requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   try {
     const { to, subject, body } = await request.json();
 
@@ -66,10 +70,10 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true, messageId: result.id });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Gmail send error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to send email' },
+      { error: error instanceof Error ? error.message : 'Failed to send email' },
       { status: 500 }
     );
   }

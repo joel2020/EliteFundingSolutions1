@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/email';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
-import { requireCrmProfile } from '@/lib/server-auth';
+import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
 const SEND_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep'];
 const MAX_RESEND_ATTACHMENT_BYTES = 35 * 1024 * 1024;
+const LENDER_PACKAGE_LINK_TTL_SECONDS = 60 * 60 * 24;
 
 const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
@@ -30,6 +31,9 @@ function textToHtml(value: string) {
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requireCrmProfile(SEND_ROLES);
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
@@ -236,7 +240,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from('application-documents')
-        .createSignedUrl(doc.storage_path, 60 * 60 * 24 * 7, { download: doc.file_name });
+        .createSignedUrl(doc.storage_path, LENDER_PACKAGE_LINK_TTL_SECONDS, { download: doc.file_name });
 
       if (signedUrlError || !signedUrlData?.signedUrl) {
         attachmentWarnings.push(`Could not create a secure link for ${doc.file_name}.`);

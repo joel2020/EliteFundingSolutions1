@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
-import { requireCrmProfile } from '@/lib/server-auth';
+import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
 const DELETE_ROLES = ['super_admin', 'admin', 'manager', 'processor'];
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requireCrmProfile(DELETE_ROLES);
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;

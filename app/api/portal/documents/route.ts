@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPortalApplicationIds, requirePortalProfile } from '@/lib/server-auth';
+import { getPortalApplicationIds, requirePortalProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +8,9 @@ const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'])
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requirePortalProfile();
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;

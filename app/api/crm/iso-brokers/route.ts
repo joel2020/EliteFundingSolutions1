@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireCrmProfile } from '@/lib/server-auth';
+import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +28,9 @@ function isMissingApplicationSlugColumn(error: { code?: string; message?: string
 }
 
 export async function POST(request: Request) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requireCrmProfile(WRITE_ROLES);
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;

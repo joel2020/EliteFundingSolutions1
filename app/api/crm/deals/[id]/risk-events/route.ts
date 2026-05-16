@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireCrmProfile } from '@/lib/server-auth';
+import { validateStageTransition } from '@/lib/crm-workflow';
+import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,9 @@ const riskSchema = z.object({
 });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requireCrmProfile(WRITE_ROLES);
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
@@ -29,6 +33,35 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .single();
 
   if (!deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+
+  if (parsed.data.event_type === 'funded') {
+    const [{ count: acceptedOfferCount }, { count: openRequiredDocumentCount }] = await Promise.all([
+      supabase
+        .from('offers')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', profile.organization_id)
+        .eq('deal_id', deal.id)
+        .eq('status', 'accepted'),
+      supabase
+        .from('document_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', profile.organization_id)
+        .eq('deal_id', deal.id)
+        .eq('required', true)
+        .not('status', 'in', '(approved,waived)'),
+    ]);
+    const transition = validateStageTransition({
+      fromStage: deal.stage_slug,
+      toStage: 'funded',
+      role: profile.role,
+      acceptedOfferCount: acceptedOfferCount || 0,
+      openRequiredDocumentCount: openRequiredDocumentCount || 0,
+      fundedAmount: parsed.data.amount ?? Number(deal.funded_amount || 0),
+    });
+    if (!transition.ok) {
+      return NextResponse.json({ success: false, error: transition.error }, { status: 409 });
+    }
+  }
 
   const eventDate = new Date().toISOString();
   const { data: event, error } = await supabase
@@ -49,7 +82,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-  const dealUpdates: Record<string, any> = { updated_by: profile.id };
+  const dealUpdates: Record<string, string | number | null> = { updated_by: profile.id };
   if (parsed.data.event_type === 'defaulted') {
     dealUpdates.defaulted_at = eventDate;
     dealUpdates.default_reason = parsed.data.notes || null;

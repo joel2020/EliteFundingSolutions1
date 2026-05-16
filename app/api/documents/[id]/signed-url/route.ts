@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { INTERNAL_CRM_ROLES, requireCrmProfile } from '@/lib/server-auth';
+import { INTERNAL_CRM_ROLES, requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const auth = await requireCrmProfile(INTERNAL_CRM_ROLES);
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
