@@ -7,7 +7,7 @@ import { decryptSensitiveField } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
-const SEND_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep'];
+const SEND_ROLES = ['super_admin', 'admin', 'sales_rep'];
 const MAX_RESEND_ATTACHMENT_BYTES = 35 * 1024 * 1024;
 const LENDER_PACKAGE_LINK_TTL_SECONDS = 60 * 60 * 24;
 

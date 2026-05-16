@@ -118,7 +118,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -127,6 +127,10 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByText('Apex Business Funding').first()).toBeVisible();
     await expect(page.getByText('presented')).toBeVisible();
     await expect(page.getByText('Recommended Offer')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'History' }).click();
+    await expect(page.getByTestId('merchant-history-view')).toContainText('Atlas Retail #1');
+    await expect(page.getByTestId('merchant-history-view')).toContainText('defaulted with Apex Business Funding');
   });
 
   test('loads earnings and reports pages', async ({ page }) => {
@@ -208,6 +212,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
     await page.getByTestId('deal-submit-lender').click();
+    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with this lender');
     await page.getByTestId('deal-submission-notes').fill('Strong deposits, explain two negative days from tax payment timing.');
     await page.getByTestId('deal-save-submission').click();
     await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'partner_submission')).toBe(true);
@@ -264,22 +269,23 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.offers.find((offer) => offer.id === createdOffer.id)?.status).toBe('presented');
   });
 
-  test('uploads and previews documents through signed URLs', async ({ page }) => {
+  test('uploads and previews deal documents through signed URLs', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page);
 
-    await page.goto('/crm/documents', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: 'Documents' })).toBeVisible();
+    await page.goto(`/crm/deals/${DEAL_ID}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
+    await page.getByRole('tab', { name: 'Documents' }).click();
 
-    await page.getByTestId('upload-document').click();
-    await page.getByTestId('document-file').setInputFiles({
+    await page.getByTestId('deal-upload-document').click();
+    await page.getByTestId('deal-document-file').setInputFiles({
       name: 'new-bank-statement.pdf',
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4 test file'),
     });
-    await page.getByTestId('document-description').fill('Uploaded from Playwright.');
-    await page.getByTestId('save-document').click();
+    await page.getByTestId('deal-document-description').fill('Uploaded from Playwright.');
+    await page.getByTestId('deal-save-document').click();
 
-    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'new-bank-statement.pdf')).toBe(true);
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'new-bank-statement.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
     await expect(page.getByText('new-bank-statement.pdf')).toBeVisible();
 
     const signedUrlResponse = await page.evaluate(async (docId) => {
