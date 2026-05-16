@@ -730,10 +730,13 @@ export function CrmLeadsExperience() {
       assigned_user_id: form.assigned_user_id || null,
       organization_id: organizationId,
     };
-    const result = editing
-      ? await supabase.from('leads').update(payload).eq('id', editing.id)
-      : await supabase.from('leads').insert(payload);
-    if (result.error) toast.error(result.error.message);
+    const response = await fetch(editing ? `/api/crm/leads/${editing.id}` : '/api/crm/leads', {
+      method: editing ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to save lead');
     else {
       toast.success(editing ? 'Lead updated' : 'Lead added');
       setDialogOpen(false);
@@ -742,19 +745,10 @@ export function CrmLeadsExperience() {
   };
 
   const convertLead = async (lead: RecordMap) => {
-    const { error } = await supabase.from('deals').insert({
-      organization_id: organizationId,
-      lead_id: lead.id,
-      title: lead.business_name || `${lead.first_name} ${lead.last_name}`.trim() || 'New deal',
-      requested_amount: Number(lead.requested_amount || 0) || null,
-      stage_slug: 'lead_captured',
-      assigned_user_id: lead.assigned_user_id || null,
-      iso_broker_id: lead.iso_broker_id || null,
-      lead_source: lead.lead_source || 'manual_entry',
-    });
-    if (error) toast.error(error.message);
+    const response = await fetch(`/api/crm/leads/${lead.id}/convert`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to convert lead');
     else {
-      await supabase.from('leads').update({ status: 'converted' }).eq('id', lead.id);
       toast.success('Lead converted to deal');
       reload();
     }
@@ -795,9 +789,10 @@ export function CrmLeadsExperience() {
       requested_amount: row.requested_amount ? Number(String(row.requested_amount).replace(/[$,]/g, '')) || null : null,
       notes: row.notes || null,
     }));
-    const { error } = await supabase.from('leads').insert(payload);
-    if (error) {
-      toast.error(error.message);
+    const response = await fetch('/api/crm/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Unable to import leads');
     } else {
       toast.success(`${payload.length} leads imported`);
       setImportOpen(false);
@@ -1318,7 +1313,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const nextAction = submissionReadiness.score < 90 ? `Request ${submissionReadiness.missing[0]?.name || 'missing documents'}` : dealSubmissions.length === 0 ? 'Submit to lenders' : dealOffers.length === 0 ? `Follow up with ${partnerName(dealSubmissions[0])}` : !dealOffers.some((row: RecordMap) => row.status === 'accepted') ? 'Present offer to merchant' : fundingReadiness.score < 90 ? `Collect ${fundingReadiness.missing[0]?.name || 'remaining funding stips'}` : deal.stage_slug !== 'funded' ? 'Mark deal funded' : 'Monitor renewal eligibility';
 
   const logActivity = async (activity_type: string, title: string, body?: string | null) => {
-    await supabase.from('activities').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, activity_type, title, body: body || null, performed_by: profile?.id || null });
+    console.debug('Activity logging is handled by server APIs.', { activity_type, title, body });
   };
 
   const resetDocumentDialog = () => { setDocumentFile(null); setDocumentDescription(''); setDocumentType('bank_statement'); };
@@ -1330,26 +1325,26 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     if (documentFile.size > 10 * 1024 * 1024 || (!allowed.includes(documentFile.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''))) { toast.error('Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.'); return; }
     setUploadingDocument(true);
     try {
-      const fileExt = documentFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
-      const filePath = `${organizationId}/${deal.id}/${fileName}`;
       const linkedRequest = dealRequests.find((request: RecordMap) => sameDocType(documentType, request.document_type) || sameDocType(request.document_type, documentType));
-      const { error: uploadError } = await supabase.storage.from('application-documents').upload(filePath, documentFile, { contentType: documentFile.type || 'application/octet-stream', upsert: false });
-      if (uploadError) throw uploadError;
       const label = detailDocTypeLabel(documentType);
-      const { error: dbError } = await supabase.from('documents').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, document_request_id: linkedRequest?.id || null, document_type: documentType, label, file_name: documentFile.name, file_size: documentFile.size, mime_type: documentFile.type || null, storage_path: filePath, status: 'uploaded', uploaded_by_user_id: profile?.id || null, review_notes: documentDescription || null });
-      if (dbError) throw dbError;
-      if (linkedRequest) await supabase.from('document_requests').update({ status: 'uploaded', related_document_id: linkedRequest.related_document_id || null, notes: documentDescription || linkedRequest.notes || null }).eq('id', linkedRequest.id).eq('organization_id', organizationId);
-      await logActivity('document_event', `Document uploaded: ${label}`, documentFile.name);
+      const formData = new FormData();
+      formData.set('file', documentFile);
+      formData.set('document_type', documentType);
+      formData.set('label', label);
+      formData.set('review_notes', documentDescription);
+      if (linkedRequest?.id) formData.set('document_request_id', linkedRequest.id);
+      const response = await fetch(`/api/crm/deals/${deal.id}/documents`, { method: 'POST', body: formData });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload document');
       toast.success('Deal document uploaded');
       setDocumentDialogOpen(false); resetDocumentDialog(); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to upload document'); } finally { setUploadingDocument(false); }
   };
 
   const updateDocumentStatus = async (doc: RecordMap, status: string, reason?: string) => {
-    const payload: RecordMap = { status, reviewed_by: profile?.id || null, reviewed_at: new Date().toISOString(), review_notes: reason || doc.review_notes || null };
-    const { error } = await supabase.from('documents').update(payload).eq('id', doc.id).eq('organization_id', organizationId);
-    if (error) { toast.error(error.message); return; }
+    const response = await fetch(`/api/documents/${doc.id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, review_notes: reason || doc.review_notes || null }) });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to update document'); return; }
     await logActivity('document_event', `Document status changed: ${doc.label || doc.file_name}`, `${doc.status || 'uploaded'} → ${status}${reason ? ` · ${reason}` : ''}`);
     toast.success('Document updated'); reload();
   };
@@ -1357,10 +1352,9 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const updateChecklistItem = async (item: ChecklistItem, status: string) => {
     if (status === 'waived' && !canWaive) { toast.error('Only managers, admins, and underwriters can waive checklist items.'); return; }
     const notesValue = checklistNotes[item.id] ?? item.notes ?? null;
-    const payload = { organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, document_type: item.documentType, label: item.name, required: item.required, status, category: item.category, notes: notesValue, assigned_user_id: item.assignedUser?.id || deal.assigned_user_id || null, created_by: profile?.id || null };
-    const query = item.requestId ? supabase.from('document_requests').update(payload).eq('id', item.requestId).eq('organization_id', organizationId) : supabase.from('document_requests').insert(payload);
-    const { error } = await query;
-    if (error) { toast.error(error.message); return; }
+    const response = await fetch(`/api/crm/deals/${deal.id}/checklist`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: item.requestId || null, application_id: deal.application_id || null, document_type: item.documentType, label: item.name, required: item.required, status, category: item.category, notes: notesValue, assigned_user_id: item.assignedUser?.id || deal.assigned_user_id || null }) });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to update checklist'); return; }
     await logActivity('document_event', `Checklist item ${status}: ${item.name}`, notesValue);
     toast.success('Checklist updated'); reload();
   };
@@ -1370,8 +1364,9 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     setSavingNote(true);
     try {
       const body = noteBody.trim();
-      const { error: noteError } = await supabase.from('notes').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, body, is_internal: noteInternal, created_by: profile?.id || null });
-      if (noteError) throw noteError;
+      const response = await fetch(`/api/crm/deals/${deal.id}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, is_internal: noteInternal }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to save note');
       await logActivity('note', noteInternal ? 'Internal note added' : 'Shared note added', body);
       toast.success('Note added'); setNoteDialogOpen(false); setNoteBody(''); setNoteInternal(true); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to save note'); } finally { setSavingNote(false); }
@@ -1402,24 +1397,25 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   };
 
   const updateSubmission = async (submission: RecordMap, updates: RecordMap) => {
-    const { error } = await supabase.from('partner_submissions').update({ ...updates, response_date: updates.status && updates.status !== submission.status ? new Date().toISOString() : submission.response_date }).eq('id', submission.id).eq('organization_id', organizationId);
-    if (error) { toast.error(error.message); return; }
+    const response = await fetch(`/api/crm/partner-submissions/${submission.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to update lender submission'); return; }
     await logActivity('partner_submission', `Lender status changed: ${partnerName(submission)}`, updates.status ? `${submission.status} → ${updates.status}` : updates.notes || updates.decline_reason || 'Submission updated');
     toast.success('Lender submission updated'); reload();
   };
 
   const convertSubmissionToOffer = async (submission: RecordMap) => {
-    const amount = Number(deal.approved_amount || deal.requested_amount || 10000);
-    const { error } = await supabase.from('offers').insert({ organization_id: organizationId, deal_id: deal.id, funding_partner_id: submission.funding_partner_id, partner_submission_id: submission.id, approved_amount: amount, factor_rate: 1.35, payback_amount: Math.round(amount * 1.35), payment_frequency: 'daily', daily_payment: Math.round((amount * 1.35) / 120), term_days: 120, status: 'received', stips_required: submission.conditions ? [submission.conditions] : [], notes: submission.notes || null, created_by: profile?.id || null });
-    if (error) { toast.error(error.message); return; }
-    await logActivity('offer', `Offer created from ${partnerName(submission)} response`, `Approved amount initialized at ${currency(amount)}.`);
+    const response = await fetch(`/api/crm/partner-submissions/${submission.id}/offer`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to create offer'); return; }
     toast.success('Offer created'); reload();
   };
 
   const createTask = async () => {
     if (!taskTitle.trim()) { toast.error('Enter a task title.'); return; }
-    const { error } = await supabase.from('tasks').insert({ organization_id: organizationId, deal_id: deal.id, application_id: deal.application_id || null, business_id: deal.business_id || null, title: taskTitle.trim(), due_date: taskDueDate ? new Date(taskDueDate).toISOString() : null, priority: taskPriority, status: 'open', assigned_user_id: deal.assigned_user_id || profile?.id || null, created_by: profile?.id || null });
-    if (error) { toast.error(error.message); return; }
+    const response = await fetch(`/api/crm/deals/${deal.id}/tasks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: taskTitle.trim(), due_date: taskDueDate || null, priority: taskPriority }) });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to create task'); return; }
     await logActivity('task', `Task created: ${taskTitle.trim()}`, taskDueDate ? `Due ${date(taskDueDate)}` : null);
     setTaskTitle(''); setTaskDueDate(''); setTaskPriority('medium'); toast.success('Task created'); reload();
   };
@@ -1460,9 +1456,10 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   };
 
   const completeTask = async (task: RecordMap) => {
-    const { error } = await supabase.from('tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', task.id).eq('organization_id', organizationId);
-    if (error) { toast.error(error.message); return; }
-    await logActivity('task', `Task completed: ${task.title}`, null); toast.success('Task completed'); reload();
+    const response = await fetch(`/api/crm/tasks/${task.id}/complete`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to complete task'); return; }
+    toast.success('Task completed'); reload();
   };
 
   const openDealDocument = async (doc: RecordMap, disposition: 'preview' | 'download') => {

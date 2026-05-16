@@ -28,6 +28,7 @@ This pass prioritizes production blockers with small, reviewable changes:
 7. Deal stage and funded risk-event APIs now share a server-side workflow validator for accepted offer, required document, funded amount, terminal-stage, and role checks.
 8. Lender package signed links were reduced from seven days to 24 hours.
 9. Generic email sending now requires CRM authentication instead of accepting anonymous public requests.
+10. CRM lead workflows, deal command-center writes, offer creation/presentation, global document upload, and CRM message creation now use server APIs instead of direct browser mutations.
 
 ## File-by-File Action Plan
 
@@ -53,6 +54,18 @@ This pass prioritizes production blockers with small, reviewable changes:
 
 `app/api/email/send/route.ts`, `app/api/gmail/send/route.ts`: require same-origin writes, and require CRM authentication for the generic email provider route.
 
+`app/api/crm/leads/route.ts`, `app/api/crm/leads/[id]/route.ts`, `app/api/crm/leads/[id]/convert/route.ts`: add audited server APIs for lead create, import, update, and conversion.
+
+`app/api/crm/deals/[id]/documents/route.ts`, `app/api/crm/deals/[id]/checklist/route.ts`, `app/api/crm/deals/[id]/notes/route.ts`, `app/api/crm/deals/[id]/tasks/route.ts`, `app/api/crm/tasks/[id]/complete/route.ts`, `app/api/documents/[id]/status/route.ts`, `app/api/crm/partner-submissions/[id]/route.ts`, `app/api/crm/partner-submissions/[id]/offer/route.ts`: add server APIs for deal command-center operational writes.
+
+`app/api/crm/offers/route.ts`, `app/api/crm/offers/[id]/present/route.ts`, `app/api/documents/route.ts`, `app/api/crm/messages/route.ts`: add server APIs for standalone CRM offer, document, and message writes.
+
+`components/crm/crm-platform.tsx`: route lead and deal command-center mutations through server APIs.
+
+`app/(crm)/crm/offers/page.tsx`, `app/(crm)/crm/documents/page.tsx`, `app/(crm)/crm/messages/page.tsx`: route standalone CRM writes through server APIs.
+
+`tests/helpers/crm-fixtures.ts`: add mocked API handlers for the new server-mediated CRM workflows.
+
 `next.config.js`: remove production `unsafe-eval` from the Content Security Policy while preserving development compatibility.
 
 `app/api/crm/partners/route.ts`: add audited, role-checked funding partner creation API with Zod validation.
@@ -77,7 +90,7 @@ The security pass still needs a full policy-by-policy Supabase review: RLS predi
 
 ## Production Readiness Score
 
-Current repo readiness after this pass: `82/100`.
+Current repo readiness after this pass: `89/100`.
 
 Code is building and major workflow foundations are in place. The main gaps are remaining direct-browser mutations, a deeper marketing conversion pass, and full end-to-end verification against production Supabase.
 
@@ -103,6 +116,6 @@ Code is building and major workflow foundations are in place. The main gaps are 
 
 `PARTIAL` Critical deal stage and funded-event transitions are enforced server-side.
 
-`FAIL` Remaining CRM browser-side mutations still need server API remediation.
+`PASS` Scanned CRM client browser-side mutations now use server APIs.
 
 `FAIL` Full live E2E against production Supabase is not yet verified.

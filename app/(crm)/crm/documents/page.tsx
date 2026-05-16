@@ -110,24 +110,15 @@ export default function DocumentsPage() {
 
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${organizationId}/${fileName}`;
-      const { error: uploadError } = await supabase.storage.from('application-documents').upload(filePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-      if (uploadError) throw uploadError;
-
       const normalizedType = normalizeDocType(docType);
-      const { error: dbError } = await supabase.from('documents').insert({
-        organization_id: organizationId,
-        document_type: normalizedType,
-        file_name: file.name,
-        label: docTypeLabel(normalizedType),
-        storage_path: filePath,
-        file_size: file.size,
-        mime_type: file.type || null,
-        review_notes: description || null,
-      });
-      if (dbError) throw dbError;
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('document_type', normalizedType);
+      formData.set('label', docTypeLabel(normalizedType));
+      formData.set('review_notes', description || '');
+      const response = await fetch('/api/documents', { method: 'POST', body: formData });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload document');
 
       toast.success('Document uploaded successfully');
       setShowUploadDialog(false);

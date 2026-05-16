@@ -90,22 +90,24 @@ export default function OffersPage() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('offers').insert([{
-      organization_id: organizationId,
-      deal_id: formData.deal_id,
-      approved_amount: calculations.approvedAmount,
-      factor_rate: parseFloat(formData.factor_rate),
-      payback_amount: calculations.paybackAmount,
-      term_days: parseInt(formData.term_days),
-      payment_frequency: formData.payment_frequency,
-      daily_payment: calculations.dailyPayment,
-      weekly_payment: calculations.weeklyPayment,
-      holdback_pct: parseFloat(formData.holdback_pct),
-      status: 'received',
-    }]);
-    if (error) {
-      toast.error('Failed to create offer');
-      console.error(error);
+    const response = await fetch('/api/crm/offers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deal_id: formData.deal_id,
+        approved_amount: calculations.approvedAmount,
+        factor_rate: parseFloat(formData.factor_rate),
+        payback_amount: calculations.paybackAmount,
+        term_days: parseInt(formData.term_days),
+        payment_frequency: formData.payment_frequency,
+        daily_payment: calculations.dailyPayment,
+        weekly_payment: calculations.weeklyPayment,
+        holdback_pct: parseFloat(formData.holdback_pct),
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to create offer');
     } else {
       toast.success('Offer created');
       setShowDialog(false);
@@ -117,19 +119,16 @@ export default function OffersPage() {
 
   const presentOffer = async (offer: any) => {
     if (!organizationId) return;
-    const { error } = await supabase
-      .from('offers')
-      .update({ status: 'presented' })
-      .eq('id', offer.id)
-      .eq('organization_id', organizationId);
-
-    if (error) {
-      toast.error('Failed to present offer');
+    const response = await fetch(`/api/crm/offers/${offer.id}/present`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to present offer');
       return;
     }
 
-    if (offer.deal_id) {
-      await fetch(`/api/crm/deals/${offer.deal_id}/stage`, {
+    const dealId = result.dealId || offer.deal_id;
+    if (dealId) {
+      await fetch(`/api/crm/deals/${dealId}/stage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage_slug: 'offer_presented', notes: 'Offer presented from CRM offers page.' }),

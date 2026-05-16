@@ -234,6 +234,136 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, url: 'https://signed.example/atlas-bank-statements.pdf' }) });
   });
 
+  await page.route('**/api/documents', async (route) => {
+    const body = route.request().postData() || '';
+    const fileName = body.match(/filename="([^"]+)"/)?.[1] || 'uploaded-document.pdf';
+    const document = {
+      id: `document-${state.documents.length + 1}`,
+      organization_id: ORG_ID,
+      document_type: 'other',
+      label: 'Other',
+      file_name: fileName,
+      file_size: 128000,
+      mime_type: 'application/pdf',
+      storage_path: `${ORG_ID}/global/${fileName}`,
+      status: 'uploaded',
+      created_at: now,
+      updated_at: now,
+    };
+    state.documents.unshift(document);
+    calls.push({ method: route.request().method(), table: 'documents_api', body: { file_name: fileName } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, documentId: document.id }) });
+  });
+
+  await page.route('**/api/documents/*/status', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    state.documents = state.documents.map((doc) => doc.id === id ? { ...doc, status: payload.status, review_notes: payload.review_notes || doc.review_notes, updated_at: now } : doc);
+    calls.push({ method: route.request().method(), table: 'document_status_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/deals/*/documents', async (route) => {
+    const body = route.request().postData() || '';
+    const fileName = body.match(/filename="([^"]+)"/)?.[1] || 'uploaded-document.pdf';
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const document = {
+      id: `document-${state.documents.length + 1}`,
+      organization_id: ORG_ID,
+      deal_id: id,
+      document_type: body.includes('voided_check') ? 'voided_check' : 'other',
+      label: body.includes('Voided Check') ? 'Voided Check' : 'Uploaded Document',
+      file_name: fileName,
+      file_size: 128000,
+      mime_type: 'application/pdf',
+      storage_path: `${ORG_ID}/${id}/${fileName}`,
+      status: 'uploaded',
+      created_at: now,
+      updated_at: now,
+    };
+    state.documents.unshift(document);
+    state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'document_event', title: `Document uploaded: ${document.label}`, body: fileName, created_at: now });
+    calls.push({ method: route.request().method(), table: 'deal_documents_api', body: { file_name: fileName } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document }) });
+  });
+
+  await page.route('**/api/crm/deals/*/checklist', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    if (payload.request_id) {
+      state.document_requests = state.document_requests.map((item) => item.id === payload.request_id ? { ...item, ...payload, deal_id: id, updated_at: now } : item);
+    } else {
+      state.document_requests.unshift({ id: `request-${state.document_requests.length + 1}`, organization_id: ORG_ID, deal_id: id, ...payload, created_at: now, updated_at: now });
+    }
+    calls.push({ method: route.request().method(), table: 'document_requests_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, requestId: payload.request_id || `request-${state.document_requests.length}` }) });
+  });
+
+  await page.route('**/api/crm/deals/*/notes', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    state.notes.unshift({ id: `note-${state.notes.length + 1}`, organization_id: ORG_ID, deal_id: id, body: payload.body, is_internal: payload.is_internal, created_at: now });
+    state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'note', title: payload.is_internal ? 'Internal note added' : 'Shared note added', body: payload.body, created_at: now });
+    calls.push({ method: route.request().method(), table: 'notes_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, noteId: `note-${state.notes.length}` }) });
+  });
+
+  await page.route('**/api/crm/deals/*/tasks', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const task = { id: `task-${state.tasks.length + 1}`, organization_id: ORG_ID, deal_id: id, title: payload.title, due_date: payload.due_date, priority: payload.priority || 'medium', status: 'open', assigned_user_id: ADMIN_PROFILE_ID, created_at: now, updated_at: now };
+    state.tasks.unshift(task);
+    calls.push({ method: route.request().method(), table: 'tasks_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, taskId: task.id }) });
+  });
+
+  await page.route('**/api/crm/tasks/*/complete', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    state.tasks = state.tasks.map((task) => task.id === id ? { ...task, status: 'completed', completed_at: now, updated_at: now } : task);
+    calls.push({ method: route.request().method(), table: 'tasks_complete_api', body: { id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/leads/*/convert', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const lead = state.leads.find((item) => item.id === id);
+    const businessId = `business-${state.businesses.length + 1}`;
+    state.businesses.unshift({ id: businessId, organization_id: ORG_ID, legal_name: lead?.business_name || 'Converted merchant', created_at: now, updated_at: now });
+    const deal = {
+      id: `deal-${state.deals.length + 1}`,
+      organization_id: ORG_ID,
+      business_id: businessId,
+      lead_id: id,
+      title: lead?.business_name || 'Converted deal',
+      requested_amount: lead?.requested_amount || null,
+      stage_slug: 'lead_captured',
+      assigned_user_id: lead?.assigned_user_id || ADMIN_PROFILE_ID,
+      created_at: now,
+      updated_at: now,
+    };
+    state.deals.unshift(deal);
+    state.leads = state.leads.map((item) => item.id === id ? { ...item, status: 'converted', updated_at: now } : item);
+    calls.push({ method: route.request().method(), table: 'deals', body: { lead_id: id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, dealId: deal.id, businessId }) });
+  });
+
+  await page.route('**/api/crm/leads/*', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').pop();
+    state.leads = state.leads.map((lead) => lead.id === id ? { ...lead, ...payload, updated_at: now } : lead);
+    calls.push({ method: route.request().method(), table: 'leads', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/leads', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const rows = Array.isArray(payload) ? payload : [payload];
+    const leads = rows.map((row, index) => ({ id: `lead-${state.leads.length + index + 1}`, organization_id: ORG_ID, ...row, created_at: now, updated_at: now }));
+    state.leads.unshift(...leads);
+    calls.push({ method: route.request().method(), table: 'leads', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, leads }) });
+  });
+
   await page.route('**/api/crm/deals', async (route) => {
     const payload = route.request().postDataJSON() as any;
     const businessTitle = payload.title || payload.business_name || 'New deal';
@@ -299,6 +429,38 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, submissionId: submission.id, warnings: [], emailDraft: { to: partner?.submission_email || partner?.email || '', subject: 'Mock lender package', body: payload.custom_message, attachmentDocumentIds: payload.attachment_document_ids || [] } }) });
   });
 
+  await page.route('**/api/crm/partner-submissions/*/offer', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const submission = state.partner_submissions.find((item) => item.id === id);
+    const deal = state.deals.find((item) => item.id === submission?.deal_id) || state.deals[0];
+    const amount = Number(deal?.approved_amount || deal?.requested_amount || 10000);
+    const offer = {
+      id: `offer-${state.offers.length + 1}`,
+      organization_id: ORG_ID,
+      deal_id: deal.id,
+      funding_partner_id: submission?.funding_partner_id,
+      partner_submission_id: id,
+      approved_amount: amount,
+      factor_rate: 1.35,
+      payback_amount: Math.round(amount * 1.35),
+      daily_payment: Math.round((amount * 1.35) / 120),
+      term_days: 120,
+      status: 'received',
+      created_at: now,
+    };
+    state.offers.unshift(offer);
+    calls.push({ method: route.request().method(), table: 'offers_api', body: { partner_submission_id: id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, offerId: offer.id }) });
+  });
+
+  await page.route('**/api/crm/partner-submissions/*', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').pop();
+    state.partner_submissions = state.partner_submissions.map((item) => item.id === id ? { ...item, ...payload, updated_at: now } : item);
+    calls.push({ method: route.request().method(), table: 'partner_submissions_update_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
   await page.route('**/api/crm/partners**', async (route) => {
     const payload = route.request().postDataJSON() as any;
     const partner = {
@@ -326,6 +488,31 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.funding_partners.unshift(partner);
     calls.push({ method: route.request().method(), table: 'funding_partners_api', body: payload });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, partner }) });
+  });
+
+  await page.route('**/api/crm/offers/*/present', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    state.offers = state.offers.map((offer) => offer.id === id ? { ...offer, status: 'presented', updated_at: now } : offer);
+    const offer = state.offers.find((item) => item.id === id);
+    calls.push({ method: route.request().method(), table: 'offers_present_api', body: { id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, dealId: offer?.deal_id }) });
+  });
+
+  await page.route('**/api/crm/offers', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const offer = { id: `offer-${state.offers.length + 1}`, organization_id: ORG_ID, ...payload, status: 'received', created_at: now, updated_at: now };
+    state.offers.unshift(offer);
+    calls.push({ method: route.request().method(), table: 'offers_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, offerId: offer.id }) });
+  });
+
+  await page.route('**/api/crm/messages', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    if (!state.messages) state.messages = [];
+    const message = { id: `message-${state.messages.length + 1}`, organization_id: ORG_ID, direction: 'outbound', channel: 'portal', delivery_status: 'queued', ...payload, created_at: now };
+    state.messages.unshift(message);
+    calls.push({ method: route.request().method(), table: 'messages_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, messageId: message.id }) });
   });
 
   await page.route('**/api/crm/users', async (route) => {

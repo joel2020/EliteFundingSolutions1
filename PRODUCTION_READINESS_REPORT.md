@@ -2,9 +2,9 @@
 
 ## Status
 
-Current readiness score: `82/100`.
+Current readiness score: `89/100`.
 
-The platform is materially stronger than the inherited MVP state. The production Supabase project has the missing workflow, reporting, public ID, and operational schema migrations applied. The app now has stronger authenticated mutation boundaries, server-side deal transition rules, shorter lender package signed-link exposure, cleaner fit-check validation behavior, and updated readiness documentation.
+The platform is materially stronger than the inherited MVP state. The production Supabase project has the missing workflow, reporting, public ID, and operational schema migrations applied. The app now has stronger authenticated mutation boundaries, server-side deal transition rules, server-mediated CRM writes, shorter lender package signed-link exposure, cleaner fit-check validation behavior, and updated readiness documentation.
 
 ## What Was Broken
 
@@ -13,7 +13,8 @@ The platform is materially stronger than the inherited MVP state. The production
 3. Authenticated mutation APIs relied on session checks but did not reject cross-origin browser writes before privileged service-role work.
 4. Critical deal transitions were too dependent on UI checks.
 5. Lender package fallback document links lasted seven days.
-6. The remediation docs were stale and still described live migration application as blocked.
+6. CRM pages still executed operational writes directly from the browser.
+7. The remediation docs were stale and still described live migration application as blocked.
 
 ## What Was Fixed
 
@@ -25,7 +26,10 @@ The platform is materially stronger than the inherited MVP state. The production
 6. Reduced lender package signed link TTL from seven days to 24 hours.
 7. Removed production `unsafe-eval` from CSP while keeping development compatibility.
 8. Locked the generic email sending endpoint behind CRM authentication.
-9. Updated the remediation plan to reflect the real database state and current risk profile.
+9. Moved lead creation, lead update, lead import, and lead conversion behind audited CRM APIs.
+10. Moved deal document upload, document status review, checklist updates, notes, tasks, lender response updates, and offer conversion behind server APIs.
+11. Moved standalone offer creation/presentation, global document upload, and CRM message creation behind server APIs.
+12. Updated the remediation plan to reflect the real database state and current risk profile.
 
 ## Schema Changes
 
@@ -42,17 +46,16 @@ These add or harden workflow metadata, reporting views, public IDs, CRM notifica
 
 ## Security Changes
 
-Authenticated write routes now have a same-origin gate before service-role mutations run. The generic email provider route now requires CRM authentication. Document preview/download remains short-lived at 120 seconds. Lender package fallback links now expire in 24 hours. Production CSP no longer allows `unsafe-eval`.
+Authenticated write routes now have a same-origin gate before service-role mutations run. CRM client pages no longer perform direct browser inserts, updates, deletes, or storage uploads in the scanned `app/(crm)` and `components` paths. The generic email provider route now requires CRM authentication. Document preview/download remains short-lived at 120 seconds. Lender package fallback links now expire in 24 hours. Production CSP no longer allows `unsafe-eval`.
 
 Service-role usage remains server-only in the reviewed paths. Public contact and application submission remain intentionally public but rate-limited and schema-validated.
 
 ## Remaining Risks
 
-1. Several CRM browser flows still write directly to Supabase and should be migrated behind audited server APIs.
-2. RLS and storage policies should still receive a full policy-by-policy review against the live Supabase project.
-3. Reporting screens should consume the SQL reporting view everywhere to remove remaining local aggregation drift.
-4. Marketing pages still need a deeper conversion and trust-proof pass to fully match the requested Stripe/Ramp/Mercury-level polish.
-5. The repo is on Next `13.5.11`, not Next 15. A framework upgrade should be handled separately with dependency and regression testing.
+1. RLS and storage policies should still receive a full policy-by-policy review against the live Supabase project.
+2. Reporting screens should consume the SQL reporting view everywhere to remove remaining local aggregation drift.
+3. Marketing pages still need a deeper conversion and trust-proof pass to fully match the requested Stripe/Ramp/Mercury-level polish.
+4. The repo is on Next `13.5.11`, not Next 15. A framework upgrade should be handled separately with dependency and regression testing.
 
 ## Launch Checklist
 
@@ -72,13 +75,13 @@ Service-role usage remains server-only in the reviewed paths. Public contact and
 
 `PASS` Generic email send API requires CRM authentication.
 
+`PASS` Scanned CRM client mutations use server APIs.
+
 `PASS` Critical deal stage and funded event transitions are server-validated.
 
 `PASS` Document preview/download signed URLs remain short-lived.
 
 `PASS` Lender submission fallback links are limited to 24 hours.
-
-`PARTIAL` CRM write flows are being moved from direct browser Supabase calls to server APIs.
 
 `PARTIAL` Reporting has a SQL source of truth, with some screens still using local display aggregation.
 

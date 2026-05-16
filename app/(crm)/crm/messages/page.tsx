@@ -56,20 +56,14 @@ export default function MessagesPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.from('messages').insert({
-      organization_id: organizationId,
-      direction: 'outbound',
-      channel: 'portal',
-      recipient_email: recipientEmail || null,
-      subject: subject || null,
-      body,
-      delivery_status: 'queued',
-      sent_at: new Date().toISOString(),
+    const response = await fetch('/api/crm/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient_email: recipientEmail || null, subject: subject || null, body }),
     });
-
-    if (error) {
-      toast.error('Failed to save message');
-      console.error(error);
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to save message');
     } else {
       toast.success('Message saved to timeline');
       setOpen(false);
