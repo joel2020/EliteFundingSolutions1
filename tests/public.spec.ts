@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const publicRoutes = ['/', '/funding-solutions', '/industries', '/about', '/faq', '/resources', '/blog', '/contact', '/apply'];
+const publicRoutes = ['/', '/funding-solutions', '/industries', '/about', '/faq', '/resources', '/blog', '/contact', '/funding-fit-check', '/apply', '/apply/rep/riley-rep-auth-us'];
 
 test.describe('public site production smoke tests', () => {
   for (const route of publicRoutes) {

@@ -33,7 +33,6 @@ export default function ClientPortalPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [portalEmail, setPortalEmail] = useState<string | null>(null);
 
   const loadPortalData = useCallback(async () => {
     try {
@@ -43,7 +42,6 @@ export default function ClientPortalPage() {
         setLoading(false);
         return;
       }
-      setPortalEmail(email);
 
       const { data: apps, error: appsError } = await supabase
         .from('applications')
@@ -58,7 +56,7 @@ export default function ClientPortalPage() {
       const applicationIds = (apps || []).map((app) => app.id);
       const [{ data: docs }, { data: offerData }] = applicationIds.length > 0 ? await Promise.all([
         supabase.from('documents').select('id,application_id,label,file_name,status,created_at').eq('organization_id', DEFAULT_ORG_ID).in('application_id', applicationIds).order('created_at', { ascending: false }).limit(25),
-        supabase.from('offers').select('id,deal_id,approved_amount,payback_amount,payment_frequency,daily_payment,weekly_payment,term_days,status,created_at,deals!inner(application_id,title)').eq('organization_id', DEFAULT_ORG_ID).in('deals.application_id', applicationIds).order('created_at', { ascending: false }).limit(10),
+        supabase.from('offers').select('id,deal_id,approved_amount,payback_amount,payment_frequency,daily_payment,weekly_payment,term_days,status,created_at,deals!inner(application_id,title,businesses(legal_name,dba))').eq('organization_id', DEFAULT_ORG_ID).in('deals.application_id', applicationIds).order('created_at', { ascending: false }).limit(10),
       ]) : [{ data: [] }, { data: [] }];
 
       setApplications(apps || []);
@@ -96,29 +94,12 @@ export default function ClientPortalPage() {
 
     setUploading(true);
     try {
-      const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filePath = `${selectedApplicationId}/client_uploads/${Date.now()}-${safeName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('application-documents')
-        .upload(filePath, uploadFile, { contentType: uploadFile.type || 'application/octet-stream', upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { error: dbError } = await supabase
-        .from('documents')
-        .insert({
-          organization_id: DEFAULT_ORG_ID,
-          application_id: selectedApplicationId,
-          document_type: 'other',
-          label: 'Client Portal Upload',
-          file_name: uploadFile.name,
-          storage_path: filePath,
-          file_size: uploadFile.size,
-          mime_type: uploadFile.type || null,
-        });
-
-      if (dbError) throw dbError;
+      const formData = new FormData();
+      formData.set('application_id', selectedApplicationId);
+      formData.set('file', uploadFile);
+      const response = await fetch('/api/portal/documents', { method: 'POST', body: formData });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload document');
 
       toast.success('Document uploaded successfully');
       setShowUploadDialog(false);
@@ -136,21 +117,15 @@ export default function ClientPortalPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from('messages')
-      .insert({
-        organization_id: DEFAULT_ORG_ID,
-          direction: 'inbound',
-          channel: 'portal',
-          recipient_email: 'advisor',
-          sender_user_id: null,
-          subject: `Client portal message${portalEmail ? ` from ${portalEmail}` : ''}`,
-          body: message,
-          delivery_status: 'logged',
-      });
+    const response = await fetch('/api/portal/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ application_id: selectedApplicationId || null, body: message }),
+    });
+    const result = await response.json();
 
-    if (error) {
-      toast.error('Failed to send message');
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to send message');
     } else {
       toast.success('Message sent to your advisor');
       setShowMessageDialog(false);
@@ -162,6 +137,17 @@ export default function ClientPortalPage() {
     const stages = ['submitted', 'in_review', 'docs_requested', 'approved'];
     const currentIndex = stages.indexOf(status);
     return currentIndex >= 0 ? ((currentIndex + 1) / stages.length) * 100 : 0;
+  };
+
+  const acceptOffer = async (offerId: string) => {
+    const response = await fetch(`/api/portal/offers/${offerId}/accept`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Unable to accept offer');
+      return;
+    }
+    toast.success('Offer accepted. Your advisor will prepare next steps.');
+    loadPortalData();
   };
 
   if (loading) {
@@ -271,7 +257,7 @@ export default function ClientPortalPage() {
                 offers.map((offer) => (
                   <Card key={offer.id}>
                     <CardHeader>
-                      <CardTitle className="text-lg">{offer.business_name}</CardTitle>
+                      <CardTitle className="text-lg">{offer.deals?.businesses?.legal_name || offer.deals?.businesses?.dba || offer.deals?.title || 'Funding offer'}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
@@ -293,8 +279,8 @@ export default function ClientPortalPage() {
                           <span className="text-[#71717A]">Term</span>
                           <span className="font-semibold text-[#09090B]">{offer.term_days} days</span>
                         </div>
-                        <Button className="w-full mt-4">
-                          Accept Offer
+                        <Button className="w-full mt-4" onClick={() => acceptOffer(offer.id)} disabled={!['presented', 'received'].includes(offer.status)}>
+                          {offer.status === 'accepted' ? 'Accepted' : 'Accept Offer'}
                         </Button>
                       </div>
                     </CardContent>

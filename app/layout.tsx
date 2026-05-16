@@ -1,4 +1,4 @@
-import './globals.css';
+﻿import './globals.css';
 import type { Metadata } from 'next';
 import { Toaster } from '@/components/ui/sonner';
 import { COMPANY } from '@/lib/company';
@@ -8,7 +8,7 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://elitefundingsolutio
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'Elite Funding Solutions — Institutional Business Funding & Private Credit Advisory',
+    default: 'Elite Funding Solutions - Institutional Business Funding & Private Credit Advisory',
     template: '%s',
   },
   description: 'Elite Funding Solutions provides secure advisor-led business funding, working capital, revenue-based financing, lines of credit, equipment financing, SBA options, invoice factoring, and commercial real estate capital for U.S. operators.',
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     type: 'website',
     url: siteUrl,
     siteName: 'Elite Funding Solutions',
-    title: 'Elite Funding Solutions — Institutional Business Funding & Private Credit Advisory',
+    title: 'Elite Funding Solutions - Institutional Business Funding & Private Credit Advisory',
     description: 'Premium business funding solutions with secure intake, responsible underwriting guidance, and white-glove offer comparison.',
     images: [{ url: '/Elite_Funding_Solutions_Logo_Final.jpg', width: 1672, height: 940, alt: 'Elite Funding Solutions' }],
   },

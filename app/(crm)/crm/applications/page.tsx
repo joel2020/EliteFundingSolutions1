@@ -88,14 +88,15 @@ export default function ApplicationsPage() {
   }, [crmUserLoading, organizationId, loadApplications, loadCurrentProfile]);
 
   const updateStatus = async (appId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from('applications')
-      .update({ status: newStatus })
-      .eq('id', appId)
-      .eq('organization_id', organizationId);
+    const response = await fetch(`/api/crm/applications/${appId}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus, notes: 'Application table status action.' }),
+    });
+    const result = await response.json();
 
-    if (error) {
-      toast.error('Failed to update status');
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to update status');
     } else {
       toast.success('Status updated');
       loadApplications();

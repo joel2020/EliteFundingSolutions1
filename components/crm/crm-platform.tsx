@@ -180,6 +180,7 @@ const emptyUser = {
   email: '',
   role: 'sales_rep',
   is_active: true,
+  referral_slug: '',
 };
 
 function currency(value: any) {
@@ -197,6 +198,12 @@ function date(value: any) {
 
 function shortId(id?: string) {
   return id ? id.slice(0, 8).toUpperCase() : 'UNASSIGNED';
+}
+
+function repReferralUrl(slug?: string | null) {
+  if (!slug) return '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${origin}/apply/rep/${slug}`;
 }
 
 function businessName(row: RecordMap) {
@@ -242,8 +249,8 @@ function CrmCard({ children, className = '', ...props }: { children: React.React
   return <section {...props} className={`rounded-[8px] border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${className}`}>{children}</section>;
 }
 
-function MetricCard({ title, value, subtitle, icon, tone = '#0F2B5B' }: { title: string; value: string | number; subtitle: string; icon: React.ReactNode; tone?: string }) {
-  return (
+function MetricCard({ title, value, subtitle, icon, tone = '#0F2B5B', href }: { title: string; value: string | number; subtitle: string; icon: React.ReactNode; tone?: string; href?: string }) {
+  const content = (
     <CrmCard className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -256,6 +263,12 @@ function MetricCard({ title, value, subtitle, icon, tone = '#0F2B5B' }: { title:
       </div>
       <p className="mt-3 text-[12px] text-[#64748B]">{subtitle}</p>
     </CrmCard>
+  );
+  if (!href) return content;
+  return (
+    <Link href={href} className="block rounded-[8px] outline-none transition hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:ring-2 focus-visible:ring-[#0F2B5B] focus-visible:ring-offset-2">
+      {content}
+    </Link>
   );
 }
 
@@ -540,16 +553,16 @@ export function CrmDashboardExperience() {
     <PageFrame title="Executive Dashboard" subtitle="MCA pipeline, production, renewals, and earnings at a glance">
       {error && <div className="mb-4 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard title="Total Leads" value={leads.length} subtitle="All active lead records" icon={<Users className="h-4 w-4" />} />
-        <MetricCard title="Active Deals" value={activeDeals.length} subtitle="Open funding pipeline" icon={<Briefcase className="h-4 w-4" />} tone="#2563EB" />
-        <MetricCard title="Deals Funded" value={fundedDeals.length} subtitle="Closed funded deals" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" />
-        <MetricCard title="Total Funded Volume" value={currency(totalFunded)} subtitle="Lifetime funded volume" icon={<TrendingUp className="h-4 w-4" />} tone="#0F766E" />
-        <MetricCard title="Pending Offers" value={pendingOffers} subtitle="Received or presented" icon={<FileText className="h-4 w-4" />} tone="#D97706" />
-        <MetricCard title="Approval Rate" value={pct(approvalRate)} subtitle="Offer-or-better conversion" icon={<Percent className="h-4 w-4" />} tone="#7C3AED" />
-        <MetricCard title="Renewal Opportunities" value={renewals.length} subtitle="Tracked renewal records" icon={<RefreshCw className="h-4 w-4" />} tone="#0891B2" />
-        <MetricCard title="Estimated Earnings" value={currency(estimatedEarnings)} subtitle="Gross commission booked" icon={<WalletCards className="h-4 w-4" />} tone="#C9A84C" />
-        <MetricCard title="Paid Earnings" value={currency(paidEarnings)} subtitle="Commission received" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" />
-        <MetricCard title="Needs Attention" value={attention.length} subtitle="Docs, UW, or contracts" icon={<AlertTriangle className="h-4 w-4" />} tone="#DC2626" />
+        <MetricCard title="Total Leads" value={leads.length} subtitle="All active lead records" icon={<Users className="h-4 w-4" />} href="/crm/leads" />
+        <MetricCard title="Active Deals" value={activeDeals.length} subtitle="Open funding pipeline" icon={<Briefcase className="h-4 w-4" />} tone="#2563EB" href="/crm/deals" />
+        <MetricCard title="Deals Funded" value={fundedDeals.length} subtitle="Closed funded deals" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/deals" />
+        <MetricCard title="Total Funded Volume" value={currency(totalFunded)} subtitle="Lifetime funded volume" icon={<TrendingUp className="h-4 w-4" />} tone="#0F766E" href="/crm/reports" />
+        <MetricCard title="Pending Offers" value={pendingOffers} subtitle="Received or presented" icon={<FileText className="h-4 w-4" />} tone="#D97706" href="/crm/offers" />
+        <MetricCard title="Approval Rate" value={pct(approvalRate)} subtitle="Offer-or-better conversion" icon={<Percent className="h-4 w-4" />} tone="#7C3AED" href="/crm/reports" />
+        <MetricCard title="Renewal Opportunities" value={renewals.length} subtitle="Tracked renewal records" icon={<RefreshCw className="h-4 w-4" />} tone="#0891B2" href="/crm/renewals" />
+        <MetricCard title="Estimated Earnings" value={currency(estimatedEarnings)} subtitle="Gross commission booked" icon={<WalletCards className="h-4 w-4" />} tone="#C9A84C" href="/crm/earnings" />
+        <MetricCard title="Paid Earnings" value={currency(paidEarnings)} subtitle="Commission received" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/earnings" />
+        <MetricCard title="Needs Attention" value={attention.length} subtitle="Docs, UW, or contracts" icon={<AlertTriangle className="h-4 w-4" />} tone="#DC2626" href="/crm/deals" />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
@@ -948,8 +961,8 @@ export function CrmDealsExperience() {
 
   const saveDeal = async () => {
     const payload = {
-      organization_id: organizationId,
       title: form.title || 'New deal',
+      business_name: form.title || 'New deal',
       requested_amount: form.requested_amount ? Number(form.requested_amount) : null,
       approved_amount: form.approved_amount ? Number(form.approved_amount) : null,
       funded_amount: form.funded_amount ? Number(form.funded_amount) : null,
@@ -957,8 +970,13 @@ export function CrmDealsExperience() {
       assigned_user_id: form.assigned_user_id || null,
       notes: form.notes || null,
     };
-    const { error } = await supabase.from('deals').insert(payload);
-    if (error) toast.error(error.message);
+    const response = await fetch('/api/crm/deals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to add deal');
     else {
       toast.success('Deal added');
       setDialogOpen(false);
@@ -1338,8 +1356,14 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
 
   const updateStage = async (stage_slug: string) => {
     if (stage_slug === 'funded' && (!canMarkFunded || complianceBlocks.length > 0 || fundingReadiness.score < 90)) { toast.error(canMarkFunded ? `Funding blocked: ${complianceBlocks[0] || 'readiness is incomplete'}` : 'Only managers and admins can mark deals funded.'); return; }
-    const { error } = await supabase.from('deals').update({ stage_slug, funded_at: stage_slug === 'funded' ? new Date().toISOString() : deal.funded_at || null }).eq('id', deal.id).eq('organization_id', organizationId);
-    if (error) toast.error(error.message); else { await logActivity('status_change', `Deal stage changed to ${stageLabel(stage_slug)}`, `${stageLabel(deal.stage_slug)} → ${stageLabel(stage_slug)}`); toast.success('Deal stage updated'); reload(); }
+    const response = await fetch(`/api/crm/deals/${deal.id}/stage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage_slug, notes: `Deal detail stage update: ${stageLabel(deal.stage_slug)} -> ${stageLabel(stage_slug)}` }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to update deal stage');
+    else { toast.success('Deal stage updated'); reload(); }
   };
 
   const ReadinessCard = ({ title, readiness, tone }: { title: string; readiness: ReturnType<typeof calculateReadiness>; tone: string }) => (
@@ -1428,35 +1452,43 @@ export function CrmEarningsExperience() {
 
 export function CrmReportsExperience() {
   const { leads, deals, offers, renewals, commissions, partners, users, loading } = useCrmDataset();
+  const [dateRange, setDateRange] = useState('90d');
   if (loading) return <LoadingScreen title="Reports" />;
+  const cutoff = dateRange === 'all' ? null : new Date(Date.now() - (dateRange === '30d' ? 30 : 90) * 24 * 60 * 60 * 1000);
+  const inRange = (row: RecordMap, field = 'created_at') => !cutoff || !row[field] || new Date(row[field]) >= cutoff;
+  const rangedLeads = leads.filter((row: RecordMap) => inRange(row));
+  const rangedDeals = deals.filter((row: RecordMap) => inRange(row));
+  const rangedOffers = offers.filter((row: RecordMap) => inRange(row));
+  const rangedRenewals = renewals.filter((row: RecordMap) => inRange(row, 'updated_at'));
+  const rangedCommissions = commissions.filter((row: RecordMap) => inRange(row, row.paid_date ? 'paid_date' : 'created_at'));
   const conversion = [
-    { name: 'Lead volume', value: leads.length },
-    { name: 'Submissions', value: deals.filter((row: RecordMap) => ['application_submitted', 'underwriting_review', 'offers_received', 'offer_presented', 'contract_sent', 'contract_signed', 'funded'].includes(row.stage_slug)).length },
-    { name: 'Offers', value: offers.length },
-    { name: 'Funded', value: deals.filter((row: RecordMap) => row.stage_slug === 'funded' || row.funded_at).length },
-    { name: 'Renewals', value: renewals.length },
+    { name: 'Lead volume', value: rangedLeads.length },
+    { name: 'Submissions', value: rangedDeals.filter((row: RecordMap) => ['application_submitted', 'underwriting_review', 'offers_received', 'offer_presented', 'contract_sent', 'contract_signed', 'funded'].includes(row.stage_slug)).length },
+    { name: 'Offers', value: rangedOffers.length },
+    { name: 'Funded', value: rangedDeals.filter((row: RecordMap) => row.stage_slug === 'funded' || row.funded_at).length },
+    { name: 'Renewals', value: rangedRenewals.length },
   ];
   const monthly = Array.from({ length: 6 }, (_, index) => {
     const d = new Date();
     d.setMonth(d.getMonth() - (5 - index));
     const month = d.toLocaleDateString('en-US', { month: 'short' });
-    return { month, funded: deals.filter((deal: RecordMap) => new Date(deal.funded_at || deal.created_at).getMonth() === d.getMonth()).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0) };
+    return { month, funded: rangedDeals.filter((deal: RecordMap) => new Date(deal.funded_at || deal.created_at).getMonth() === d.getMonth()).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0) };
   });
-  const fundedDeals = deals.filter((row: RecordMap) => row.stage_slug === 'funded' || row.funded_at);
+  const fundedDeals = rangedDeals.filter((row: RecordMap) => row.stage_slug === 'funded' || row.funded_at);
   const reportRows = [
-    { name: 'Deals', value: deals.length, rows: deals },
+    { name: 'Deals', value: rangedDeals.length, rows: rangedDeals },
     { name: 'Funding', value: currency(fundedDeals.reduce((sum: number, row: RecordMap) => sum + Number(row.funded_amount || 0), 0)), rows: fundedDeals },
-    { name: 'Renewals', value: renewals.length, rows: renewals },
-    { name: 'Earnings', value: currency(commissions.reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0)), rows: commissions },
-    { name: 'User performance', value: users.length, rows: users.map((user: RecordMap) => ({ email: user.email, role: user.role, active: user.is_active, deals: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).length, earnings: commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0) })) },
-    { name: 'Funding partner performance', value: partners.length, rows: partners.map((partner: RecordMap) => ({ name: partner.name, offers: offers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).length, approved_amount: offers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).reduce((sum: number, offer: RecordMap) => sum + Number(offer.approved_amount || 0), 0) })) },
-    { name: 'Approved but not accepted', value: offers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)).length, rows: offers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)) },
+    { name: 'Renewals', value: rangedRenewals.length, rows: rangedRenewals },
+    { name: 'Earnings', value: currency(rangedCommissions.reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0)), rows: rangedCommissions },
+    { name: 'User performance', value: users.length, rows: users.map((user: RecordMap) => ({ email: user.email, role: user.role, active: user.is_active, deals: rangedDeals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).length, earnings: rangedCommissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0) })) },
+    { name: 'Funding partner performance', value: partners.length, rows: partners.map((partner: RecordMap) => ({ name: partner.name, offers: rangedOffers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).length, approved_amount: rangedOffers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).reduce((sum: number, offer: RecordMap) => sum + Number(offer.approved_amount || 0), 0) })) },
+    { name: 'Approved but not accepted', value: rangedOffers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)).length, rows: rangedOffers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)) },
   ];
   const exportPack = () => {
     exportCsv('crm-report-pack', reportRows.flatMap((report) => report.rows.map((row: RecordMap) => ({ report: report.name, ...row }))));
   };
   return (
-    <PageFrame title="Reports" subtitle="Date-filtered MCA production, rep, partner, renewal, and earnings reports" actions={<div className="flex gap-2"><Button variant="outline" className="h-9 cursor-not-allowed rounded-[7px] opacity-70" disabled title="Date range filtering is coming soon. Current reports show all CRM data."><Filter className="mr-2 h-4 w-4" />Date range</Button><Button className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={exportPack}><Download className="mr-2 h-4 w-4" />Export pack</Button></div>}>
+    <PageFrame title="Reports" subtitle="Date-filtered MCA production, rep, partner, renewal, and earnings reports" actions={<div className="flex gap-2"><Select value={dateRange} onValueChange={setDateRange}><SelectTrigger className="h-9 w-[130px] rounded-[7px]"><Filter className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="30d">Last 30 days</SelectItem><SelectItem value="90d">Last 90 days</SelectItem><SelectItem value="all">All time</SelectItem></SelectContent></Select><Button className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={exportPack}><Download className="mr-2 h-4 w-4" />Export pack</Button></div>}>
       <div className="grid gap-4 xl:grid-cols-2">
         <CrmCard className="p-4"><h2 className="text-sm font-semibold">Pipeline Conversion</h2><ResponsiveContainer width="100%" height={290}><BarChart data={conversion}><CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" fill="#0F2B5B" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></CrmCard>
         <CrmCard className="p-4"><h2 className="text-sm font-semibold">Funded Volume Trend</h2><ResponsiveContainer width="100%" height={290}><LineChart data={monthly}><CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => currency(value)} /><Line type="monotone" dataKey="funded" stroke="#C9A84C" strokeWidth={3} dot={{ r: 4 }} /></LineChart></ResponsiveContainer></CrmCard>
@@ -1544,6 +1576,7 @@ export function CrmUsersExperience() {
       email: user.email || '',
       role: user.role || 'sales_rep',
       is_active: user.is_active !== false,
+      referral_slug: user.referral_slug || '',
     });
     setDialogOpen(true);
   };
@@ -1558,11 +1591,15 @@ export function CrmUsersExperience() {
       email: form.email,
       role: form.role,
       is_active: form.is_active,
+      referral_slug: form.referral_slug || undefined,
     };
-    const { error } = editingUser
-      ? await supabase.from('user_profiles').update(payload).eq('id', editingUser.id).eq('organization_id', organizationId)
-      : await supabase.from('user_profiles').insert({ organization_id: organizationId, ...payload });
-    if (error) toast.error(error.message);
+    const response = await fetch(editingUser ? `/api/crm/users/${editingUser.id}` : '/api/crm/users', {
+      method: editingUser ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to save user');
     else {
       toast.success(editingUser ? 'User updated' : 'User created');
       setDialogOpen(false);
@@ -1576,18 +1613,28 @@ export function CrmUsersExperience() {
       toast.error('Only admins can manage users.');
       return;
     }
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ is_active: !user.is_active })
-      .eq('id', user.id)
-      .eq('organization_id', organizationId);
-    if (error) toast.error(error.message);
+    const response = await fetch(`/api/crm/users/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: !user.is_active }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to update user');
     else {
       toast.success(user.is_active ? 'User deactivated' : 'User activated');
       reload();
     }
   };
   const roles = ['admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+  const copyReferralUrl = async (user: RecordMap) => {
+    const url = repReferralUrl(user.referral_slug);
+    if (!url) {
+      toast.error('This user does not have a referral URL yet.');
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    toast.success('Referral URL copied');
+  };
   const permissions = [
     ['super_admin', 'Full platform ownership, users, sensitive reveals, documents, and settings.'],
     ['admin', 'Manage CRM data, users, sensitive reveals, documents, and settings.'],
@@ -1600,7 +1647,7 @@ export function CrmUsersExperience() {
   return (
     <PageFrame title="User Management" subtitle="Create users, assign roles, activate accounts, and view performance" actions={canCreateUsers ? <Button data-testid="create-user" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openCreateUser}><Plus className="mr-2 h-4 w-4" />Create user</Button> : null}>
       <CrmCard className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</p><p className="text-xs text-[#64748B]">{user.email}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{date(user.last_login_at)}</td><td className="px-4 py-3"><div className="flex gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</Button></> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
+        <table className="w-full min-w-[1180px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Referral URL', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</p><p className="text-xs text-[#64748B]">{user.email}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3"><div className="flex max-w-[280px] items-center gap-2"><code className="truncate rounded bg-[#F1F5F9] px-2 py-1 text-[11px] text-[#334155]">{user.referral_slug ? `/apply/rep/${user.referral_slug}` : 'Not generated'}</code><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => copyReferralUrl(user)}>Copy</Button></div></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{date(user.last_login_at)}</td><td className="px-4 py-3"><div className="flex gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</Button></> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
       </CrmCard>
       <CrmCard className="mt-4 p-4">
         <h2 className="text-sm font-semibold text-[#0F172A]">Permission Matrix</h2>
@@ -1616,6 +1663,7 @@ export function CrmUsersExperience() {
               ['First name', 'first_name'],
               ['Last name', 'last_name'],
               ['Email', 'email'],
+              ['Referral slug', 'referral_slug'],
             ].map(([label, key]) => (
               <div key={key}>
                 <Label className="text-xs text-[#64748B]">{label}</Label>

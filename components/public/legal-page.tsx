@@ -1,4 +1,4 @@
-import Link from 'next/link';
+﻿import Link from 'next/link';
 import { COMPANY, LEGAL_EFFECTIVE_DATE } from '@/lib/company';
 
 export type LegalSection = {
@@ -17,7 +17,7 @@ export function LegalPage({ title, intro, sections }: { title: string; intro: st
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-[16px] bg-[#030812] border border-[#E4E4E7] p-4 mb-8 text-[14px] text-[#52525B]">
             <div><strong>Effective date:</strong> {LEGAL_EFFECTIVE_DATE}</div>
             <div><strong>Last updated:</strong> {LEGAL_EFFECTIVE_DATE}</div>
-            <div className="md:col-span-2"><strong>Contact:</strong> <a className="text-[#0F2B5B] underline" href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a> · {COMPANY.phone}</div>
+            <div className="md:col-span-2"><strong>Contact:</strong> <a className="text-[#e7c579] underline" href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a> | {COMPANY.phone}</div>
             <div className="md:col-span-2"><strong>Mailing address:</strong> {COMPANY.mailingAddress}</div>
           </div>
           <div className="space-y-8">
@@ -31,7 +31,7 @@ export function LegalPage({ title, intro, sections }: { title: string; intro: st
             ))}
           </div>
           <div className="mt-10 pt-6 border-t border-[#E4E4E7] text-[14px] text-[#5A6A85]">
-            Questions? Contact {COMPANY.name} at <a className="text-[#0F2B5B] underline" href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a> or write to {COMPANY.street}, {COMPANY.city}, {COMPANY.state} {COMPANY.zip}. Return to the <Link className="text-[#0F2B5B] underline" href="/apply">secure application</Link>.
+            Questions? Contact {COMPANY.name} at <a className="text-[#e7c579] underline" href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a> or write to {COMPANY.street}, {COMPANY.city}, {COMPANY.state} {COMPANY.zip}. Return to the <Link className="text-[#e7c579] underline" href="/apply">secure application</Link>.
           </div>
         </div>
       </div>

@@ -116,7 +116,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
       },
     ],
     user_profiles: [
-      activeProfile,
+      { ...activeProfile, referral_slug: role === 'sales_rep' ? 'sam-rep-auth-us' : 'avery-admin-auth-us' },
       {
         id: SALES_PROFILE_ID,
         user_id: 'auth-user-2',
@@ -127,6 +127,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         role: 'sales_rep',
         is_active: true,
         last_login_at: now,
+        referral_slug: 'riley-rep-auth-us',
       },
     ],
     businesses: [
@@ -226,6 +227,84 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   await page.route('**/api/documents/*/signed-url', async (route) => {
     calls.push({ method: route.request().method(), table: 'document_signed_url', body: route.request().postDataJSON() });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, url: 'https://signed.example/atlas-bank-statements.pdf' }) });
+  });
+
+  await page.route('**/api/crm/deals', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const businessTitle = payload.title || payload.business_name || 'New deal';
+    const businessId = `business-${state.businesses.length + 1}`;
+    state.businesses.unshift({
+      id: businessId,
+      organization_id: ORG_ID,
+      legal_name: businessTitle,
+      dba: businessTitle,
+      contact_name: payload.contact_name || null,
+      created_at: now,
+      updated_at: now,
+    });
+    const deal = {
+      id: `deal-${state.deals.length + 1}`,
+      organization_id: ORG_ID,
+      business_id: businessId,
+      title: businessTitle,
+      requested_amount: payload.requested_amount || null,
+      approved_amount: payload.approved_amount || null,
+      stage_slug: payload.stage_slug || 'lead_captured',
+      assigned_user_id: payload.assigned_user_id || ADMIN_PROFILE_ID,
+      created_at: now,
+      updated_at: now,
+    };
+    state.deals.unshift(deal);
+    calls.push({ method: route.request().method(), table: 'deals', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, deal }) });
+  });
+
+  await page.route('**/api/crm/deals/*/stage', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    state.deals = state.deals.map((deal) => deal.id === id ? { ...deal, stage_slug: payload.stage_slug, updated_at: now } : deal);
+    calls.push({ method: route.request().method(), table: 'deal_stage', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/users', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = `user-${state.user_profiles.length + 1}`;
+    const slugBase = [payload.first_name, payload.last_name].filter(Boolean).join('-') || payload.email.split('@')[0];
+    const user = {
+      id,
+      user_id: `auth-${id}`,
+      organization_id: ORG_ID,
+      email: payload.email,
+      first_name: payload.first_name || '',
+      last_name: payload.last_name || '',
+      role: payload.role || 'sales_rep',
+      is_active: payload.is_active !== false,
+      referral_slug: `${slugBase.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${id}`,
+      last_login_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+    state.user_profiles.unshift(user);
+    calls.push({ method: route.request().method(), table: 'user_profiles', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, user }) });
+  });
+
+  await page.route('**/api/crm/users/*', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').pop();
+    state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, ...payload, updated_at: now } : user);
+    const user = state.user_profiles.find((item) => item.id === id);
+    calls.push({ method: route.request().method(), table: 'user_profiles', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, user }) });
+  });
+
+  await page.route('**/api/crm/applications/*/status', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    state.applications = state.applications.map((app) => app.id === id ? { ...app, status: payload.status, updated_at: now } : app);
+    calls.push({ method: route.request().method(), table: 'application_status', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
   });
 
   await page.context().route('https://signed.example/**', async (route) => {

@@ -129,11 +129,11 @@ export default function OffersPage() {
     }
 
     if (offer.deal_id) {
-      await supabase
-        .from('deals')
-        .update({ stage_slug: 'offer_presented' })
-        .eq('id', offer.deal_id)
-        .eq('organization_id', organizationId);
+      await fetch(`/api/crm/deals/${offer.deal_id}/stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage_slug: 'offer_presented', notes: 'Offer presented from CRM offers page.' }),
+      });
     }
 
     toast.success('Offer marked as presented');

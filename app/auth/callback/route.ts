@@ -62,22 +62,39 @@ export async function GET(request: NextRequest) {
   const serviceSupabase = createServiceSupabaseClient();
   const { firstName, lastName } = splitName(user.user_metadata?.full_name || user.user_metadata?.name);
 
-  const { error: profileError } = await serviceSupabase
+  const { data: existingProfile, error: existingProfileError } = await serviceSupabase
     .from('user_profiles')
-    .upsert(
-      {
-        user_id: user.id,
-        organization_id: DEFAULT_ORG_ID,
-        email: user.email,
-        first_name: firstName,
-        last_name: lastName,
-        avatar_url: user.user_metadata?.avatar_url || null,
-        role: 'sales_rep',
+    .select('id,role,is_active')
+    .eq('user_id', user.id)
+    .eq('organization_id', DEFAULT_ORG_ID)
+    .maybeSingle();
+
+  if (existingProfileError) {
+    return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(existingProfileError.message)}`, request.url));
+  }
+
+  const profilePayload = {
+    user_id: user.id,
+    organization_id: DEFAULT_ORG_ID,
+    email: user.email,
+    first_name: firstName,
+    last_name: lastName,
+    avatar_url: user.user_metadata?.avatar_url || null,
+    last_login_at: new Date().toISOString(),
+  };
+
+  const { error: profileError } = existingProfile
+    ? await serviceSupabase
+      .from('user_profiles')
+      .update(profilePayload)
+      .eq('id', existingProfile.id)
+    : await serviceSupabase
+      .from('user_profiles')
+      .insert({
+        ...profilePayload,
+        role: 'client',
         is_active: true,
-        last_login_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,organization_id' }
-    );
+      });
 
   if (profileError) {
     return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(profileError.message)}`, request.url));

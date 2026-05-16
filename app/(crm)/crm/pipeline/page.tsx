@@ -93,23 +93,24 @@ export default function PipelinePage() {
 
     setSaving(true);
     
-    const dealData = {
-      organization_id: organizationId,
-      title: formData.business_name,
-      requested_amount: parseFloat(formData.requested_amount),
-      stage_slug: formData.stage,
-    };
+    const response = await fetch('/api/crm/deals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business_name: formData.business_name,
+        contact_name: formData.contact_name,
+        requested_amount: parseFloat(formData.requested_amount),
+        stage_slug: formData.stage,
+      }),
+    });
+    const result = await response.json();
 
-    const { error } = await supabase
-      .from('deals')
-      .insert([dealData]);
-
-    if (error) {
-      toast.error('Failed to create deal');
-      console.error(error);
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to create deal');
     } else {
       toast.success('Deal created successfully');
       setShowDialog(false);
+      setFormData(emptyForm);
       loadDeals();
     }
     
@@ -117,14 +118,15 @@ export default function PipelinePage() {
   };
 
   const moveToStage = async (dealId: string, newStage: string) => {
-    const { error } = await supabase
-      .from('deals')
-      .update({ stage_slug: newStage })
-      .eq('id', dealId)
-      .eq('organization_id', organizationId);
+    const response = await fetch(`/api/crm/deals/${dealId}/stage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage_slug: newStage, notes: 'Pipeline board stage update.' }),
+    });
+    const result = await response.json();
 
-    if (error) {
-      toast.error('Failed to move deal');
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to move deal');
     } else {
       toast.success('Deal moved');
       loadDeals();

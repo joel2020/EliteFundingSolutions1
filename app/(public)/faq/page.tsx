@@ -23,7 +23,7 @@ const faqs = [
     questions: [
       { q: 'What documents should I prepare?', a: 'Most applications begin with business and owner information, full EIN, owner identity details, full SSN authorization, owner mobile phone, and the last 3 business bank statements. Product-specific requests may require tax returns, equipment quotes, invoices, A/R aging, financial statements, or property documents.' },
       { q: 'How should I upload bank statements?', a: 'Upload one combined PDF with the last 3 business bank statements, or upload each statement separately. Include all pages and make sure the business name and statement dates are visible.' },
-      { q: 'How fast can the file be reviewed?', a: 'Some working-capital requests can be reviewed within 24–72 hours after a complete file is received. SBA, equipment, receivables, and commercial real estate requests usually require more documentation and longer underwriting timelines.' },
+      { q: 'How fast can the file be reviewed?', a: 'Some working-capital requests can be reviewed within 24-72 hours after a complete file is received. SBA, equipment, receivables, and commercial real estate requests usually require more documentation and longer underwriting timelines.' },
     ],
   },
   {
@@ -42,12 +42,12 @@ export default function FAQPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-      <main className="section bg-[#030812]">
+      <main className="section bg-[#030812] text-white">
         <div className="container-page">
           <div className="mx-auto mb-14 max-w-3xl text-center">
             <p className="eyebrow mb-3">FAQ</p>
-            <h1 className="text-4xl font-semibold tracking-tight text-[#0A1628] md:text-6xl">Straight answers about business funding.</h1>
-            <p className="mt-5 text-lg leading-8 text-[#5A6A85]">Understand eligibility, documents, timelines, and repayment mechanics before submitting a secure application.</p>
+            <h1 className="text-4xl font-semibold tracking-tight text-white md:text-6xl">Straight answers about business funding.</h1>
+            <p className="mt-5 text-lg leading-8 text-slate-400">Understand eligibility, documents, timelines, and repayment mechanics before submitting a secure application.</p>
           </div>
 
           <div className="mx-auto max-w-4xl space-y-10">
@@ -56,11 +56,11 @@ export default function FAQPage() {
                 <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-[#8A6A22]">{section.category}</h2>
                 <div className="space-y-3">
                   {section.questions.map((faq) => (
-                    <details key={faq.q} className="group overflow-hidden rounded-2xl border border-[#E5E7EB] bg-[#05101d] shadow-sm">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-6 py-5 font-semibold text-[#0A1628] transition hover:bg-[#030812]">
+                    <details key={faq.q} className="group overflow-hidden rounded-sm border border-[#d6af62]/18 bg-[#071322] shadow-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-6 px-6 py-5 font-semibold text-white transition hover:bg-[#0b1a2b]">
                         {faq.q}<ChevronDown className="h-5 w-5 shrink-0 text-[#8A6A22] transition group-open:rotate-180" />
                       </summary>
-                      <p className="border-t border-[#E5E7EB] px-6 pb-6 pt-4 leading-8 text-[#5A6A85]">{faq.a}</p>
+                      <p className="border-t border-[#d6af62]/12 px-6 pb-6 pt-4 leading-8 text-slate-300">{faq.a}</p>
                     </details>
                   ))}
                 </div>
@@ -68,12 +68,12 @@ export default function FAQPage() {
             ))}
           </div>
 
-          <div className="mx-auto mt-14 max-w-3xl rounded-[28px] bg-[#061326] p-8 text-center text-white md:p-10">
-            <h2 className="text-3xl font-semibold tracking-tight">Need help choosing a path?</h2>
+          <div className="mx-auto mt-14 max-w-3xl rounded-sm border border-[#d6af62]/18 bg-[#061326] p-8 text-center text-white md:p-10">
+            <h2 className="text-3xl font-semibold tracking-tight text-white">Need help choosing a path?</h2>
             <p className="mt-3 text-slate-300">Talk with an advisor or submit one secure application for review.</p>
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
               <Link href="/contact" className="btn-dark-outline">Contact us</Link>
-              <Link href="/apply" className="btn-gold">Start application</Link>
+              <Link href="/funding-fit-check" className="btn-gold">Request fit check</Link>
             </div>
           </div>
         </div>

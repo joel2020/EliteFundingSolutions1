@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "type-check": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
+    "type-check": "tsc --noEmit --incremental false",
     "test:e2e": "playwright test",
     "test:e2e:ci": "playwright test --reporter=line"
   },

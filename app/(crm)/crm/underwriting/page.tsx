@@ -117,21 +117,25 @@ export default function UnderwritingPage() {
 
     setSaving(true);
 
-    // Update application status
-    const { error: appError } = await supabase
-      .from('applications')
-      .update({ 
-        status: riskAssessment === 'declined' ? 'declined' : 'approved',
-        underwriting_notes: reviewNotes,
-      })
-      .eq('id', selectedApp.id);
+    const nextApplicationStatus = riskAssessment === 'declined' ? 'declined' : 'approved';
+    const appStatusResponse = await fetch(`/api/crm/applications/${selectedApp.id}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextApplicationStatus, notes: reviewNotes }),
+    });
+    const appStatusResult = await appStatusResponse.json();
 
-    if (appError) {
-      toast.error('Failed to submit review');
-      console.error(appError);
+    if (!appStatusResponse.ok || !appStatusResult.success) {
+      toast.error(appStatusResult.error || 'Failed to submit review');
       setSaving(false);
       return;
     }
+
+    await supabase
+      .from('applications')
+      .update({ underwriting_notes: reviewNotes })
+      .eq('id', selectedApp.id)
+      .eq('organization_id', organizationId);
 
     // Create underwriting review record
     const score = calculateScore(selectedApp);
@@ -162,6 +166,15 @@ export default function UnderwritingPage() {
     if (reviewError) {
       console.error('Failed to create review record:', reviewError);
     }
+
+    await fetch(`/api/crm/deals/${selectedApp.deal.id}/stage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stage_slug: riskAssessment === 'declined' ? 'declined' : 'offers_received',
+        notes: reviewNotes,
+      }),
+    });
 
     toast.success(`Application ${riskAssessment === 'declined' ? 'declined' : 'approved'}`);
     setShowReviewDialog(false);

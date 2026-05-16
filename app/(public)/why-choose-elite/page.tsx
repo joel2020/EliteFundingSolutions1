@@ -15,7 +15,7 @@ const differentiators = [
   ['Security-minded intake', 'Sensitive EIN, SSN, consent, and document uploads are handled through a protected application workflow designed for business funding review.', LockKeyhole],
 ];
 
-const standards = ['No guaranteed-approval claims', 'No fake lender logos or invented funded-volume stats', 'No request for routing or full account numbers during initial prequalification', 'No pressure to accept an offer that does not fit cash flow'];
+const standards = ['Advisor-led file review', 'Structured partner-network communication', 'No request for routing or full account numbers during initial prequalification', 'No pressure to accept an offer that does not fit cash flow'];
 
 export default function WhyChooseElitePage() {
   return (
@@ -48,8 +48,8 @@ export default function WhyChooseElitePage() {
 
       <section className="container-page pb-20">
         <div className="premium-card p-7 md:flex md:items-center md:justify-between md:gap-8">
-          <div><h2 className="text-3xl font-semibold tracking-tight text-[#0A1628]">Ready to see which structures may fit?</h2><p className="mt-3 max-w-2xl leading-7 text-[#5A6A85]">Submit one secure funding file and review available options without an obligation to accept.</p></div>
-          <Link href="/apply" className="btn-primary mt-6 md:mt-0">Apply securely <ArrowRight className="h-4 w-4" /></Link>
+          <div><h2 className="text-3xl font-semibold tracking-tight text-[#0A1628]">Ready to see which structures may fit?</h2><p className="mt-3 max-w-2xl leading-7 text-[#5A6A85]">Start with a light funding fit check or submit one secure funding file when you are ready.</p></div>
+          <Link href="/funding-fit-check" className="btn-gold mt-6 md:mt-0">Request fit check <ArrowRight className="h-4 w-4" /></Link>
         </div>
       </section>
     </main>

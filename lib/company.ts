@@ -9,6 +9,9 @@ export const COMPANY = {
   city: 'Tampa',
   state: 'FL',
   zip: '33607',
+  linkedin: '',
+  facebook: '',
+  instagram: '',
   get addressLines() {
     return [this.name, this.street, `${this.city}, ${this.state} ${this.zip}`];
   },

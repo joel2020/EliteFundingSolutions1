@@ -36,6 +36,12 @@ const trustBadges = [
   { icon: LockKeyhole, label: 'Advisor', sublabel: 'Led Review' },
 ];
 
+const fitSignals = [
+  { icon: ShieldCheck, title: 'No sensitive docs up front', text: 'Start with revenue, timing, requested amount, and use of funds before submitting SSN or bank statements.' },
+  { icon: Users, title: 'Advisor review', text: 'A funding advisor reviews product fit and documentation needs before the complete file is packaged.' },
+  { icon: Handshake, title: 'No obligation', text: 'Use the fit check to understand available direction before moving into the full secure application.' },
+];
+
 const fundingSolutions = [
   { icon: BadgeDollarSign, title: 'Merchant Cash Advance', text: 'Revenue-based funding for urgent needs with responsible cost and cash-flow review.', href: '/funding-solutions/merchant-cash-advance' },
   { icon: Building2, title: 'Working Capital', text: 'Operating capital for payroll, inventory, marketing, expansion, and timing gaps.', href: '/funding-solutions/working-capital' },
@@ -221,11 +227,11 @@ function Hero() {
             Access working capital from $10,000 to $5,000,000 through a secure, advisor-led process that helps you compare qualified funding structures without hype or pressure.
           </p>
           <div className="mt-9 flex flex-col gap-4 sm:flex-row">
-            <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
-              Get Pre-Qualified <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            <Link href="/funding-fit-check" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
+              Start Funding Fit Check <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
             </Link>
-            <Link href="/contact" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm border border-[#d6af62]/55 bg-[#06101f]/60 px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-white transition hover:border-[#d6af62] hover:bg-[#d6af62]/10">
-              Speak With an Advisor <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm border border-[#d6af62]/55 bg-[#06101f]/60 px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-white transition hover:border-[#d6af62] hover:bg-[#d6af62]/10">
+              Full Secure Application <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
             </Link>
           </div>
           <div className="mt-11 grid max-w-[620px] grid-cols-2 gap-y-6 sm:grid-cols-4 sm:gap-y-0">
@@ -242,6 +248,42 @@ function Hero() {
           </div>
         </div>
         <FundingReviewDesk />
+      </div>
+    </section>
+  );
+}
+
+function FitCheckSection() {
+  return (
+    <section className="border-b border-[#c7a45a]/10 bg-[#06101d] px-5 py-9 md:px-8 xl:px-0">
+      <div className="mx-auto grid max-w-[1280px] gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+        <div>
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-[#d6af62]">Better first step</p>
+          <h2 className="font-serif text-3xl leading-tight text-white md:text-4xl">Not ready to submit a full funding file?</h2>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 md:text-base">
+            Start with a light funding fit check. Share the basics, get advisor direction, then decide whether the full secure application is worth completing.
+          </p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link href="/funding-fit-check" className="group inline-flex h-12 items-center justify-center gap-3 rounded-sm bg-[#d6af62] px-7 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] transition hover:bg-[#f2d17e]">
+              Request fit check <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+            </Link>
+            <Link href="/contact" className="inline-flex h-12 items-center justify-center rounded-sm border border-[#d6af62]/45 px-7 text-[12px] font-bold uppercase tracking-[0.14em] text-white transition hover:border-[#d6af62]">
+              Talk to advisor
+            </Link>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {fitSignals.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.title} className="rounded-sm border border-[#d6af62]/16 bg-[#081523] p-5">
+                <Icon className="mb-4 h-7 w-7 text-[#d6af62]" strokeWidth={1.4} />
+                <h3 className="text-base font-semibold text-white">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{item.text}</p>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -371,11 +413,11 @@ function FinalCta() {
         <div className="px-7 py-8">
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#d6af62]">Secure Intake</p>
           <h2 className="font-serif text-3xl leading-tight text-white md:text-4xl">Ready to Secure the Capital Your Business Needs?</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Submit one secure file and review available funding structures with an advisor. Available options vary by profile; terms are subject to underwriting and partner review.</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Start with a funding fit check or submit a complete secure file when you are ready. Available options vary by profile; terms are subject to underwriting and partner review.</p>
         </div>
         <div className="px-7 pb-8 md:pb-0">
-          <Link href="/apply" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
-            Get Pre-Qualified Today <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+          <Link href="/funding-fit-check" className="group inline-flex h-14 items-center justify-center gap-3 rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-8 text-[12px] font-bold uppercase tracking-[0.14em] text-[#050912] shadow-[0_12px_32px_rgba(214,175,98,0.24)] transition hover:brightness-110">
+            Start Fit Check <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
           </Link>
         </div>
       </div>
@@ -387,6 +429,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#030812] text-white">
       <Hero />
+      <FitCheckSection />
       <FundingSolutions />
       <HowAndWhy />
       <Industries />

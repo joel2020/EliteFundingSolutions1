@@ -33,6 +33,7 @@ const navLinks = [
     ],
   },
   { label: 'FAQ', href: '/faq' },
+  { label: 'Fit Check', href: '/funding-fit-check' },
   { label: 'Contact', href: '/contact' },
 ];
 
@@ -54,15 +55,15 @@ export function PublicNavbar() {
         scrolled ? 'border-[#c7a45a]/20 bg-[#030812]/95 shadow-[0_12px_35px_rgba(0,0,0,0.42)]' : 'border-white/5 bg-[#030812]/72 backdrop-blur-md'
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-5 md:h-[86px] md:px-8 xl:px-0">
+      <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between px-5 md:h-24 md:px-8 xl:px-0">
         <Link href="/" className="group flex items-center" aria-label="Elite Funding Solutions home">
           <Image
             src="/elite-funding-logo.png"
             alt="Elite Funding Solutions"
-            width={148}
-            height={84}
+            width={198}
+            height={112}
             priority
-            className="h-[56px] w-auto object-contain md:h-[74px]"
+            className="h-[72px] w-auto object-contain md:h-[92px]"
           />
         </Link>
 
@@ -125,10 +126,10 @@ export function PublicNavbar() {
           </a>
           <Link href="https://crm.elitefundingsolution.com/login" className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-200 transition hover:text-[#e7c579]">CRM Login</Link>
           <Link
-            href="/apply"
+            href="/funding-fit-check"
             className="inline-flex h-11 items-center justify-center rounded-sm border border-[#d6af62] px-7 text-[11px] font-bold uppercase tracking-[0.14em] text-[#f1d08a] transition hover:bg-[#d6af62] hover:text-[#050912]"
           >
-            Get Pre-Qualified
+            Funding Fit Check
           </Link>
         </div>
 
@@ -185,11 +186,11 @@ export function PublicNavbar() {
               </div>
             ))}
             <Link
-              href="/apply"
+              href="/funding-fit-check"
               className="mt-4 inline-flex h-12 items-center justify-center rounded-sm bg-gradient-to-r from-[#b8893f] via-[#f2d17e] to-[#b8893f] px-6 text-[12px] font-bold uppercase tracking-[0.15em] text-[#050912]"
               onClick={() => setMenuOpen(false)}
             >
-              Get Pre-Qualified
+              Funding Fit Check
             </Link>
             <a
               href={`tel:${COMPANY.phoneHref}`}

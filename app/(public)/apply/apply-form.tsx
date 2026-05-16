@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -92,6 +92,8 @@ interface ApplicationFormData {
   signature: string;
   signature_date: string;
   bot_field: string;
+  referral_code: string;
+  referral_path: string;
 }
 
 const blankOwner: OwnerFields = {
@@ -106,7 +108,7 @@ const initialForm: ApplicationFormData = {
   bank_name: '', bank_contact: '', bank_phone: '', account_last4: '', account_type: 'checking',
   owner1: { ...blankOwner, ownership_pct: '100' }, owner2: { ...blankOwner },
   requested_amount: '', use_of_funds: '', timeline: '', average_monthly_sales: '', average_visa_mc_sales: '', monthly_gross_revenue: '',
-  has_existing_advances: false, existing_advances: [], notes: '', certification_accepted: false, credit_authorization_accepted: false, esign_consent_accepted: false, sms_consent_accepted: false, terms_accepted: false, privacy_policy_accepted: false, authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10), bot_field: '',
+  has_existing_advances: false, existing_advances: [], notes: '', certification_accepted: false, credit_authorization_accepted: false, esign_consent_accepted: false, sms_consent_accepted: false, terms_accepted: false, privacy_policy_accepted: false, authorization_consent: false, sms_consent: false, signature: '', signature_date: new Date().toISOString().slice(0, 10), bot_field: '', referral_code: '', referral_path: '',
 };
 
 const steps = [
@@ -145,7 +147,7 @@ function SelectField({ label, value, onChange, options, required = false }: { la
     <div>
       <label className="block text-[13px] font-medium text-[#52525B] mb-1.5">{label} {required && <span className="text-[#EF4444]">*</span>}</label>
       <select data-testid={fieldTestId(label)} value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field w-full appearance-none bg-white">
-        <option value="">Select…</option>
+        <option value="">Select...</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </div>
@@ -235,7 +237,7 @@ function OwnerCard({ title, owner, required, update }: { title: string; owner: O
         <InputField label="Owner Mobile Phone" value={owner.mobile} onChange={(v) => update('mobile', v)} required={required} />
         <InputField label="Date of Birth" value={owner.dob} onChange={(v) => update('dob', v)} type="date" required={required} />
         <InputField label="Full Social Security Number" value={owner.ssn} onChange={(v) => update('ssn', v)} type="password" required={required} placeholder="XXX-XX-XXXX" hint="Used for authorized underwriting and identity verification; transmitted through the secure application workflow." />
-        <SelectField label="Credit Score Range" value={owner.credit_range} onChange={(v) => update('credit_range', v)} options={[{ value: '720+', label: '720+' }, { value: '680-719', label: '680–719' }, { value: '640-679', label: '640–679' }, { value: '600-639', label: '600–639' }, { value: '<600', label: 'Below 600' }]} />
+        <SelectField label="Credit Score Range" value={owner.credit_range} onChange={(v) => update('credit_range', v)} options={[{ value: '720+', label: '720+' }, { value: '680-719', label: '680-719' }, { value: '640-679', label: '640-679' }, { value: '600-639', label: '600-639' }, { value: '<600', label: 'Below 600' }]} />
         <div className="md:col-span-2"><InputField label="Home Address" value={owner.address} onChange={(v) => update('address', v)} required={required} /></div>
         <InputField label="City" value={owner.city} onChange={(v) => update('city', v)} required={required} />
         <div className="grid grid-cols-2 gap-4"><SelectField label="State" value={owner.state} onChange={(v) => update('state', v)} required={required} options={usStates.map((state) => ({ value: state, label: state }))} /><InputField label="Zip" value={owner.zip} onChange={(v) => update('zip', v)} required={required} /></div>
@@ -264,9 +266,9 @@ function StepFunding({ data, update }: { data: ApplicationFormData; update: <K e
         <InputField label="Average Monthly Sales" value={data.average_monthly_sales} onChange={(v) => update('average_monthly_sales', v)} type="number" required />
         <InputField label="Average Visa/MasterCard Monthly Sales" value={data.average_visa_mc_sales} onChange={(v) => update('average_visa_mc_sales', v)} type="number" />
         <InputField label="Monthly Gross Revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" required />
-        <SelectField label="Desired Funding Timeline" value={data.timeline} onChange={(v) => update('timeline', v)} options={[{ value: 'asap', label: 'As soon as possible' }, { value: '1_week', label: 'Within 1 week' }, { value: '2_4_weeks', label: '2–4 weeks' }, { value: 'exploring', label: 'Exploring options' }]} />
+        <SelectField label="Desired Funding Timeline" value={data.timeline} onChange={(v) => update('timeline', v)} options={[{ value: 'asap', label: 'As soon as possible' }, { value: '1_week', label: 'Within 1 week' }, { value: '2_4_weeks', label: '2-4 weeks' }, { value: 'exploring', label: 'Exploring options' }]} />
       </div>
-      <textarea value={data.notes} onChange={(event) => update('notes', event.target.value)} rows={4} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-[14px] py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#0F2B5B]" placeholder="Additional context for underwriting…" />
+      <textarea value={data.notes} onChange={(event) => update('notes', event.target.value)} rows={4} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-[14px] py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#0F2B5B]" placeholder="Additional context for underwriting..." />
     </div>
   );
 }
@@ -350,9 +352,13 @@ function StepConfirmation({ data }: { data: ApplicationFormData }) {
   );
 }
 
-export default function ApplyForm() {
+export default function ApplyForm({ referral }: { referral?: { code: string; path: string; repName?: string | null } }) {
   const [currentStep, setCurrentStep] = useState<Step>(1);
-  const [form, setForm] = useState<ApplicationFormData>(initialForm);
+  const [form, setForm] = useState<ApplicationFormData>(() => ({
+    ...initialForm,
+    referral_code: referral?.code || '',
+    referral_path: referral?.path || '',
+  }));
   const [files, setFilesState] = useState<Record<DocumentKey, File[]>>({ bank_statements: [] });
   const [submitting, setSubmitting] = useState(false);
 
@@ -391,7 +397,12 @@ export default function ApplyForm() {
     setSubmitting(true);
     try {
       const body = new globalThis.FormData();
-      body.append('payload', JSON.stringify({ ...form, consent_version: CONSENT_VERSION }));
+      body.append('payload', JSON.stringify({
+        ...form,
+        referral_code: referral?.code || form.referral_code,
+        referral_path: referral?.path || form.referral_path,
+        consent_version: CONSENT_VERSION,
+      }));
       documentConfig.forEach((doc) => files[doc.key].forEach((file) => body.append(doc.key, file)));
 
       const response = await fetch('/api/applications/submit', { method: 'POST', body });
@@ -410,6 +421,7 @@ export default function ApplyForm() {
     <div className="min-h-screen bg-[#030812] pt-10 pb-20 text-white">
       <div className="mx-auto max-w-[980px] px-5 md:px-8">
         <div className="mx-auto mb-10 max-w-3xl text-center"><p className="eyebrow mb-3">Secure funding intake</p><h1 className="mb-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">Complete one protected application.</h1><p className="text-[16px] leading-7 text-slate-300">We ask for full EIN, full SSN, owner mobile phone, and the last 3 business bank statements for authorized underwriting. We do not ask for routing numbers, full account numbers, rent/landlord details, average daily balance, or NSF count during initial prequalification. Review our <a href="/disclosures" className="font-semibold text-[#e7c579] underline underline-offset-4">Disclosures</a> before applying.</p></div>
+        {referral?.repName && currentStep < 8 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/30 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#f1d08a]">Your application is connected to {referral.repName}.</div>}
         {currentStep < 8 && <div className="mb-8" data-testid="application-step"><div className="flex items-center justify-between mb-3"><span className="text-[14px] font-bold text-white">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="rounded-full bg-[#061326] px-3 py-1 text-[12px] font-bold text-white">{Math.round(progressPct)}% complete</span></div><div className="h-3 bg-white/15 rounded-full overflow-hidden" aria-label="Application progress"><div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} /></div></div>}
         <div className="premium-card p-5 md:p-8" >
           {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
@@ -420,7 +432,7 @@ export default function ApplyForm() {
           {currentStep === 6 && <StepDocuments files={files} setFiles={setFiles} />}
           {currentStep === 7 && <StepReview data={form} files={files} update={updateField} />}
           {currentStep === 8 && <StepConfirmation data={form} />}
-          {currentStep < 8 && <><div className="mt-8 rounded-2xl border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]"><Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" />Secure, encrypted application. Your information is used only to evaluate funding options.</div><div className="flex items-center justify-between mt-6 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex h-11 items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#061326] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1730] disabled:opacity-50">{submitting ? 'Submitting…' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div></>}
+          {currentStep < 8 && <><div className="mt-8 rounded-2xl border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]"><Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" />Secure, encrypted application. Your information is used only to evaluate funding options.</div><div className="flex items-center justify-between mt-6 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex h-11 items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#061326] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1730] disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div></>}
         </div>
         {currentStep < 8 && <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span><a href={`tel:${COMPANY.phoneHref}`} className="flex items-center gap-1.5 font-semibold text-[#e7c579]"><Phone className="w-3.5 h-3.5" />Need help? Call {COMPANY.phone}</a></div>}
       </div>

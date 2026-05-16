@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -20,7 +20,7 @@
   --border-default: #DDE3EF;
   --border-subtle: #EDF0F7;
 
-  /* Brand — Deep Navy + Gold */
+  /* Brand - Deep Navy + Gold */
   --brand: #061326;
   --brand-hover: #0A1730;
   --brand-light: #EEF2F7;
@@ -287,8 +287,8 @@
 
 @layer components {
   .premium-card {
-    border-color: rgba(214, 175, 98, 0.16) !important;
-    background: rgba(8, 21, 35, 0.88) !important;
+    border-color: rgba(214, 175, 98, 0.18) !important;
+    background: #081523 !important;
     box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22) !important;
   }
   .premium-card h1,
@@ -303,7 +303,8 @@
   }
   .premium-card p,
   .premium-card li,
-  .premium-card span:not(.text-white):not([class*="bg-"]) {
+  .premium-card span:not([class*="bg-"]),
+  .premium-card a:not(.btn-gold):not(.btn-primary):not(.btn-dark-outline) {
     color: #b9c2d0;
   }
   .premium-card .input-field,
@@ -334,4 +335,48 @@
     color: #cbd5e1;
   }
   main.bg-\[\#030812\] .eyebrow { color: #e7c579; }
+
+  main[class*="bg-[#030812]"] [class*="text-[#0A1628]"],
+  main[class*="bg-[#030812]"] [class*="text-[#09090B]"],
+  section[class*="bg-[#030812]"] [class*="text-[#0A1628]"],
+  section[class*="bg-[#030812]"] [class*="text-[#09090B]"],
+  div[class*="bg-[#05101d]"] [class*="text-[#0A1628]"],
+  div[class*="bg-[#05101d]"] [class*="text-[#09090B]"] {
+    color: #ffffff !important;
+  }
+
+  main[class*="bg-[#030812]"] [class*="text-[#5A6A85]"],
+  main[class*="bg-[#030812]"] [class*="text-[#52525B]"],
+  main[class*="bg-[#030812]"] [class*="text-[#71717A]"],
+  main[class*="bg-[#030812]"] [class*="text-[#3F4A5F]"],
+  section[class*="bg-[#030812]"] [class*="text-[#5A6A85]"],
+  section[class*="bg-[#030812]"] [class*="text-[#52525B]"],
+  section[class*="bg-[#030812]"] [class*="text-[#71717A]"],
+  section[class*="bg-[#030812]"] [class*="text-[#3F4A5F]"],
+  div[class*="bg-[#05101d]"] [class*="text-[#5A6A85]"],
+  div[class*="bg-[#05101d]"] [class*="text-[#52525B]"],
+  div[class*="bg-[#05101d]"] [class*="text-[#71717A]"],
+  div[class*="bg-[#05101d]"] [class*="text-[#3F4A5F]"],
+  main[class*="bg-[#030812]"] .text-slate-500,
+  section[class*="bg-[#030812]"] .text-slate-500,
+  div[class*="bg-[#05101d]"] .text-slate-500 {
+    color: #b9c2d0 !important;
+  }
+
+  main[class*="bg-[#030812]"] input,
+  main[class*="bg-[#030812]"] select,
+  main[class*="bg-[#030812]"] textarea,
+  main[class*="bg-[#030812]"] .input-field,
+  section[class*="bg-[#030812]"] input,
+  section[class*="bg-[#030812]"] select,
+  section[class*="bg-[#030812]"] textarea,
+  section[class*="bg-[#030812]"] .input-field {
+    color: #0a1628 !important;
+  }
+
+  main[class*="bg-[#030812]"] .btn-gold,
+  main[class*="bg-[#030812]"] .btn-primary,
+  main[class*="bg-[#030812]"] button {
+    text-decoration: none;
+  }
 }

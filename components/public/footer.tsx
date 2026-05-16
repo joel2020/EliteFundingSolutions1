@@ -1,6 +1,6 @@
-import Image from 'next/image';
+﻿import Image from 'next/image';
 import Link from 'next/link';
-import { Facebook, Instagram, Linkedin, Mail, MapPin, Phone } from 'lucide-react';
+import { Mail, MapPin, Phone } from 'lucide-react';
 import { COMPANY } from '@/lib/company';
 
 const footerColumns = [
@@ -47,16 +47,14 @@ export function PublicFooter() {
         <div className="grid gap-10 border-b border-white/10 pb-9 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1.25fr]">
           <div>
             <Link href="/" className="mb-4 inline-flex" aria-label="Elite Funding Solutions home">
-              <Image src="/elite-funding-logo.png" alt="Elite Funding Solutions" width={172} height={97} className="h-[82px] w-auto object-contain" />
+              <Image src="/elite-funding-logo.png" alt="Elite Funding Solutions" width={220} height={124} className="h-[104px] w-auto object-contain" />
             </Link>
             <p className="max-w-[260px] text-sm leading-relaxed text-slate-400">
               Fast, flexible capital for ambitious businesses across the U.S.
             </p>
-            <div className="mt-5 flex gap-3 text-slate-400">
-              <Link href="https://www.linkedin.com" aria-label="LinkedIn" className="transition hover:text-[#e7c579]"><Linkedin className="h-4 w-4" /></Link>
-              <Link href="https://www.facebook.com" aria-label="Facebook" className="transition hover:text-[#e7c579]"><Facebook className="h-4 w-4" /></Link>
-              <Link href="https://www.instagram.com" aria-label="Instagram" className="transition hover:text-[#e7c579]"><Instagram className="h-4 w-4" /></Link>
-            </div>
+            <p className="mt-5 max-w-[270px] text-xs leading-6 text-slate-400">
+              Advisor-led funding review from Tampa for established U.S. operators.
+            </p>
           </div>
 
           {footerColumns.map((column) => (
@@ -95,8 +93,8 @@ export function PublicFooter() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 pt-6 text-[12px] text-slate-500 md:flex-row md:items-center md:justify-between">
-          <p>© 2026 Elite Funding Solutions. All rights reserved.</p>
+        <div className="flex flex-col gap-4 pt-6 text-[12px] text-slate-400 md:flex-row md:items-center md:justify-between">
+          <p>&copy; 2026 Elite Funding Solutions. All rights reserved.</p>
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             <Link href="/privacy-policy" className="hover:text-[#e7c579]">Privacy Policy</Link>
             <Link href="/terms-of-use" className="hover:text-[#e7c579]">Terms of Use</Link>

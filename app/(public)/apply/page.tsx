@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/apply' },
 };
 
-export default function ApplyPage() {
-  return <ApplyForm />;
+export default function ApplyPage({ searchParams }: { searchParams?: { rep?: string } }) {
+  const code = searchParams?.rep?.trim() || '';
+  return <ApplyForm referral={code ? { code, path: `/apply?rep=${encodeURIComponent(code)}` } : undefined} />;
 }

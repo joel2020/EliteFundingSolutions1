@@ -1,33 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { createServiceSupabaseClient } from '@/lib/server-supabase';
+import { requireCrmProfile } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
 const DELETE_ROLES = ['super_admin', 'admin', 'manager', 'processor'];
 
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const cookieStore = cookies();
-  const authClient = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    cookies: {
-      getAll() { return cookieStore.getAll(); },
-      setAll() { /* route does not mutate auth cookies */ },
-    },
-  });
-
-  const { data: { session } } = await authClient.auth.getSession();
-  if (!session) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-
-  const supabase = createServiceSupabaseClient();
-  const { data: profile } = await supabase
-    .from('user_profiles')
-    .select('organization_id, role, is_active')
-    .eq('user_id', session.user.id)
-    .eq('is_active', true)
-    .single();
-
-  if (!profile || !DELETE_ROLES.includes(profile.role)) return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  const auth = await requireCrmProfile(DELETE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
 
   const { data: doc, error } = await supabase
     .from('documents')
@@ -47,7 +28,7 @@ export async function DELETE(_request: Request, { params }: { params: { id: stri
 
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
-    user_id: session.user.id,
+    user_id: user.id,
     action: 'document_deleted',
     resource_type: 'documents',
     resource_id: doc.id,

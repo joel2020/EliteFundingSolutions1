@@ -25,8 +25,8 @@ export default function AboutPage() {
           </div>
           <div className="rounded-[28px] border border-white/10 bg-[#05101d]/[0.045] p-6 md:p-8">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#C9A84C]">Our operating standard</p>
-            <p className="mt-4 text-2xl font-semibold leading-snug text-white">No fake urgency. No guaranteed-approval claims. No confusing lender jargon without context.</p>
-            <p className="mt-4 leading-7 text-slate-300">We position funding conversations around documentation quality, responsible repayment capacity, and terms that fit the use of funds.</p>
+            <p className="mt-4 text-2xl font-semibold leading-snug text-white">Clean files. Clear comparisons. Advisor-led execution from first conversation to final documents.</p>
+            <p className="mt-4 leading-7 text-slate-300">We position funding conversations around documentation quality, repayment capacity, and terms that fit the use of funds.</p>
           </div>
         </div>
       </section>
@@ -43,13 +43,13 @@ export default function AboutPage() {
           <article className="premium-card p-7">
             <p className="eyebrow mb-3">Founder and advisory standard</p>
             <h2 className="text-3xl font-semibold tracking-tight text-[#0A1628]">Led by operators focused on clean files and responsible funding conversations.</h2>
-            <p className="mt-4 leading-7 text-[#5A6A85]">Elite Funding Solutions presents its team through a company-led advisory model rather than inventing credentials or fake biographies. Applicants work with funding advisors who prioritize secure intake, accurate documentation, and transparent partner-network communication.</p>
+            <p className="mt-4 leading-7 text-[#5A6A85]">Applicants work with funding advisors who prioritize secure intake, accurate documentation, and clear partner-network communication. The goal is a complete file and a practical funding conversation.</p>
           </article>
           <article className="rounded-[28px] bg-[#061326] p-7 text-white">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#C9A84C]">Trusted funding process</p>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white">Built to support sensitive applications.</h2>
             <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {['Protected collection of EIN, SSN, consent, and bank statement details.', 'Clear partner-network language before files are reviewed for funding options.', 'No fake logos, guaranteed approvals, or invented funded-volume claims.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-[#05101d]/[0.045] p-4 text-sm leading-6 text-slate-200">{item}</div>)}
+              {['Protected collection of EIN, SSN, consent, and bank statement details.', 'Clear partner-network language before files are reviewed for funding options.', 'Offer comparisons focused on amount, speed, repayment mechanics, and fit.'].map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-[#05101d]/[0.045] p-4 text-sm leading-6 text-slate-200">{item}</div>)}
             </div>
           </article>
         </div>
