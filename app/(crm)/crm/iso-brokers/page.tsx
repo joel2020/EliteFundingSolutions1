@@ -54,7 +54,7 @@ export default function IsoBrokersPage() {
 
   const loadBrokers = useCallback(async () => {
     if (!organizationId) return;
-    const response = await fetch('/api/crm/iso-brokers');
+    const response = await fetch('/api/crm/iso-brokers', { cache: 'no-store' });
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok || !result.success) {
@@ -105,9 +105,12 @@ export default function IsoBrokersPage() {
       console.error(result);
     } else {
       toast.success(result.warning || 'Broker added successfully');
+      if (result.broker) {
+        setBrokers((current) => [result.broker, ...current.filter((broker) => broker.id !== result.broker.id)]);
+      }
       setShowDialog(false);
       setFormData(emptyForm);
-      loadBrokers();
+      await loadBrokers();
     }
     
     setSaving(false);

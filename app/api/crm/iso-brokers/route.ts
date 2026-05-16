@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager'];
+const noStoreHeaders = { 'Cache-Control': 'no-store, max-age=0' };
 
 const optionalText = z.preprocess(
   (value) => (value == null ? '' : value),
@@ -49,7 +51,7 @@ export async function GET() {
   ]);
 
   if (brokerResult.error) {
-    return NextResponse.json({ success: false, error: brokerResult.error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: brokerResult.error.message }, { status: 500, headers: noStoreHeaders });
   }
 
   return NextResponse.json({
@@ -57,7 +59,7 @@ export async function GET() {
     brokers: brokerResult.data || [],
     commissions: commissionResult.data || [],
     deals: dealResult.data || [],
-  });
+  }, { headers: noStoreHeaders });
 }
 
 export async function POST(request: Request) {
@@ -70,7 +72,7 @@ export async function POST(request: Request) {
 
   const parsed = brokerSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ success: false, error: 'Invalid broker payload.', issues: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid broker payload.', issues: parsed.error.flatten() }, { status: 400, headers: noStoreHeaders });
   }
 
   const form = parsed.data;
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
   }
 
   if (result.error) {
-    return NextResponse.json({ success: false, error: result.error.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: result.error.message }, { status: 500, headers: noStoreHeaders });
   }
 
   await Promise.allSettled([
@@ -124,5 +126,5 @@ export async function POST(request: Request) {
     }),
   ]);
 
-  return NextResponse.json({ success: true, broker: result.data, warning });
+  return NextResponse.json({ success: true, broker: result.data, warning }, { headers: noStoreHeaders });
 }
