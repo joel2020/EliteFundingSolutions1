@@ -92,12 +92,10 @@ export default function LoginPage() {
         return;
       }
 
-      router.refresh();
-
       if (profile.role === 'client') {
-        router.push('/portal');
+        router.replace('/portal');
       } else if (isInternalCrmRole(profile.role)) {
-        router.push('/crm');
+        router.replace('/crm');
       } else {
         await supabase.auth.signOut();
         toast.error('This account is not authorized for CRM access.');

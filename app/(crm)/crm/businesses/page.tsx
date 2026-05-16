@@ -145,9 +145,11 @@ export default function BusinessesPage() {
 
     setSaving(true);
     
+    const { ein, ...schemaFormData } = formData;
     const businessData = {
-      ...formData,
+      ...schemaFormData,
       organization_id: organizationId,
+      start_date: formData.start_date || null,
       monthly_gross_revenue: formData.monthly_gross_revenue ? parseFloat(formData.monthly_gross_revenue) : null,
       average_daily_balance: formData.average_daily_balance ? parseFloat(formData.average_daily_balance) : null,
       deposit_count_monthly: formData.deposit_count_monthly ? parseInt(formData.deposit_count_monthly) : null,

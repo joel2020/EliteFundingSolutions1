@@ -51,8 +51,8 @@ export default function OffersPage() {
     if (!organizationId) return;
     setLoading(true);
     const [offersResult, dealsResult] = await Promise.all([
-      supabase.from('offers').select('id,deal_id,approved_amount,factor_rate,payback_amount,term_days,payment_frequency,daily_payment,weekly_payment,holdback_pct,status,expires_at,created_at,deals(id,title,businesses(legal_name,dba))').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100),
-      supabase.from('deals').select('id,title,requested_amount,stage_slug,businesses(legal_name,dba)').eq('organization_id', organizationId).is('deleted_at', null).in('stage_slug', ['underwriting_review', 'submitted_to_partners', 'offers_received', 'offer_presented']).order('created_at', { ascending: false }).limit(100),
+      supabase.from('offers').select('id,deal_id,approved_amount,factor_rate,payback_amount,term_days,payment_frequency,daily_payment,weekly_payment,holdback_pct,status,expires_at,created_at,deals(id,title,businesses!deals_business_id_fkey(legal_name,dba))').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100),
+      supabase.from('deals').select('id,title,requested_amount,stage_slug,businesses!deals_business_id_fkey(legal_name,dba)').eq('organization_id', organizationId).is('deleted_at', null).in('stage_slug', ['underwriting_review', 'submitted_to_partners', 'offers_received', 'offer_presented']).order('created_at', { ascending: false }).limit(100),
     ]);
 
     if (offersResult.error || dealsResult.error) {

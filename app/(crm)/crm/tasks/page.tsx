@@ -116,6 +116,7 @@ export default function TasksPage() {
     const taskData = {
       ...formData,
       organization_id: organizationId,
+      due_date: formData.due_date || null,
     };
 
     if (selectedTask) {

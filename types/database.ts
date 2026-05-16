@@ -428,6 +428,7 @@ export interface Database {
           organization_id: string;
           deal_id: string | null;
           application_id: string | null;
+          business_id: string | null;
           direction: string | null;
           channel: string | null;
           sender_user_id: string | null;
@@ -440,6 +441,7 @@ export interface Database {
           sent_at: string | null;
           read_at: string | null;
           created_at: string;
+          updated_at: string | null;
         };
         Insert: Omit<Database['public']['Tables']['messages']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['messages']['Insert']>;
@@ -594,6 +596,54 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['partner_submissions']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['partner_submissions']['Insert']>;
+      };
+      document_upload_tokens: {
+        Row: {
+          id: string;
+          token_hash: string;
+          organization_id: string;
+          deal_id: string;
+          application_id: string | null;
+          expires_at: string;
+          used_at: string | null;
+          created_by: string | null;
+          allowed_document_request_ids: string[];
+          revoked_at: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['document_upload_tokens']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['document_upload_tokens']['Insert']>;
+      };
+      crm_settings: {
+        Row: {
+          id: string;
+          organization_id: string;
+          setting_key: string;
+          setting_value: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['crm_settings']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['crm_settings']['Insert']>;
+      };
+      audit_logs: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          user_id: string | null;
+          actor_user_id: string | null;
+          action: string;
+          resource_type: string;
+          resource_id: string | null;
+          old_data: Json | null;
+          new_data: Json | null;
+          metadata: Json;
+          ip_address: string | null;
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;
+        Update: never;
       };
     };
     Views: {
