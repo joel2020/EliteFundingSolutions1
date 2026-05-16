@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   if (!application) return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${applicationId}/client_uploads/${Date.now()}-${safeName}`;
+  const storagePath = `${profile.organization_id}/${applicationId}/client_uploads/${Date.now()}-${safeName}`;
   const { error: uploadError } = await supabase.storage
     .from('application-documents')
     .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       file_size: file.size,
       mime_type: file.type || null,
       status: 'uploaded',
+      uploaded_by_user_id: user.id,
     })
     .select('id,application_id,label,file_name,status,created_at')
     .single();

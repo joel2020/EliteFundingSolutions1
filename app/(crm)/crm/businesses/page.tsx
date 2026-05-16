@@ -148,40 +148,25 @@ export default function BusinessesPage() {
     const { ein, ...schemaFormData } = formData;
     const businessData = {
       ...schemaFormData,
-      organization_id: organizationId,
       start_date: formData.start_date || null,
       monthly_gross_revenue: formData.monthly_gross_revenue ? parseFloat(formData.monthly_gross_revenue) : null,
       average_daily_balance: formData.average_daily_balance ? parseFloat(formData.average_daily_balance) : null,
       deposit_count_monthly: formData.deposit_count_monthly ? parseInt(formData.deposit_count_monthly) : null,
     };
 
-    if (selectedBusiness) {
-      const { error } = await supabase
-        .from('businesses')
-        .update(businessData)
-        .eq('id', selectedBusiness.id);
+    const response = await fetch(selectedBusiness ? `/api/crm/businesses/${selectedBusiness.id}` : '/api/crm/businesses', {
+      method: selectedBusiness ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(businessData),
+    });
+    const result = await response.json().catch(() => ({}));
 
-      if (error) {
-        toast.error('Failed to update business');
-        console.error(error);
-      } else {
-        toast.success('Business updated successfully');
-        setShowDialog(false);
-        loadBusinesses();
-      }
+    if (!response.ok || !result.success) {
+      toast.error(result.error || (selectedBusiness ? 'Failed to update business' : 'Failed to create business'));
     } else {
-      const { error } = await supabase
-        .from('businesses')
-        .insert([businessData]);
-
-      if (error) {
-        toast.error('Failed to create business');
-        console.error(error);
-      } else {
-        toast.success('Business created successfully');
-        setShowDialog(false);
-        loadBusinesses();
-      }
+      toast.success(selectedBusiness ? 'Business updated successfully' : 'Business created successfully');
+      setShowDialog(false);
+      loadBusinesses();
     }
     
     setSaving(false);
@@ -191,14 +176,11 @@ export default function BusinessesPage() {
     if (!selectedBusiness) return;
     
     setSaving(true);
-    const { error } = await supabase
-      .from('businesses')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', selectedBusiness.id);
+    const response = await fetch(`/api/crm/businesses/${selectedBusiness.id}`, { method: 'DELETE' });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error('Failed to delete business');
-      console.error(error);
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to delete business');
     } else {
       toast.success('Business deleted successfully');
       setShowDeleteDialog(false);

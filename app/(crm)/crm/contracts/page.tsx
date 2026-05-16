@@ -50,13 +50,11 @@ export default function ContractsPage() {
   }, [crmUserLoading, organizationId, loadContracts]);
 
   const sendContract = async (contractId: string) => {
-    const { error } = await supabase
-      .from('contracts')
-      .update({ status: 'sent', sent_at: new Date().toISOString() })
-      .eq('id', contractId);
+    const response = await fetch(`/api/crm/contracts/${contractId}/send`, { method: 'POST' });
+    const result = await response.json().catch(() => ({}));
 
-    if (error) {
-      toast.error('Failed to send contract');
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to send contract');
     } else {
       toast.success('Contract sent to client');
       loadContracts();

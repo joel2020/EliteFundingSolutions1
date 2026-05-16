@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { sendEmail } from '@/lib/gmail';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
-import { requireSameOrigin } from '@/lib/server-auth';
+import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
+const SEND_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor'];
 
 export async function POST(request: NextRequest) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
+
+  const auth = await requireCrmProfile(SEND_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile } = auth;
 
   try {
     const { to, subject, body } = await request.json();
@@ -21,24 +24,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cookieStore = cookies();
-    const authClient = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() { /* route does not mutate auth cookies */ },
-      },
-    });
-    const { data: { session } } = await authClient.auth.getSession();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
     const supabase = createServiceSupabaseClient();
     // Get user's Gmail tokens
     const { data: tokens, error: tokensError } = await supabase
       .from('gmail_tokens')
       .select('*')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (tokensError || !tokens) {
@@ -60,8 +51,10 @@ export async function POST(request: NextRequest) {
 
     // Log email in CRM
     await supabase.from('email_logs').insert({
-      user_id: session.user.id,
+      user_id: user.id,
+      organization_id: profile.organization_id,
       to_email: to,
+      from_email: tokens.email,
       subject,
       body,
       provider: 'gmail',

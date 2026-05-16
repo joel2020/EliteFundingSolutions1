@@ -67,8 +67,12 @@ export default function PartnersPage() {
   }, [crmUserLoading, organizationId, loadPartners]);
 
   const savePartner = async () => {
-    if (!organizationId || !form.name.trim()) {
+    if (!form.name.trim()) {
       toast.error('Company name is required');
+      return;
+    }
+    if (crmUserLoading) {
+      toast.error('CRM profile is still loading. Try again in a moment.');
       return;
     }
 
@@ -93,7 +97,7 @@ export default function PartnersPage() {
       toast.success('Funding partner added');
       setShowDialog(false);
       setForm(emptyPartner);
-      loadPartners();
+      if (organizationId) loadPartners();
     }
     setSaving(false);
   };

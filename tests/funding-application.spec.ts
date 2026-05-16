@@ -56,7 +56,7 @@ test.describe('public funding application', () => {
 
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByLabel('Last 3 Business Bank Statements').setInputFiles({
+    await page.getByLabel('Business Bank Statements').setInputFiles({
       name: 'cedar-bank-statements.pdf',
       mimeType: 'application/pdf',
       buffer: Buffer.from('%PDF-1.4 bank statements'),

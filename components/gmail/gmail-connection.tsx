@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 
 export function GmailConnection() {
   const [isConnected, setIsConnected] = useState(false);
@@ -20,16 +19,11 @@ export function GmailConnection() {
 
   const checkConnection = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const response = await fetch('/api/gmail/status', { cache: 'no-store' });
+      if (response.status === 401 || response.status === 403) return;
 
-      const { data, error } = await supabase
-        .from('gmail_tokens')
-        .select('email')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!error && data) {
+      const data = await response.json();
+      if (response.ok && data.connected) {
         setIsConnected(true);
         setConnectedEmail(data.email);
       }
@@ -61,15 +55,9 @@ export function GmailConnection() {
 
   const handleDisconnect = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('gmail_tokens')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      const response = await fetch('/api/gmail/disconnect', { method: 'POST' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Failed to disconnect Gmail');
 
       setIsConnected(false);
       setConnectedEmail(null);
@@ -127,10 +115,10 @@ export function GmailConnection() {
               <div className="font-medium text-[#09090B]">{connectedEmail}</div>
             </div>
             <div className="text-sm text-[#71717A]">
-              ✓ Send emails from your Gmail account<br />
-              ✓ Track all email communications<br />
-              ✓ Link emails to deals and applications<br />
-              ✓ View email history in CRM
+              Send emails from your Gmail account<br />
+              Track all email communications<br />
+              Link emails to deals and applications<br />
+              View email history in CRM
             </div>
             <Button variant="outline" onClick={handleDisconnect}>
               Disconnect Gmail

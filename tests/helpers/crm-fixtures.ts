@@ -186,17 +186,20 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   const calls: Array<{ method: string; table: string; body: any }> = [];
 
   await page.addInitScript(() => {
+    const session = {
+      access_token: 'mock-access-token',
+      refresh_token: 'mock-refresh-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: 'auth-user-1', email: 'admin@elitefunding.test' },
+    };
+    const encodedSession = btoa(JSON.stringify(session)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
     window.localStorage.setItem(
       'sb-mdrrcrmowurbrwvdsgnq-auth-token',
-      JSON.stringify({
-        access_token: 'mock-access-token',
-        refresh_token: 'mock-refresh-token',
-        token_type: 'bearer',
-        expires_in: 3600,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        user: { id: 'auth-user-1', email: 'admin@elitefunding.test' },
-      })
+      JSON.stringify(session)
     );
+    document.cookie = `sb-mdrrcrmowurbrwvdsgnq-auth-token=base64-${encodedSession}; path=/; SameSite=Lax`;
   });
 
   await page.route('**/auth/v1/token?grant_type=password', async (route) => {
@@ -213,8 +216,8 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     });
   });
 
-  await page.route('**/auth/v1/user', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: { id: 'auth-user-1', email: 'admin@elitefunding.test' } }) });
+  await page.route('**/auth/v1/user**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'auth-user-1', email: 'admin@elitefunding.test' }) });
   });
 
   await page.route('**/auth/v1/logout**', async (route) => {

@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit --incremental false",
     "type-check": "tsc --noEmit --incremental false",
     "test:e2e": "playwright test",
-    "test:e2e:ci": "playwright test --reporter=line"
+    "test:e2e:ci": "node scripts/run-e2e-ci.js"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
