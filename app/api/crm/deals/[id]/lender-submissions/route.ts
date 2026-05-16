@@ -1,16 +1,31 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { sendEmail } from '@/lib/email';
 import { requireCrmProfile } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
 const SEND_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep'];
+const MAX_RESEND_ATTACHMENT_BYTES = 35 * 1024 * 1024;
 
 const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
   custom_message: z.string().trim().min(1, 'A lender message is required.'),
   attachment_document_ids: z.array(z.string().uuid()).default([]),
 });
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function textToHtml(value: string) {
+  return escapeHtml(value).replace(/\n/g, '<br/>');
+}
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const auth = await requireCrmProfile(SEND_ROLES);
@@ -44,7 +59,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: documents, error: docError } = documentIds.length
     ? await supabase
       .from('documents')
-      .select('id,file_name,document_type,label,status,deal_id,application_id')
+      .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size')
       .eq('organization_id', profile.organization_id)
       .in('id', documentIds)
     : { data: [], error: null };
@@ -65,11 +80,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .limit(10);
 
   const emailSubject = `${deal.title || 'Funding package'} - lender review`;
+  const selectedAttachmentLine = (documents || []).map((doc: any) => doc.file_name).join(', ') || 'None selected';
   const generatedEmailBody = [
     parsed.data.custom_message,
     '',
     `Requested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}`,
-    `Selected attachments: ${(documents || []).map((doc: any) => doc.file_name).join(', ') || 'None selected'}`,
+    `Selected attachments: ${selectedAttachmentLine}`,
     priorDefaults?.length ? `Risk warning: prior default history exists with ${partner.name}. Review before proceeding.` : '',
   ].filter(Boolean).join('\n');
 
@@ -102,6 +118,91 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (attachmentError) return NextResponse.json({ success: false, error: attachmentError.message }, { status: 500 });
   }
 
+  const recipientEmail = partner.submission_email || partner.email || '';
+  const totalAttachmentBytes = (documents || []).reduce((total: number, doc: any) => total + Number(doc.file_size || 0), 0);
+  const canAttachFiles = totalAttachmentBytes > 0 && totalAttachmentBytes <= MAX_RESEND_ATTACHMENT_BYTES;
+  const providerAttachments: { filename?: string | false; content?: Buffer; contentType?: string }[] = [];
+  const signedLinks: { fileName: string; signedUrl: string }[] = [];
+  const attachmentWarnings: string[] = [];
+
+  if (recipientEmail && documentIds.length) {
+    for (const doc of documents || []) {
+      if (!doc.storage_path) {
+        attachmentWarnings.push(`${doc.file_name} has no storage path.`);
+        continue;
+      }
+
+      if (canAttachFiles) {
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('application-documents')
+          .download(doc.storage_path);
+
+        if (downloadError || !fileData) {
+          attachmentWarnings.push(`Could not attach ${doc.file_name}; generating a secure link instead.`);
+        } else {
+          const arrayBuffer = await fileData.arrayBuffer();
+          providerAttachments.push({
+            filename: doc.file_name,
+            content: Buffer.from(arrayBuffer),
+            contentType: doc.mime_type || 'application/octet-stream',
+          });
+          continue;
+        }
+      }
+
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('application-documents')
+        .createSignedUrl(doc.storage_path, 60 * 60 * 24 * 7, { download: doc.file_name });
+
+      if (signedUrlError || !signedUrlData?.signedUrl) {
+        attachmentWarnings.push(`Could not create a secure link for ${doc.file_name}.`);
+      } else {
+        signedLinks.push({ fileName: doc.file_name, signedUrl: signedUrlData.signedUrl });
+      }
+    }
+  }
+
+  if (recipientEmail && totalAttachmentBytes > MAX_RESEND_ATTACHMENT_BYTES) {
+    attachmentWarnings.push('Selected documents exceed the direct attachment limit, so secure download links were included instead.');
+  }
+
+  const signedLinkText = signedLinks.length
+    ? `\n\nSecure document links:\n${signedLinks.map((link) => `${link.fileName}: ${link.signedUrl}`).join('\n')}`
+    : '';
+  const riskWarningText = priorDefaults?.length ? `\n\nRisk warning: prior default history exists with ${partner.name}. Review before proceeding.` : '';
+  const emailText = `${parsed.data.custom_message}\n\nRequested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}\nSelected attachments: ${selectedAttachmentLine}${signedLinkText}${riskWarningText}`;
+  const emailHtml = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
+      <p>${textToHtml(parsed.data.custom_message)}</p>
+      <p><strong>Requested amount:</strong> $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}</p>
+      <p><strong>Selected attachments:</strong> ${escapeHtml(selectedAttachmentLine)}</p>
+      ${signedLinks.length ? `<p><strong>Secure document links:</strong></p><ul>${signedLinks.map((link) => `<li><a href="${escapeHtml(link.signedUrl)}">${escapeHtml(link.fileName)}</a></li>`).join('')}</ul>` : ''}
+      ${priorDefaults?.length ? `<p style="color: #991b1b;"><strong>Risk warning:</strong> prior default history exists with ${escapeHtml(partner.name)}. Review before proceeding.</p>` : ''}
+    </div>
+  `;
+
+  let emailDeliveryStatus = recipientEmail ? 'drafted' : 'missing_recipient';
+  let emailProviderData: unknown = null;
+  let emailProviderError: string | null = null;
+
+  if (recipientEmail) {
+    const emailResult = await sendEmail({
+      to: recipientEmail,
+      subject: emailSubject,
+      html: emailHtml,
+      text: emailText,
+      attachments: providerAttachments,
+    });
+
+    if (emailResult.success) {
+      emailDeliveryStatus = 'sent';
+      emailProviderData = emailResult.data;
+    } else {
+      emailDeliveryStatus = 'failed';
+      emailProviderError = emailResult.error || 'Unable to send lender email.';
+    }
+  }
+
   await Promise.allSettled([
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
@@ -114,24 +215,52 @@ export async function POST(request: Request, { params }: { params: { id: string 
       body: generatedEmailBody,
       performed_by: profile.id,
     }),
+    supabase.from('messages').insert({
+      organization_id: profile.organization_id,
+      deal_id: deal.id,
+      application_id: deal.application_id,
+      direction: 'outbound',
+      channel: 'email',
+      sender_user_id: profile.id,
+      recipient_email: recipientEmail || null,
+      subject: emailSubject,
+      body: emailText,
+      delivery_status: emailDeliveryStatus === 'sent' ? 'sent' : emailDeliveryStatus === 'failed' ? 'failed' : 'pending',
+      sent_at: emailDeliveryStatus === 'sent' ? new Date().toISOString() : null,
+    }),
     supabase.from('audit_logs').insert({
       organization_id: profile.organization_id,
       user_id: user.id,
       action: 'lender_submission_created',
       resource_type: 'partner_submissions',
       resource_id: submission.id,
-      new_data: { deal_id: deal.id, funding_partner_id: partner.id, attachment_document_ids: documentIds, prior_default_count: priorDefaults?.length || 0 },
+      new_data: {
+        deal_id: deal.id,
+        funding_partner_id: partner.id,
+        attachment_document_ids: documentIds,
+        prior_default_count: priorDefaults?.length || 0,
+        email_delivery_status: emailDeliveryStatus,
+        email_provider_data: emailProviderData,
+        email_provider_error: emailProviderError,
+        attachment_warnings: attachmentWarnings,
+      },
     }),
   ]);
 
   return NextResponse.json({
     success: true,
     submissionId: submission.id,
-    warnings: priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : [],
+    emailDeliveryStatus,
+    emailProviderError,
+    warnings: [
+      ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
+      ...attachmentWarnings,
+      ...(emailProviderError ? [`Email was recorded but not sent: ${emailProviderError}`] : []),
+    ],
     emailDraft: {
-      to: partner.submission_email || partner.email || '',
+      to: recipientEmail,
       subject: emailSubject,
-      body: generatedEmailBody,
+      body: emailText,
       attachmentDocumentIds: documentIds,
     },
   });

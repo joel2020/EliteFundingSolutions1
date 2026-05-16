@@ -1392,11 +1392,11 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit deal to lender');
       if (result.warnings?.length) result.warnings.forEach((warning: string) => toast.warning(warning));
-      if (result.emailDraft?.to) {
+      if (result.emailDeliveryStatus !== 'sent' && result.emailDraft?.to) {
         const mailto = `mailto:${result.emailDraft.to}?subject=${encodeURIComponent(result.emailDraft.subject)}&body=${encodeURIComponent(result.emailDraft.body)}`;
         window.location.href = mailto;
       }
-      toast.success(`Lender submission logged${partner?.name ? ` for ${partner.name}` : ''}`);
+      toast.success(result.emailDeliveryStatus === 'sent' ? `Lender email sent${partner?.name ? ` to ${partner.name}` : ''}` : `Lender submission logged${partner?.name ? ` for ${partner.name}` : ''}`);
       setSubmissionDialogOpen(false); setSubmissionPartnerId(''); setSubmissionNotes(''); setSubmissionDocumentIds([]); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to submit deal to lender'); } finally { setSavingSubmission(false); }
   };
@@ -1547,7 +1547,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               <p className="mt-1 text-xs text-[#64748B]">Only selected files are recorded for this lender package.</p>
             </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Generate lender email'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Send to Lender'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </PageFrame>

@@ -4,12 +4,19 @@ import { COMPANY } from '@/lib/company';
 const senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
 
 export interface EmailData {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
+  text?: string;
+  attachments?: {
+    filename?: string | false;
+    content?: string | Buffer;
+    path?: string;
+    contentType?: string;
+  }[];
 }
 
-export async function sendEmail({ to, subject, html }: EmailData) {
+export async function sendEmail({ to, subject, html, text, attachments }: EmailData) {
   try {
     if (!process.env.RESEND_API_KEY) {
       return { success: false, error: 'RESEND_API_KEY is not configured' };
@@ -18,9 +25,11 @@ export async function sendEmail({ to, subject, html }: EmailData) {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const data = await resend.emails.send({
       from: senderEmail,
-      to: [to],
+      to: Array.isArray(to) ? to : [to],
       subject,
       html,
+      text,
+      attachments,
     });
     return { success: true, data };
   } catch (error: any) {
