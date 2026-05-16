@@ -6,14 +6,24 @@ export const dynamic = 'force-dynamic';
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager'];
 
+const optionalText = z.preprocess(
+  (value) => (value == null ? '' : value),
+  z.string().trim().optional().default(''),
+);
+
+const optionalEmail = z.preprocess(
+  (value) => (value == null ? '' : value),
+  z.string().trim().email('Enter a valid email.').or(z.literal('')).default(''),
+);
+
 const brokerSchema = z.object({
   company_name: z.string().trim().min(1, 'Company name is required.'),
   broker_name: z.string().trim().min(1, 'Broker name is required.'),
-  email: z.string().trim().email('Enter a valid email.').optional().or(z.literal('')).default(''),
-  phone: z.string().trim().optional().default(''),
+  email: optionalEmail,
+  phone: optionalText,
   commission_pct: z.coerce.number().min(0).max(100).default(5),
-  payment_terms: z.string().trim().optional().default(''),
-  notes: z.string().trim().optional().default(''),
+  payment_terms: optionalText,
+  notes: optionalText,
 });
 
 function slugifyBroker(companyName: string, brokerName: string) {

@@ -89,11 +89,11 @@ export default function IsoBrokersPage() {
     const brokerData = {
       company_name: formData.company_name,
       broker_name: formData.broker_name,
-      email: formData.email || null,
-      phone: formData.phone || null,
+      email: formData.email,
+      phone: formData.phone,
       commission_pct: parseFloat(formData.commission_pct) || 5,
-      payment_terms: formData.payment_terms || null,
-      notes: formData.notes || null,
+      payment_terms: formData.payment_terms,
+      notes: formData.notes,
     };
 
     const response = await fetch('/api/crm/iso-brokers', {
@@ -104,7 +104,8 @@ export default function IsoBrokersPage() {
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok || !result.success) {
-      toast.error(result.error ? `Failed to add broker: ${result.error}` : 'Failed to add broker');
+      const fieldErrors = result.issues?.fieldErrors ? Object.values(result.issues.fieldErrors).flat().join(' ') : '';
+      toast.error(result.error ? `Failed to add broker: ${fieldErrors || result.error}` : 'Failed to add broker');
       console.error(result);
     } else {
       toast.success(result.warning || 'Broker added successfully');
