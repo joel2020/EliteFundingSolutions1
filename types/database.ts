@@ -39,6 +39,7 @@ export interface Database {
           title: string | null;
           department: string | null;
           role: UserRole;
+          permissions: string[];
           is_active: boolean;
           referral_slug: string | null;
           last_login_at: string | null;
@@ -88,6 +89,7 @@ export interface Database {
           dba: string | null;
           entity_type: EntityType | null;
           ein_encrypted: string | null;
+          ein_hash: string | null;
           industry: string | null;
           naics_code: string | null;
           start_date: string | null;

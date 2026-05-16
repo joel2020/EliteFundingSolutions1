@@ -79,6 +79,8 @@ type CrmDataset = {
   offers: RecordMap[];
   renewals: RecordMap[];
   commissions: RecordMap[];
+  commissionRecipients: RecordMap[];
+  riskEvents: RecordMap[];
   partners: RecordMap[];
   users: RecordMap[];
   activities: RecordMap[];
@@ -184,9 +186,19 @@ const emptyUser = {
   last_name: '',
   email: '',
   role: 'sales_rep',
+  permissions: [] as string[],
   is_active: true,
   referral_slug: '',
 };
+
+const USER_PERMISSION_OPTIONS = [
+  ['send_to_lenders', 'Send deals to lenders'],
+  ['manage_documents', 'Manage deal documents'],
+  ['manage_commissions', 'Manage finance and commissions'],
+  ['manage_users', 'Add and edit users'],
+  ['reveal_sensitive', 'Reveal sensitive application data'],
+  ['mark_defaulted', 'Mark funded deals defaulted'],
+] as const;
 
 function currency(value: any) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -391,6 +403,8 @@ function useCrmDataset() {
     offers: [],
     renewals: [],
     commissions: [],
+    commissionRecipients: [],
+    riskEvents: [],
     partners: [],
     users: [],
     activities: [],
@@ -431,6 +445,8 @@ function useCrmDataset() {
       browserSupabase.from('stipulations').select('*').eq('organization_id', org).order('updated_at', { ascending: false }).limit(200),
       browserSupabase.from('applications').select('*').eq('organization_id', org).is('deleted_at', null).limit(200),
       browserSupabase.from('owners').select('*').eq('organization_id', org).is('deleted_at', null).limit(200),
+      browserSupabase.from('commission_recipients').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(200),
+      browserSupabase.from('deal_risk_events').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(200),
     ]);
 
     const unwrap = (index: number) => {
@@ -494,6 +510,8 @@ function useCrmDataset() {
       stipulations: unwrap(16).map((stip: RecordMap) => ({ ...stip, assigned_user: usersById[stip.assigned_user_id] })),
       applications: unwrap(17),
       owners: unwrap(18),
+      commissionRecipients: unwrap(19).map((row: RecordMap) => ({ ...row, user_profiles: usersById[row.recipient_user_profile_id] })),
+      riskEvents: unwrap(20).map((row: RecordMap) => ({ ...row, funding_partners: partnersById[row.funding_partner_id] })),
     });
     setLoading(false);
   }, [browserSupabase, organizationId]);
@@ -1233,7 +1251,7 @@ function getOfferInsights(offers: RecordMap[]) {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, organizationId, profile, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, organizationId, profile, loading, reload } = useCrmDataset();
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(false);
@@ -1253,12 +1271,17 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskPriority, setTaskPriority] = useState('medium');
   const [checklistNotes, setChecklistNotes] = useState<Record<string, string>>({});
+  const [commissionForm, setCommissionForm] = useState<RecordMap>({ recipient_name: '', recipient_type: 'referral_partner', percentage: '20', flat_amount: '', notes: '', payout_status: 'pending' });
+  const [riskForm, setRiskForm] = useState<RecordMap>({ event_type: 'defaulted', funding_partner_id: '', amount: '', notes: '' });
   if (loading) return <LoadingScreen title="Deal Detail" />;
   const deal = deals.find((row: RecordMap) => row.id === dealId) || deals[0];
   if (!deal) return <PageFrame title="Deal Detail" subtitle="No deal selected"><EmptyState title="Deal not found" body="The requested deal could not be loaded." /></PageFrame>;
   const app = applications.find((row: RecordMap) => row.id === deal.application_id || row.business_id === deal.business_id);
   const dealOffers = offers.filter((offer: RecordMap) => offer.deal_id === deal.id);
   const dealCommissions = commissions.filter((row: RecordMap) => row.deal_id === deal.id);
+  const dealCommissionRecipients = commissionRecipients.filter((row: RecordMap) => row.deal_id === deal.id);
+  const dealRiskEvents = riskEvents.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
+  const repeatDeals = deals.filter((row: RecordMap) => row.id !== deal.id && (row.business_id === deal.business_id || row.duplicate_of_business_id === deal.business_id || row.business_id === deal.duplicate_of_business_id));
   const dealDocs = documents.filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
   const dealRequests = documentRequests.filter((request: RecordMap) => request.deal_id === deal.id || request.application_id === deal.application_id);
   const dealStips = stipulations.filter((stip: RecordMap) => stip.deal_id === deal.id || dealOffers.some((offer: RecordMap) => offer.id === stip.offer_id));
@@ -1358,23 +1381,23 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     const fundingPartnerId = submissionPartnerId || partnerMatches[0]?.partner?.id || partners[0]?.id;
     if (!fundingPartnerId) { toast.error('Add a funding partner before submitting.'); return; }
     const partner = partners.find((row: RecordMap) => row.id === fundingPartnerId);
-    const selectedDocs = dealDocs.filter((doc: RecordMap) => submissionDocumentIds.includes(doc.id));
-    const emailSubject = `${businessName(deal)} funding package`;
-    const emailBody = [
-      `Please review ${businessName(deal)} for ${currency(deal.requested_amount || deal.approved_amount)}.`,
-      submissionNotes || 'Package notes: please review the selected statements and attached file context.',
-      selectedDocs.length ? `Selected attachments: ${selectedDocs.map((doc: RecordMap) => doc.file_name).join(', ')}` : 'No documents selected for this lender package.',
-    ].join('\n\n');
+    if (!submissionNotes.trim()) { toast.error('Add a lender message before sending.'); return; }
     setSavingSubmission(true);
     try {
-      const { error: submissionError } = await supabase.from('partner_submissions').insert({ organization_id: organizationId, deal_id: deal.id, funding_partner_id: fundingPartnerId, submitted_by: profile?.id || null, submitted_at: new Date().toISOString(), status: 'submitted', notes: submissionNotes || null, custom_message: submissionNotes || null, attachment_document_ids: submissionDocumentIds, email_subject: emailSubject, generated_email_body: emailBody });
-      if (submissionError) throw submissionError;
-      await logActivity('partner_submission', `Submitted to lender: ${partner?.name || 'Funding partner'}`, `${submissionNotes || ''}\n\nSelected attachments: ${selectedDocs.map((doc: RecordMap) => doc.file_name).join(', ') || 'None'}`);
-      if (partner?.submission_email) {
-        const mailto = `mailto:${partner.submission_email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+      const response = await fetch(`/api/crm/deals/${deal.id}/lender-submissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funding_partner_id: fundingPartnerId, custom_message: submissionNotes, attachment_document_ids: submissionDocumentIds }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit deal to lender');
+      if (result.warnings?.length) result.warnings.forEach((warning: string) => toast.warning(warning));
+      if (result.emailDraft?.to) {
+        const mailto = `mailto:${result.emailDraft.to}?subject=${encodeURIComponent(result.emailDraft.subject)}&body=${encodeURIComponent(result.emailDraft.body)}`;
         window.location.href = mailto;
       }
-      toast.success('Lender submission logged'); setSubmissionDialogOpen(false); setSubmissionPartnerId(''); setSubmissionNotes(''); setSubmissionDocumentIds([]); reload();
+      toast.success(`Lender submission logged${partner?.name ? ` for ${partner.name}` : ''}`);
+      setSubmissionDialogOpen(false); setSubmissionPartnerId(''); setSubmissionNotes(''); setSubmissionDocumentIds([]); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to submit deal to lender'); } finally { setSavingSubmission(false); }
   };
 
@@ -1399,6 +1422,41 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     if (error) { toast.error(error.message); return; }
     await logActivity('task', `Task created: ${taskTitle.trim()}`, taskDueDate ? `Due ${date(taskDueDate)}` : null);
     setTaskTitle(''); setTaskDueDate(''); setTaskPriority('medium'); toast.success('Task created'); reload();
+  };
+
+  const saveCommissionRecipient = async () => {
+    if (!commissionForm.recipient_name?.trim()) { toast.error('Recipient name is required.'); return; }
+    const response = await fetch(`/api/crm/deals/${deal.id}/commissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient_name: commissionForm.recipient_name,
+        recipient_type: commissionForm.recipient_type,
+        percentage: commissionForm.percentage || 0,
+        flat_amount: commissionForm.flat_amount || null,
+        notes: commissionForm.notes || '',
+        payout_status: commissionForm.payout_status || 'pending',
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to save commission recipient'); return; }
+    toast.success('Commission recipient added');
+    setCommissionForm({ recipient_name: '', recipient_type: 'referral_partner', percentage: '20', flat_amount: '', notes: '', payout_status: 'pending' });
+    reload();
+  };
+
+  const saveRiskEvent = async () => {
+    if (!riskForm.notes?.trim()) { toast.error('Add a note for the risk event.'); return; }
+    const response = await fetch(`/api/crm/deals/${deal.id}/risk-events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: riskForm.event_type, funding_partner_id: riskForm.funding_partner_id || null, amount: riskForm.amount || null, notes: riskForm.notes }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to record risk event'); return; }
+    toast.success('Risk event recorded');
+    setRiskForm({ event_type: 'defaulted', funding_partner_id: '', amount: '', notes: '' });
+    reload();
   };
 
   const completeTask = async (task: RecordMap) => {
@@ -1455,13 +1513,13 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       <CrmCard className="p-4">
         <div className="mb-4 flex flex-col gap-2 border-b border-[#E2E8F0] pb-4 md:flex-row md:items-center md:justify-between"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Current stage</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p></div><Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px] md:w-[220px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
         <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'],['finance','Finance'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
-          <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]}/><div className="grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
+          <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2">{repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. Current version: #{deal.submission_sequence || repeatDeals.length + 1}. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}<InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]}/><div className="grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
           <TabsContent value="readiness"><div className="mb-4 grid gap-3 md:grid-cols-2"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><ChecklistTable rows={checklist} /></TabsContent>
           <TabsContent value="documents"><div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"><div className="flex gap-2"><Select value={documentFilter} onValueChange={setDocumentFilter}><SelectTrigger className="h-9 w-[180px] rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All docs</SelectItem>{['uploaded','in_review','approved','rejected','needs_replacement','expired'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}{DETAIL_DOCUMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent></Select></div><Button data-testid="deal-upload-document" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload / replace document</Button></div>{missingDocItems.length > 0 && <div className="mb-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Missing required documents</p><div className="mt-2 flex flex-wrap gap-2">{missingDocItems.map((item) => <button key={item.id} className="rounded-[6px] border border-amber-300 bg-white px-2 py-1 text-xs text-amber-900" onClick={() => updateChecklistItem(item, 'requested')}>{item.name}</button>)}</div></div>}{groupedDocs.length ? <div className="grid gap-3">{groupedDocs.map((group) => <div key={group.type.value} className="rounded-[8px] border border-[#E2E8F0]"><div className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold">{group.type.label}</div>{group.docs.map((row) => <div key={row.id} className="grid gap-2 border-b border-[#E2E8F0] p-3 text-sm last:border-b-0 md:grid-cols-[24px_1.4fr_1fr_120px_260px]"><span className="text-[#64748B]">{fileIcon(row.file_name)}</span><b>{row.label || row.file_name}<span className="ml-2 text-xs font-normal text-[#64748B]">{formatBytes(row.file_size)}</span></b><StatusBadge value={row.status} /><span>{date(row.updated_at || row.created_at)}</span><span className="flex flex-wrap gap-1"><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'preview')}><Eye className="mr-1 h-3 w-3" />Preview</Button><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'download')}><Download className="h-3 w-3" /></Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'approved')}>Approve</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'needs_replacement', window.prompt('Replacement reason') || 'Replacement requested')}>Request replacement</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'rejected', window.prompt('Reject reason') || 'Rejected')}>Reject</Button></span></div>)}</div>)}</div> : <EmptyState title="No documents attached." body="Upload documents here so this deal page remains the source of truth." />}</TabsContent>
           <TabsContent value="notes"><div className="mb-3 flex justify-end"><Button data-testid="deal-add-note" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setNoteDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Add note</Button></div><SimpleRows rows={dealNotes} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
           <TabsContent value="lenders"><div className="mb-3 flex justify-end"><Button data-testid="deal-submit-lender" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => { setSubmissionPartnerId(partnerMatches[0]?.partner?.id || partners[0]?.id || ''); setSubmissionDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Add lender submission</Button></div><SimpleRows rows={dealSubmissions} empty="No lender submissions yet." render={(row) => { const relatedOffer = dealOffers.find((o: RecordMap) => o.partner_submission_id === row.id || o.funding_partner_id === row.funding_partner_id); return <div className="grid gap-3 md:grid-cols-[1.2fr_170px_1fr_1fr_220px]"><div><b>{partnerName(row)}</b><p className="text-xs text-[#64748B]">{row.funding_partners?.submission_email || row.funding_partners?.portal_url || 'No route saved'}</p><p className="text-xs text-[#64748B]">Sent {date(row.submitted_at || row.created_at)} · Updated {date(row.updated_at)}</p></div><Select value={row.status || 'draft'} onValueChange={(status) => updateSubmission(row, { status })}><SelectTrigger data-testid={`lender-status-${row.id}`} className="h-9 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{['draft','submitted','in_review','more_info_needed','approved','declined','withdrawn','funded'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}</SelectContent></Select><div><p>{row.notes || 'No lender notes'}</p><Button size="sm" variant="outline" className="mt-2 h-8" onClick={() => updateSubmission(row, { notes: window.prompt('Lender notes', row.notes || '') || row.notes })}>Edit notes</Button></div><div><p>{row.decline_reason || row.conditions || 'No decline reason / stips'}</p><Button size="sm" variant="outline" className="mt-2 h-8" onClick={() => updateSubmission(row, { decline_reason: window.prompt('Decline reason or conditions', row.decline_reason || '') || row.decline_reason })}>Add reason/stips</Button></div><div>{relatedOffer ? <div><b>{currency(relatedOffer.approved_amount)}</b><p>{relatedOffer.factor_rate || 'N/A'} factor · {relatedOffer.term_days || 'N/A'} days</p><StatusBadge value={relatedOffer.status} /></div> : <Button size="sm" className="h-8 bg-[#0F2B5B]" onClick={() => convertSubmissionToOffer(row)}>Convert to offer</Button>}</div></div>; }} /></TabsContent>
           <TabsContent value="offers"><div data-testid="offer-comparison-view">{dealOffers.length ? <><div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">{offerInsights.highlights.map(([label, value]) => <CrmCard key={label} className="p-3"><p className="text-[11px] font-semibold uppercase text-[#64748B]">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></CrmCard>)}</div><div className="grid gap-3 md:grid-cols-2">{dealOffers.map((row: RecordMap) => <CrmCard key={row.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><b>{partnerName(row)}</b><p className="text-xs text-[#64748B]">Expires {date(row.expires_at)}</p></div>{offerInsights.recommended?.id === row.id && <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">Recommended Offer</span>}</div><InfoGrid rows={[["Approved", currency(row.approved_amount)], ["Factor", row.factor_rate || 'N/A'], ["Buy / sell", `${row.buy_rate || 'N/A'} / ${row.sell_rate || 'N/A'}`], ["Payback", currency(row.payback_amount)], ["Term", `${row.term_days || 'N/A'} days`], ["Payment", currency(row.daily_payment || row.weekly_payment)], ["Frequency", row.payment_frequency || 'N/A'], ["Net funding", currency(row.net_funding_amount || row.approved_amount)], ["Holdback", pct(row.holdback_pct)], ["Origination fee", currency(row.origination_fee)], ["Broker commission", `${row.broker_commission_pct || 0}%`], ["ISO commission", `${row.iso_commission_pct || 0}%`], ["Stips", Array.isArray(row.stips_required) && row.stips_required.length ? row.stips_required.join(', ') : 'None'], ["Status", <StatusBadge key="status" value={row.status} />], ["Notes", row.notes || 'None']]} /></CrmCard>)}</div></> : <EmptyState title="No offers received yet." body="Convert lender responses into offers to compare terms and recommendations." />}</div></TabsContent>
-          <TabsContent value="finance"><div className="grid gap-4 lg:grid-cols-2"><InfoGrid rows={[["Funded amount", currency(deal.funded_amount)], ["Referral partner split", `${deal.referral_partner_commission_pct ?? 20}%`], ["Junior closer split", `${deal.junior_closer_commission_pct ?? 5}%`], ["Senior closer split", `${deal.senior_closer_commission_pct ?? 10}%`], ["Clawback amount", currency(deal.commission_clawback_amount)], ["Default status", deal.defaulted_at ? `Defaulted ${date(deal.defaulted_at)}` : 'No default recorded']]} /><SimpleRows rows={dealCommissions} empty="No commissions tracked for this deal yet." render={(row) => <div className="grid gap-2 md:grid-cols-[1fr_120px_140px_120px]"><b>{row.notes || row.payment_status || 'Commission'}</b><span>{Number(row.commission_pct || 0).toFixed(2)}%</span><span>{currency(row.commission_amount)}</span><StatusBadge value={row.payment_status || 'pending'} /></div>} /></div></TabsContent>
+          <TabsContent value="finance"><div className="grid gap-4"><InfoGrid rows={[["Funded amount", currency(deal.funded_amount)], ["Referral partner split", `${deal.referral_partner_commission_pct ?? 20}%`], ["Junior closer split", `${deal.junior_closer_commission_pct ?? 5}%`], ["Senior closer split", `${deal.senior_closer_commission_pct ?? 10}%`], ["Clawback amount", currency(deal.commission_clawback_amount)], ["Default status", deal.defaulted_at ? `Defaulted ${date(deal.defaulted_at)}` : 'No default recorded']]} /><div className="grid gap-4 lg:grid-cols-2"><CrmCard className="p-4"><h3 className="mb-3 text-sm font-semibold text-[#0F172A]">Commission recipients</h3><div className="mb-3 grid gap-2 md:grid-cols-2"><Input placeholder="Recipient name" value={commissionForm.recipient_name || ''} onChange={(e) => setCommissionForm({ ...commissionForm, recipient_name: e.target.value })} /><Select value={commissionForm.recipient_type || 'referral_partner'} onValueChange={(value) => setCommissionForm({ ...commissionForm, recipient_type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['referral_partner','junior_closer','senior_closer','broker','sales_rep','processor','other'].map((type) => <SelectItem key={type} value={type}>{type.replaceAll('_',' ')}</SelectItem>)}</SelectContent></Select><Input placeholder="Percent" value={commissionForm.percentage || ''} onChange={(e) => setCommissionForm({ ...commissionForm, percentage: e.target.value })} /><Input placeholder="Flat amount optional" value={commissionForm.flat_amount || ''} onChange={(e) => setCommissionForm({ ...commissionForm, flat_amount: e.target.value })} /><Input className="md:col-span-2" placeholder="Notes" value={commissionForm.notes || ''} onChange={(e) => setCommissionForm({ ...commissionForm, notes: e.target.value })} /><Button className="bg-[#0F2B5B]" onClick={saveCommissionRecipient}>Add recipient</Button></div><SimpleRows rows={dealCommissionRecipients.length ? dealCommissionRecipients : dealCommissions} empty="No commissions tracked for this deal yet." render={(row) => <div className="grid gap-2 md:grid-cols-[1fr_120px_140px_120px]"><b>{row.recipient_name || row.notes || row.payment_status || 'Commission'}</b><span>{Number(row.percentage ?? row.commission_pct ?? 0).toFixed(2)}%</span><span>{currency(row.flat_amount || row.commission_amount)}</span><StatusBadge value={row.payout_status || row.payment_status || 'pending'} /></div>} /></CrmCard><CrmCard className="p-4"><h3 className="mb-3 text-sm font-semibold text-[#0F172A]">Risk and default events</h3><div className="mb-3 grid gap-2 md:grid-cols-2"><Select value={riskForm.event_type || 'defaulted'} onValueChange={(value) => setRiskForm({ ...riskForm, event_type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{['funded','defaulted','closed_not_funded','clawback','risk_note'].map((type) => <SelectItem key={type} value={type}>{type.replaceAll('_',' ')}</SelectItem>)}</SelectContent></Select><Select value={riskForm.funding_partner_id || 'none'} onValueChange={(value) => setRiskForm({ ...riskForm, funding_partner_id: value === 'none' ? '' : value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">No lender</SelectItem>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent></Select><Input placeholder="Amount optional" value={riskForm.amount || ''} onChange={(e) => setRiskForm({ ...riskForm, amount: e.target.value })} /><Input placeholder="Notes" value={riskForm.notes || ''} onChange={(e) => setRiskForm({ ...riskForm, notes: e.target.value })} /><Button className="bg-[#0F2B5B]" onClick={saveRiskEvent}>Record event</Button></div><SimpleRows rows={dealRiskEvents} empty="No risk history yet." render={(row) => <div className="grid gap-2 md:grid-cols-[1fr_1fr_120px]"><b>{row.event_type?.replaceAll('_',' ')}</b><span>{row.funding_partners?.name || row.notes || 'No lender'}</span><span>{date(row.event_date || row.created_at)}</span></div>} /></CrmCard></div></div></TabsContent>
           <TabsContent value="tasks"><div className="mb-4 grid gap-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 md:grid-cols-[1fr_170px_150px_auto]"><Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Create deal task" className="rounded-[7px]" /><Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} className="rounded-[7px]" /><Select value={taskPriority} onValueChange={setTaskPriority}><SelectTrigger className="rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{['low','medium','high','urgent'].map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent></Select><Button onClick={createTask} className="bg-[#0F2B5B]">Create task</Button></div><SimpleRows rows={dealTasks} empty="No deal tasks yet." render={(row) => <div className={`grid gap-2 md:grid-cols-[1.5fr_1fr_120px_120px_100px] ${overdueTasks.some((task) => task.id === row.id) ? 'text-[#DC2626]' : ''}`}><b>{row.title}</b><span>{repName({ user_profiles: row.assigned_user })}</span><span>{date(row.due_date)}</span><StatusBadge value={row.priority} /><span>{row.status === 'completed' ? <StatusBadge value="completed" /> : <Button size="sm" variant="outline" className="h-8" onClick={() => completeTask(row)}>Complete</Button>}</span></div>} /></TabsContent>
           <TabsContent value="activity"><SimpleRows rows={dealActivity} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{row.activity_type ? `${row.activity_type.replaceAll('_', ' ')} · ` : ''}{date(row.created_at)}{row.performed_by ? ` · User ${shortId(row.performed_by)}` : ''}</p></div>} /></TabsContent>
         </Tabs>
@@ -1659,6 +1717,7 @@ export function CrmUsersExperience() {
       last_name: user.last_name || '',
       email: user.email || '',
       role: user.role || 'sales_rep',
+      permissions: Array.isArray(user.permissions) ? user.permissions : [],
       is_active: user.is_active !== false,
       referral_slug: user.referral_slug || '',
     });
@@ -1674,6 +1733,7 @@ export function CrmUsersExperience() {
       last_name: form.last_name,
       email: form.email,
       role: form.role,
+      permissions: Array.isArray(form.permissions) ? form.permissions : [],
       is_active: form.is_active,
       referral_slug: form.referral_slug || undefined,
     };
@@ -1709,7 +1769,11 @@ export function CrmUsersExperience() {
       reload();
     }
   };
-  const roles = ['admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+  const roles = profile?.role === 'super_admin' ? ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer', 'client'] : ['admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer', 'client'];
+  const togglePermission = (permission: string, checked: boolean) => {
+    const current = Array.isArray(form.permissions) ? form.permissions : [];
+    setForm({ ...form, permissions: checked ? Array.from(new Set([...current, permission])) : current.filter((item: string) => item !== permission) });
+  };
   const copyReferralUrl = async (user: RecordMap) => {
     const url = repReferralUrl(user.referral_slug);
     if (!url) {
@@ -1760,6 +1824,17 @@ export function CrmUsersExperience() {
                 <SelectTrigger data-testid="user-role" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
                 <SelectContent>{roles.map((role) => <SelectItem key={role} value={role}>{role.replaceAll('_', ' ')}</SelectItem>)}</SelectContent>
               </Select>
+            </div>
+            <div className="md:col-span-2">
+              <Label className="text-xs text-[#64748B]">Permissions</Label>
+              <div className="mt-2 grid gap-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 md:grid-cols-2">
+                {USER_PERMISSION_OPTIONS.map(([permission, label]) => (
+                  <label key={permission} className="flex items-center gap-2 text-sm font-medium text-[#0F172A]">
+                    <input type="checkbox" checked={(form.permissions || []).includes(permission)} onChange={(event) => togglePermission(permission, event.target.checked)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
             </div>
             <label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]">
               <input type="checkbox" checked={form.is_active !== false} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />

@@ -171,6 +171,11 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
     owners: [{ id: 'owner-1', organization_id: ORG_ID, first_name: 'Jordan', last_name: 'Lee', phone: '2125550100', ssn_last4: '1234', created_at: now, updated_at: now }],
     current_positions: [{ id: 'position-1', organization_id: ORG_ID, deal_id: DEAL_ID, funder_name: 'Old Advance Co', original_funded_amount: 30000, current_balance: 9000, daily_payment: 250, status: 'active' }],
     deal_financials: [{ id: 'financial-1', organization_id: ORG_ID, deal_id: DEAL_ID, current_balance: 31500, percent_paid_down: 55, total_payback: 93800, daily_payment: 781, remaining_term_days: 42 }],
+    commission_recipients: [],
+    deal_risk_events: [],
+    lender_submission_attachments: [],
+    lead_sources: [],
+    document_categories: [],
     applications: [],
     status_history: [],
   };
@@ -265,6 +270,33 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.deals = state.deals.map((deal) => deal.id === id ? { ...deal, stage_slug: payload.stage_slug, updated_at: now } : deal);
     calls.push({ method: route.request().method(), table: 'deal_stage', body: payload });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/deals/*/lender-submissions', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const partner = state.funding_partners.find((item) => item.id === payload.funding_partner_id);
+    const submission = {
+      id: `submission-${state.partner_submissions.length + 1}`,
+      organization_id: ORG_ID,
+      deal_id: id,
+      funding_partner_id: payload.funding_partner_id,
+      funding_partners: partner,
+      submitted_by: ADMIN_PROFILE_ID,
+      submitted_at: now,
+      status: 'submitted',
+      notes: payload.custom_message,
+      custom_message: payload.custom_message,
+      attachment_document_ids: payload.attachment_document_ids || [],
+      email_subject: 'Mock lender package',
+      generated_email_body: payload.custom_message,
+      created_at: now,
+      updated_at: now,
+    };
+    state.partner_submissions.unshift(submission);
+    state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'partner_submission', title: `Submitted to lender: ${partner?.name || 'Funding partner'}`, body: payload.custom_message, created_at: now });
+    calls.push({ method: route.request().method(), table: 'partner_submissions', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, submissionId: submission.id, warnings: [], emailDraft: { to: partner?.submission_email || partner?.email || '', subject: 'Mock lender package', body: payload.custom_message, attachmentDocumentIds: payload.attachment_document_ids || [] } }) });
   });
 
   await page.route('**/api/crm/users', async (route) => {

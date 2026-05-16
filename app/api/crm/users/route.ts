@@ -16,7 +16,8 @@ const createUserSchema = z.object({
   first_name: z.string().optional().default(''),
   last_name: z.string().optional().default(''),
   email: z.string().email(),
-  role: z.enum(['admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'client']).default('sales_rep'),
+  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'client', 'viewer']).default('sales_rep'),
+  permissions: z.array(z.string()).optional().default([]),
   is_active: z.boolean().default(true),
 });
 
@@ -31,6 +32,10 @@ export async function POST(request: Request) {
   }
 
   const form = parsed.data;
+  if (form.role === 'super_admin' && profile.role !== 'super_admin') {
+    return NextResponse.json({ success: false, error: 'Only a super admin can grant super admin.' }, { status: 403 });
+  }
+
   const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login`;
   const invited = await supabase.auth.admin.inviteUserByEmail(form.email, {
     redirectTo,
@@ -54,6 +59,7 @@ export async function POST(request: Request) {
         first_name: form.first_name,
         last_name: form.last_name,
         role: form.role,
+        permissions: form.permissions,
         is_active: form.is_active,
         referral_slug: referralSlugForUser(form.first_name, form.last_name, form.email, invited.data.user.id),
         created_by: profile.id,
@@ -61,7 +67,7 @@ export async function POST(request: Request) {
       },
       { onConflict: 'user_id,organization_id' },
     )
-    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active,last_login_at,referral_slug')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug')
     .single();
 
   if (profileError) {
@@ -74,7 +80,7 @@ export async function POST(request: Request) {
     action: 'crm_user_invited',
     resource_type: 'user_profiles',
     resource_id: createdProfile.id,
-    new_data: { email: form.email, role: form.role, is_active: form.is_active },
+    new_data: { email: form.email, role: form.role, permissions: form.permissions, is_active: form.is_active },
   });
 
   return NextResponse.json({ success: true, user: createdProfile });

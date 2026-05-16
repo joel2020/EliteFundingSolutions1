@@ -24,6 +24,7 @@ export type ServerCrmProfile = {
   first_name: string;
   last_name: string;
   role: string;
+  permissions?: string[];
   is_active: boolean;
 };
 
@@ -56,7 +57,7 @@ export async function requireCrmProfile(roles: readonly string[] = INTERNAL_CRM_
   const supabase = createServiceSupabaseClient();
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .maybeSingle();
@@ -75,7 +76,7 @@ export async function requirePortalProfile() {
   const supabase = createServiceSupabaseClient();
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .maybeSingle();

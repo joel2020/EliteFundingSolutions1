@@ -23,6 +23,12 @@ export function encryptSensitiveField(value?: string | null) {
   return `v1:${iv.toString('base64')}:${authTag.toString('base64')}:${ciphertext.toString('base64')}`;
 }
 
+export function hashSensitiveLookup(value?: string | null) {
+  const normalized = digitsOnly(value || '');
+  if (!normalized) return null;
+  return createHash('sha256').update(`${process.env.FIELD_LOOKUP_PEPPER || process.env.FIELD_ENCRYPTION_KEY || ''}:${normalized}`).digest('hex');
+}
+
 export function maskDigits(value?: string | null) {
   const digits = digitsOnly(value || '');
   if (!digits) return '';

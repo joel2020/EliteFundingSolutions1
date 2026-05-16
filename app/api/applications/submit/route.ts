@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
 import { CONSENT_VERSION } from '@/lib/company';
-import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, maskDigits } from '@/lib/security';
+import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -325,6 +325,12 @@ export async function POST(request: Request) {
   }
 
   try {
+    const einHash = hashSensitiveLookup(form.ein);
+    const { data: priorBusinesses } = einHash
+      ? await supabase.from('businesses').select('id,legal_name').eq('organization_id', DEFAULT_ORG_ID).eq('ein_hash', einHash).limit(1)
+      : { data: [] as Array<{ id: string; legal_name: string }> };
+    const duplicateBusiness = priorBusinesses?.[0] || null;
+
     const { data: biz, error: bizErr } = await supabase
       .from('businesses')
       .insert({
@@ -333,6 +339,7 @@ export async function POST(request: Request) {
         dba: emptyToNull(form.dba),
         entity_type: emptyToNull(form.entity_type),
         ein_encrypted: encryptSensitiveField(form.ein),
+        ein_hash: einHash,
         ein_last4: form.ein.slice(-4),
         industry: emptyToNull(form.industry),
         start_date: emptyToNull(form.start_date),
@@ -354,6 +361,13 @@ export async function POST(request: Request) {
       .single();
 
     if (bizErr) throw bizErr;
+
+    const { count: priorDealCount } = await supabase
+      .from('deals')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('business_id', duplicateBusiness?.id || biz.id);
+    const submissionSequence = Number(priorDealCount || 0) + 1;
 
     const { data: lead, error: leadErr } = await supabase
       .from('leads')
@@ -444,7 +458,7 @@ export async function POST(request: Request) {
 
     const { data: deal, error: dealErr } = await supabase
       .from('deals')
-      .insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: `${form.legal_name} funding request`, requested_amount: toNumber(form.requested_amount), assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, lead_source: leadSource, referral_code: referralCode, referral_path: referralPath, notes: emptyToNull(form.notes || (referralProfile ? `Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? `Referred by ${brokerName(isoBrokerReferral)}.` : '')) })
+      .insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: `${form.legal_name} #${submissionSequence}`, requested_amount: toNumber(form.requested_amount), assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, lead_source: leadSource, referral_code: referralCode, referral_path: referralPath, submission_sequence: submissionSequence, duplicate_of_business_id: duplicateBusiness?.id || null, notes: emptyToNull(form.notes || (referralProfile ? `Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? `Referred by ${brokerName(isoBrokerReferral)}.` : duplicateBusiness ? `Repeat submission matched by EIN to ${duplicateBusiness.legal_name}.` : '')) })
       .select('id')
       .single();
     if (dealErr) throw dealErr;

@@ -17,6 +17,7 @@ const emptyPartner = {
   name: '',
   contact_name: '',
   email: '',
+  phone: '',
   min_funding_amount: '',
   max_funding_amount: '',
   min_monthly_revenue: '',
@@ -69,7 +70,7 @@ export default function PartnersPage() {
 
   const savePartner = async () => {
     if (!organizationId || !form.name.trim()) {
-      toast.error('Partner name is required');
+      toast.error('Company name is required');
       return;
     }
 
@@ -79,6 +80,7 @@ export default function PartnersPage() {
       name: form.name.trim(),
       contact_name: form.contact_name.trim() || null,
       email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
       submission_email: form.submission_email.trim() || null,
       portal_url: form.portal_url.trim() || null,
       product_types: csv(form.product_types),
@@ -170,9 +172,10 @@ export default function PartnersPage() {
             <DialogDescription>Create a funder profile for offers and partner reporting.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 md:grid-cols-2">
-            <div><Label>Name *</Label><Input data-testid="partner-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+            <div><Label>Company Name *</Label><Input data-testid="partner-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
             <div><Label>Contact Name</Label><Input data-testid="partner-contact-name" value={form.contact_name} onChange={(event) => setForm({ ...form, contact_name: event.target.value })} /></div>
-            <div className="md:col-span-2"><Label>Email</Label><Input data-testid="partner-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
+            <div><Label>Email</Label><Input data-testid="partner-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
+            <div><Label>Phone Number</Label><Input data-testid="partner-phone" type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></div>
             <div><Label>Submission Email</Label><Input value={form.submission_email} onChange={(event) => setForm({ ...form, submission_email: event.target.value })} /></div>
             <div><Label>Portal URL</Label><Input value={form.portal_url} onChange={(event) => setForm({ ...form, portal_url: event.target.value })} /></div>
             <div><Label>Min Funding</Label><Input type="number" value={form.min_funding_amount} onChange={(event) => setForm({ ...form, min_funding_amount: event.target.value })} /></div>
