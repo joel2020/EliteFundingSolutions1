@@ -41,6 +41,10 @@ function brokerApplicationUrl(slug?: string | null) {
   return `${origin}/apply/iso/${slug}`;
 }
 
+function brokerApplicationDisplayUrl(slug?: string | null) {
+  return brokerApplicationUrl(slug) || 'Not generated';
+}
+
 export default function IsoBrokersPage() {
   const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
 
@@ -231,7 +235,7 @@ export default function IsoBrokersPage() {
                         Copy
                       </Button>
                     </div>
-                    <code className="block truncate text-[11px] text-[#52525B]">{(broker as any).application_slug ? `/apply/iso/${(broker as any).application_slug}` : 'Not generated'}</code>
+                    <code className="block truncate text-[11px] text-[#52525B]" title={brokerApplicationDisplayUrl((broker as any).application_slug)}>{brokerApplicationDisplayUrl((broker as any).application_slug)}</code>
                   </div>
                   {broker.email && (
                     <div className="flex items-center gap-2 text-sm text-[#52525B]">

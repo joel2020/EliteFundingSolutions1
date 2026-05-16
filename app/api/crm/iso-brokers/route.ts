@@ -34,6 +34,10 @@ function slugifyBroker(companyName: string, brokerName: string) {
   return slug || 'iso-broker';
 }
 
+function applicationSlugForBroker(broker: { id: string; company_name?: string | null; broker_name?: string | null }) {
+  return `${slugifyBroker(broker.company_name || '', broker.broker_name || '')}-${broker.id.slice(0, 8)}`;
+}
+
 function isMissingApplicationSlugColumn(error: { code?: string; message?: string }) {
   const message = (error.message || '').toLowerCase();
   return error.code === 'PGRST204' || (message.includes('application_slug') && (message.includes('schema cache') || message.includes('column')));
@@ -54,9 +58,32 @@ export async function GET() {
     return NextResponse.json({ success: false, error: brokerResult.error.message }, { status: 500, headers: noStoreHeaders });
   }
 
+  let brokers = brokerResult.data || [];
+  const brokersMissingSlugs = brokers.filter((broker: any) => !broker.application_slug);
+  if (brokersMissingSlugs.length) {
+    const repaired = await Promise.allSettled(brokersMissingSlugs.map((broker: any) => {
+      const application_slug = applicationSlugForBroker(broker);
+      return supabase
+        .from('iso_brokers')
+        .update({ application_slug })
+        .eq('id', broker.id)
+        .eq('organization_id', profile.organization_id)
+        .select('*')
+        .single();
+    }));
+
+    const repairedById = new Map<string, any>();
+    for (const item of repaired) {
+      if (item.status === 'fulfilled' && !item.value.error && item.value.data) {
+        repairedById.set(item.value.data.id, item.value.data);
+      }
+    }
+    brokers = brokers.map((broker: any) => repairedById.get(broker.id) || broker);
+  }
+
   return NextResponse.json({
     success: true,
-    brokers: brokerResult.data || [],
+    brokers,
     commissions: commissionResult.data || [],
     deals: dealResult.data || [],
   }, { headers: noStoreHeaders });
