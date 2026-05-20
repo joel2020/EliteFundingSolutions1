@@ -35,6 +35,7 @@ import {
   Users,
   WalletCards,
 } from 'lucide-react';
+import { DeleteConfirmButton } from '@/components/crm/delete-confirm-button';
 import {
   Bar,
   BarChart,
