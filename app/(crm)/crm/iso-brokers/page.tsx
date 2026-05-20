@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { useCrmUser } from '@/lib/crm-auth';
-import { Copy, Plus, Users, TrendingUp, DollarSign, Mail, Phone } from 'lucide-react';
+import { Copy, Plus, Users, TrendingUp, DollarSign, Mail, Phone , Trash2 } from 'lucide-react';
 import type { IsoBroker } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
