@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useCrmUser } from '@/lib/crm-auth';
 import { supabase } from '@/lib/supabase';
 import type { FundingPartner } from '@/types/database';
+import { DeleteConfirmButton } from '@/components/crm/delete-confirm-button';
 
 const emptyPartner = {
   name: '',
@@ -156,6 +157,13 @@ export default function PartnersPage() {
                   {partner.email}
                 </a>
               )}
+            </div>
+                  <div className="mt-4 pt-4 border-t">
+              <DeleteConfirmButton
+                itemLabel={`lender ${partner.name}`}
+                endpoint={`/api/crm/partners/${partner.id}`}
+                onDeleted={loadPartners}
+              />
             </div>
           ))}
         </div>
