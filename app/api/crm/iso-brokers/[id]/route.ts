@@ -49,3 +49,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json({ success: true });
 }
+
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+    try { requireSameOrigin(request); } catch { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }); }
+  const { id } = params;
+  if (!id) return NextResponse.json({ error: 'Broker ID required' }, { status: 400 });
+  const auth = await requireCrmProfile(WRITE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+  const { data: existing } = await supabase.from('iso_brokers').select('id,organization_id,auth_user_id,company_name').eq('id', id).eq('organization_id', profile.organization_id).single();
+  if (!existing) return NextResponse.json({ error: 'Broker not found' }, { status: 404 });
+  const { error } = await supabase.from('iso_brokers').delete().eq('id', id).eq('organization_id', profile.organization_id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (existing.auth_user_id) await supabase.auth.admin.deleteUser(existing.auth_user_id).catch(() => {});
+  await supabase.from('audit_logs').insert({ organization_id: profile.organization_id, user_id: user.id, action: 'iso_broker_deleted', resource_type: 'iso_brokers', resource_id: id, old_data: { company_name: existing.company_name }, new_data: null }).throwOnError().catch(() => {});
+  return NextResponse.json({ success: true, message: 'Broker deleted successfully' });
+}
