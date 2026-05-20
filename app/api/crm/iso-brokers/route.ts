@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { sendEmail, emailTemplates } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -132,6 +133,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: result.error.message }, { status: 500, headers: noStoreHeaders });
   }
 
+  // If an email was provided, provision a Supabase auth account and send a branded invite via Resend
+  let emailSent = false;
+  let brokerAuthWarning: string | null = null;
+
+  if (form.email) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const redirectTo = `${appUrl}/set-password`;
+
+    const invited = await supabase.auth.admin.inviteUserByEmail(form.email, {
+      redirectTo,
+      data: {
+        first_name: form.broker_name.split(' ')[0] || form.broker_name,
+        last_name: form.broker_name.split(' ').slice(1).join(' ') || '',
+        iso_broker_id: result.data.id,
+        role: 'iso_broker',
+      },
+    });
+
+    if (invited.error) {
+      // Auth invite failed (e.g. user already exists) — log but don't block broker creation
+      brokerAuthWarning = `Broker record created but auth invite failed: ${invited.error.message}`;
+      console.error('Broker auth invite error:', invited.error.message);
+    } else {
+      const inviteUrl = (invited.data.user as any).action_link || `${appUrl}/set-password`;
+
+      const emailResult = await sendEmail({
+        to: form.email,
+        subject: `You've been added as an ISO/Broker Partner — Elite Funding Solutions`,
+        html: emailTemplates.brokerInvite(
+          form.broker_name,
+          form.company_name,
+          inviteUrl,
+        ),
+      });
+
+      emailSent = emailResult.success;
+      if (!emailResult.success) {
+        console.error('Broker invite email failed:', emailResult.error);
+      }
+    }
+  }
+
   await Promise.allSettled([
     supabase.from('audit_logs').insert({
       organization_id: profile.organization_id,
@@ -153,5 +196,10 @@ export async function POST(request: Request) {
     }),
   ]);
 
-  return NextResponse.json({ success: true, broker: result.data, warning }, { headers: noStoreHeaders });
+  return NextResponse.json({
+    success: true,
+    broker: result.data,
+    emailSent,
+    warning: warning || brokerAuthWarning || undefined,
+  }, { headers: noStoreHeaders });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { sendEmail, emailTemplates } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Only a super admin can grant super admin.' }, { status: 403 });
   }
 
-  const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  // Point redirectTo at /set-password so the user lands on the password-creation page
+  const redirectTo = `${appUrl}/set-password`;
+
   const invited = await supabase.auth.admin.inviteUserByEmail(form.email, {
     redirectTo,
     data: {
@@ -77,6 +81,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: profileError.message }, { status: 500 });
   }
 
+  // Build the invite URL — Supabase embeds the token in the redirectTo URL
+  // The user_metadata action_link contains the full magic link
+  const inviteUrl = (invited.data.user as any).action_link ||
+    `${appUrl}/set-password`;
+
+  // Send branded invite email via Resend (non-blocking — don't fail the request if email fails)
+  const emailResult = await sendEmail({
+    to: form.email,
+    subject: `You're invited to Elite Funding Solutions`,
+    html: emailTemplates.userInvite(
+      form.first_name,
+      inviteUrl,
+      form.role,
+    ),
+  });
+
+  if (!emailResult.success) {
+    console.error('Invite email failed to send:', emailResult.error);
+  }
+
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
     user_id: user.id,
@@ -86,5 +110,9 @@ export async function POST(request: Request) {
     new_data: { email: form.email, role: form.role, permissions: form.permissions, is_active: form.is_active },
   });
 
-  return NextResponse.json({ success: true, user: createdProfile });
+  return NextResponse.json({
+    success: true,
+    user: createdProfile,
+    emailSent: emailResult.success,
+  });
 }

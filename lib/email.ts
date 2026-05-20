@@ -156,4 +156,66 @@ export const emailTemplates = {
       </div>
     </div>
   `,
+
+  userInvite: (firstName: string, inviteUrl: string, role: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 40px 20px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited</h1>
+        <p style="color: #bfdbfe; margin: 10px 0 0 0; font-size: 16px;">Elite Funding Solutions CRM</p>
+      </div>
+      <div style="padding: 40px 20px; background: #ffffff;">
+        <p style="font-size: 16px; color: #374151; line-height: 1.6;">Hi ${firstName || 'there'},</p>
+        <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+          You've been added to the <strong>Elite Funding Solutions</strong> platform as a <strong>${role.replace(/_/g, ' ')}</strong>.
+          Click the button below to create your password and access your account.
+        </p>
+        <div style="text-align: center; margin: 36px 0;">
+          <a href="${inviteUrl}" style="display: inline-block; padding: 16px 36px; background: #2563eb; color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;">
+            Create My Password &rarr;
+          </a>
+        </div>
+        <p style="font-size: 13px; color: #9ca3af; line-height: 1.6;">
+          This link expires in <strong>24 hours</strong>. If you didn't expect this invitation, you can safely ignore this email.
+        </p>
+        <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+          Best regards,<br/>
+          <strong>Elite Funding Solutions Team</strong>
+        </p>
+      </div>
+      <div style="padding: 20px; text-align: center; background: #f9fafb; color: #6b7280; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} Elite Funding Solutions. All rights reserved.</p>${complianceFooter}
+      </div>
+    </div>
+  `,
+
+  brokerInvite: (brokerName: string, companyName: string, inviteUrl: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #065f46 0%, #10b981 100%); padding: 40px 20px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">Partner Portal Access</h1>
+        <p style="color: #a7f3d0; margin: 10px 0 0 0; font-size: 16px;">Elite Funding Solutions</p>
+      </div>
+      <div style="padding: 40px 20px; background: #ffffff;">
+        <p style="font-size: 16px; color: #374151; line-height: 1.6;">Hi ${brokerName},</p>
+        <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+          <strong>${companyName}</strong> has been added as an ISO / Broker partner with Elite Funding Solutions.
+          Click below to set up your account and access the partner portal.
+        </p>
+        <div style="text-align: center; margin: 36px 0;">
+          <a href="${inviteUrl}" style="display: inline-block; padding: 16px 36px; background: #059669; color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;">
+            Set Up My Account &rarr;
+          </a>
+        </div>
+        <p style="font-size: 13px; color: #9ca3af; line-height: 1.6;">
+          This link expires in <strong>24 hours</strong>. If you didn't expect this invitation, you can safely ignore this email.
+        </p>
+        <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+          Best regards,<br/>
+          <strong>Elite Funding Solutions Team</strong>
+        </p>
+      </div>
+      <div style="padding: 20px; text-align: center; background: #f9fafb; color: #6b7280; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} Elite Funding Solutions. All rights reserved.</p>${complianceFooter}
+      </div>
+    </div>
+  `,
 };
