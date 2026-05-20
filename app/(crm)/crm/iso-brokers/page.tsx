@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getIsoQuality } from '@/lib/crm-intelligence';
+import { DeleteConfirmButton } from '@/components/crm/delete-confirm-button';
 
 interface BrokerFormData {
   company_name: string;
@@ -280,6 +281,11 @@ export default function IsoBrokersPage() {
                 >
                   {broker.is_active ? 'Deactivate' : 'Activate'}
                 </Button>
+                                <DeleteConfirmButton
+                  itemLabel={`broker ${broker.company_name || broker.broker_name}`}
+                  endpoint={`/api/crm/iso-brokers/${broker.id}`}
+                  onDeleted={loadBrokers}
+                />
               </div>
             ); })
           )}
