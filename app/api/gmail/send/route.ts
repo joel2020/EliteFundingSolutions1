@@ -6,6 +6,9 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 export const dynamic = 'force-dynamic';
 const SEND_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor'];
 
+/** Number of milliseconds before expiry at which we proactively treat the token as expired. */
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+
 export async function POST(request: NextRequest) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -25,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createServiceSupabaseClient();
-    // Get user's Gmail tokens
+
     const { data: tokens, error: tokensError } = await supabase
       .from('gmail_tokens')
       .select('*')
@@ -39,17 +42,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send email via Gmail
+    // Guard: if the access token is expired (or expiring within the buffer) and
+    // there is no refresh token available, surface a clear re-auth prompt rather
+    // than letting the Google API return a silent 401.
+    if (tokens.expires_at && !tokens.refresh_token) {
+      const expiresAt = new Date(tokens.expires_at).getTime();
+      if (Date.now() >= expiresAt - TOKEN_EXPIRY_BUFFER_MS) {
+        return NextResponse.json(
+          {
+            error:
+              'Gmail session expired. Please reconnect your Gmail account in Settings.',
+            code: 'gmail_token_expired',
+          },
+          { status: 401 }
+        );
+      }
+    }
+
     const result = await sendEmail({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
+      userId: user.id,
       to,
       subject,
       body,
       from: tokens.email,
     });
 
-    // Log email in CRM
     await supabase.from('email_logs').insert({
       user_id: user.id,
       organization_id: profile.organization_id,
