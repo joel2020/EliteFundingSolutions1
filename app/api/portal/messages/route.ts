@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Message body is required.' }, { status: 400 });
   }
 
-  const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id);
+  const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id, profile);
   const applicationId = parsed.data.application_id || applicationIds[0] || null;
   if (applicationId && !applicationIds.includes(applicationId)) {
     return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });

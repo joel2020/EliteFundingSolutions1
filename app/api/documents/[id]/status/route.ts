@@ -4,8 +4,9 @@ import { INTERNAL_CRM_ROLES, requireCrmProfile, requireSameOrigin } from '@/lib/
 
 export const dynamic = 'force-dynamic';
 
+const DOCUMENT_STATUSES = ['uploaded', 'in_review', 'approved', 'rejected', 'needs_replacement', 'expired'] as const;
 const statusSchema = z.object({
-  status: z.string().trim().min(1),
+  status: z.enum(DOCUMENT_STATUSES),
   review_notes: z.string().optional().nullable(),
 });
 

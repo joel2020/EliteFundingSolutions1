@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
 import { FileText, Upload, MessageSquare, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,32 +35,13 @@ export default function ClientPortalPage() {
 
   const loadPortalData = useCallback(async () => {
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const email = authData.user?.email;
-      if (!email) {
-        setLoading(false);
-        return;
-      }
+      const response = await fetch('/api/portal/summary', { cache: 'no-store' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load portal data.');
 
-      const { data: apps, error: appsError } = await supabase
-        .from('applications')
-        .select('id,organization_id,status,requested_amount,created_at,submitted_at,lead_id,businesses(legal_name,dba),leads!inner(email)')
-        .eq('organization_id', DEFAULT_ORG_ID)
-        .eq('leads.email', email)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (appsError) throw appsError;
-
-      const applicationIds = (apps || []).map((app) => app.id);
-      const [{ data: docs }, { data: offerData }] = applicationIds.length > 0 ? await Promise.all([
-        supabase.from('documents').select('id,application_id,label,file_name,status,created_at').eq('organization_id', DEFAULT_ORG_ID).in('application_id', applicationIds).order('created_at', { ascending: false }).limit(25),
-        supabase.from('offers').select('id,deal_id,approved_amount,payback_amount,payment_frequency,daily_payment,weekly_payment,term_days,status,created_at,deals!inner(application_id,title,businesses(legal_name,dba))').eq('organization_id', DEFAULT_ORG_ID).in('deals.application_id', applicationIds).order('created_at', { ascending: false }).limit(10),
-      ]) : [{ data: [] }, { data: [] }];
-
-      setApplications(apps || []);
-      setDocuments(docs || []);
-      setOffers(offerData || []);
+      setApplications(result.applications || []);
+      setDocuments(result.documents || []);
+      setOffers(result.offers || []);
     } catch (error) {
       console.error('Error loading portal data:', error);
       toast.error('Unable to load portal data.');

@@ -11,7 +11,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
-  const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id);
+  const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id, profile);
   if (!applicationIds.length) {
     return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
   }

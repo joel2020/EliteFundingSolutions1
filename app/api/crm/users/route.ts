@@ -44,23 +44,30 @@ export async function POST(request: Request) {
   // Point redirectTo at /set-password so the user lands on the password-creation page
   const redirectTo = `${appUrl}/set-password`;
 
-  const invited = await supabase.auth.admin.inviteUserByEmail(form.email, {
-    redirectTo,
-    data: {
-      first_name: form.first_name,
-      last_name: form.last_name,
+  const invited = await supabase.auth.admin.generateLink({
+    type: 'invite',
+    email: form.email,
+    options: {
+      redirectTo,
+      data: {
+        first_name: form.first_name,
+        last_name: form.last_name,
+      },
     },
   });
 
-  if (invited.error || !invited.data.user) {
-    return NextResponse.json({ success: false, error: invited.error?.message || 'Unable to invite user.' }, { status: 500 });
+  const invitedUser = invited.data?.user;
+  const inviteUrl = (invited.data as any)?.properties?.action_link;
+
+  if (invited.error || !invitedUser || !inviteUrl) {
+    return NextResponse.json({ success: false, error: invited.error?.message || 'Unable to generate invite link.' }, { status: 500 });
   }
 
   const { data: createdProfile, error: profileError } = await supabase
     .from('user_profiles')
     .upsert(
       {
-        user_id: invited.data.user.id,
+        user_id: invitedUser.id,
         organization_id: profile.organization_id,
         email: form.email,
         first_name: form.first_name,
@@ -68,7 +75,7 @@ export async function POST(request: Request) {
         role: form.role,
         permissions: form.permissions,
         is_active: form.is_active,
-        referral_slug: referralSlugForUser(form.first_name, form.last_name, form.email, invited.data.user.id),
+        referral_slug: referralSlugForUser(form.first_name, form.last_name, form.email, invitedUser.id),
         created_by: profile.id,
         updated_by: profile.id,
       },
@@ -83,8 +90,6 @@ export async function POST(request: Request) {
 
   // Build the invite URL — Supabase embeds the token in the redirectTo URL
   // The user_metadata action_link contains the full magic link
-  const inviteUrl = (invited.data.user as any).action_link ||
-    `${appUrl}/set-password`;
 
   // Send branded invite email via Resend (non-blocking — don't fail the request if email fails)
   const emailResult = await sendEmail({

@@ -5,6 +5,9 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 export const dynamic = 'force-dynamic';
 
 const UNDERWRITING_ROLES = ['super_admin', 'admin', 'manager', 'processor', 'underwriter'];
+const RISK_TIERS = ['A', 'B', 'C', 'D', 'decline'] as const;
+const UNDERWRITING_DECISIONS = ['approved', 'approved_modified', 'declined', 'more_info_needed', 'pending'] as const;
+const UNDERWRITING_STATUSES = ['pending', 'in_review', 'completed', 'on_hold'] as const;
 
 const reviewSchema = z.object({
   deal_id: z.string().uuid(),
@@ -16,13 +19,13 @@ const reviewSchema = z.object({
   time_in_business_months: z.number().int().nullable().optional(),
   document_completeness_pct: z.number().min(0).max(100),
   estimated_funding_max: z.number().nullable().optional(),
-  risk_tier: z.string(),
+  risk_tier: z.enum(RISK_TIERS),
   underwriting_score: z.number().min(0).max(100),
   risk_flags: z.array(z.string()).default([]),
   notes: z.string().trim().optional().nullable(),
-  decision: z.string(),
+  decision: z.enum(UNDERWRITING_DECISIONS),
   decision_notes: z.string().trim().optional().nullable(),
-  status: z.string().default('completed'),
+  status: z.enum(UNDERWRITING_STATUSES).default('completed'),
 });
 
 export async function POST(request: Request) {

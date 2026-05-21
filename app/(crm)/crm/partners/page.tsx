@@ -157,13 +157,13 @@ export default function PartnersPage() {
                   {partner.email}
                 </a>
               )}
-            </div>
-                  <div className="mt-4 pt-4 border-t">
-              <DeleteConfirmButton
-                itemLabel={`lender ${partner.name}`}
-                endpoint={`/api/crm/partners/${partner.id}`}
-                onDeleted={loadPartners}
-              />
+              <div className="mt-4 border-t pt-4">
+                <DeleteConfirmButton
+                  itemLabel={`lender ${partner.name}`}
+                  endpoint={`/api/crm/partners/${partner.id}`}
+                  onDeleted={loadPartners}
+                />
+              </div>
             </div>
           ))}
         </div>

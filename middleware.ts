@@ -108,12 +108,12 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  const isClientRole = profile.role === 'client';
+  const isPortalRole = profile.role === 'client' || profile.role === 'iso_broker';
   const isInternalRole = isInternalCrmRole(profile.role);
 
   // Redirect logged-in users away from login based on their profile role.
   if (isLoginRoute) {
-    if (isClientRole) {
+    if (isPortalRole) {
       return redirect(req, '/portal');
     }
 
@@ -125,14 +125,14 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith('/crm') && !isInternalRole) {
-    if (isClientRole) {
+    if (isPortalRole) {
       return redirect(req, '/portal');
     }
 
     return redirectToLogin(req);
   }
 
-  if (pathname.startsWith('/portal') && !isClientRole) {
+  if (pathname.startsWith('/portal') && !isPortalRole) {
     if (isInternalRole) {
       return redirect(req, '/crm');
     }

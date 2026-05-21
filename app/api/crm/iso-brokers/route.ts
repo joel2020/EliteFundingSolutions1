@@ -140,23 +140,49 @@ export async function POST(request: Request) {
   if (form.email) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const redirectTo = `${appUrl}/set-password`;
+    const firstName = form.broker_name.split(' ')[0] || form.broker_name;
+    const lastName = form.broker_name.split(' ').slice(1).join(' ') || '';
 
-    const invited = await supabase.auth.admin.inviteUserByEmail(form.email, {
-      redirectTo,
-      data: {
-        first_name: form.broker_name.split(' ')[0] || form.broker_name,
-        last_name: form.broker_name.split(' ').slice(1).join(' ') || '',
-        iso_broker_id: result.data.id,
-        role: 'iso_broker',
+    const invited = await supabase.auth.admin.generateLink({
+      type: 'invite',
+      email: form.email,
+      options: {
+        redirectTo,
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          iso_broker_id: result.data.id,
+          role: 'iso_broker',
+        },
       },
     });
 
-    if (invited.error) {
+    const invitedUser = invited.data?.user;
+    const inviteUrl = (invited.data as any)?.properties?.action_link;
+
+    if (invited.error || !invitedUser || !inviteUrl) {
       // Auth invite failed (e.g. user already exists) — log but don't block broker creation
-      brokerAuthWarning = `Broker record created but auth invite failed: ${invited.error.message}`;
-      console.error('Broker auth invite error:', invited.error.message);
+      const message = invited.error?.message || 'Unable to generate invite link.';
+      brokerAuthWarning = `Broker record created but auth invite failed: ${message}`;
+      console.error('Broker auth invite error:', message);
     } else {
-      const inviteUrl = (invited.data.user as any).action_link || `${appUrl}/set-password`;
+      const { error: profileError } = await supabase.from('user_profiles').upsert({
+        user_id: invitedUser.id,
+        organization_id: profile.organization_id,
+        email: form.email,
+        first_name: firstName,
+        last_name: lastName,
+        role: 'iso_broker',
+        permissions: [],
+        is_active: true,
+        created_by: profile.id,
+        updated_by: profile.id,
+      }, { onConflict: 'user_id,organization_id' });
+
+      if (profileError) {
+        brokerAuthWarning = `Broker invite created but portal profile failed: ${profileError.message}`;
+        console.error('Broker portal profile error:', profileError.message);
+      } else {
 
       const emailResult = await sendEmail({
         to: form.email,
@@ -171,6 +197,7 @@ export async function POST(request: Request) {
       emailSent = emailResult.success;
       if (!emailResult.success) {
         console.error('Broker invite email failed:', emailResult.error);
+      }
       }
     }
   }

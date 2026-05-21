@@ -5,13 +5,15 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 export const dynamic = 'force-dynamic';
 
 const TASK_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+const TASK_STATUSES = ['open', 'in_progress', 'completed', 'cancelled'] as const;
 
 const taskSchema = z.object({
   title: z.string().trim().min(1),
   description: z.string().trim().optional().nullable(),
   due_date: z.string().trim().optional().nullable(),
-  priority: z.string().trim().default('medium'),
-  status: z.string().trim().default('open'),
+  priority: z.enum(TASK_PRIORITIES).default('medium'),
+  status: z.enum(TASK_STATUSES).default('open'),
 });
 
 export async function POST(request: Request) {

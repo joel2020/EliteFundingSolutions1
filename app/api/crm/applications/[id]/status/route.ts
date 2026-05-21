@@ -5,8 +5,9 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 export const dynamic = 'force-dynamic';
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+const APPLICATION_STATUSES = ['started', 'submitted', 'under_review', 'approved', 'declined', 'withdrawn'] as const;
 const statusSchema = z.object({
-  status: z.string().min(1),
+  status: z.enum(APPLICATION_STATUSES),
   notes: z.string().optional().default('CRM application status update.'),
 });
 

@@ -4,8 +4,9 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
+const PARTNER_SUBMISSION_STATUSES = ['draft', 'submitted', 'in_review', 'more_info_needed', 'approved', 'declined', 'withdrawn', 'funded'] as const;
 const updateSchema = z.object({
-  status: z.string().optional(),
+  status: z.enum(PARTNER_SUBMISSION_STATUSES).optional(),
   notes: z.string().optional().nullable(),
   decline_reason: z.string().optional().nullable(),
   conditions: z.string().optional().nullable(),

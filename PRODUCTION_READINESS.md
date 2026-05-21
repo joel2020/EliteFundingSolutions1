@@ -46,7 +46,6 @@ Configured but optional unless the related feature is enabled:
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_PHONE_NUMBER`
-- `GMAIL_ENCRYPTION_KEY`, legacy placeholder if token encryption is later added outside Supabase
 - `OPENAI_API_KEY`, not used by the current launch-critical app paths
 
 Never expose `SUPABASE_SERVICE_ROLE_KEY`, `FIELD_ENCRYPTION_KEY`, Gmail tokens, SSNs, EINs, DOBs, bank statements, or storage signed URLs through `NEXT_PUBLIC_` variables.

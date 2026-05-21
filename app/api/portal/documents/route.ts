@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Application and file are required.' }, { status: 400 });
   }
 
-  const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id);
+  const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id, profile);
   if (!applicationIds.includes(applicationId)) {
     return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
   }

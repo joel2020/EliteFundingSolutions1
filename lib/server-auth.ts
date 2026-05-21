@@ -6,6 +6,7 @@ import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supaba
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const PORTAL_ROLES = ['client', 'iso_broker'] as const;
 
 export const INTERNAL_CRM_ROLES = [
   'super_admin',
@@ -98,7 +99,7 @@ export async function requirePortalProfile() {
     .eq('is_active', true)
     .maybeSingle();
 
-  if (!profile || profile.role !== 'client') {
+  if (!profile || !PORTAL_ROLES.includes(profile.role as (typeof PORTAL_ROLES)[number])) {
     return { response: jsonError('Forbidden', 403) };
   }
 
@@ -109,6 +110,7 @@ export async function getPortalApplicationIds(
   supabase: ReturnType<typeof createServiceSupabaseClient>,
   user: User,
   organizationId = DEFAULT_ORG_ID,
+  profile?: Pick<ServerCrmProfile, 'role' | 'email'> | null,
 ) {
   const email = user.email || '';
   const ids = new Set<string>();
@@ -149,6 +151,28 @@ export async function getPortalApplicationIds(
         .limit(100);
 
       (businessApplications || []).forEach((application: { id: string }) => ids.add(application.id));
+    }
+  }
+
+  if (profile?.role === 'iso_broker' && email) {
+    const { data: brokers } = await supabase
+      .from('iso_brokers')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('email', email)
+      .eq('is_active', true)
+      .limit(25);
+
+    const brokerIds = (brokers || []).map((broker: { id: string }) => broker.id);
+    if (brokerIds.length) {
+      const { data: brokerApplications } = await supabase
+        .from('applications')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .in('iso_broker_id', brokerIds)
+        .limit(100);
+
+      (brokerApplications || []).forEach((application: { id: string }) => ids.add(application.id));
     }
   }
 
