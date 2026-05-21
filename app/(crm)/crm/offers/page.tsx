@@ -39,7 +39,7 @@ const emptyForm = {
 };
 
 export default function OffersPage() {
-  const { organizationId, loading: crmUserLoading } = useCrmUser();
+  const { organizationId, profile, loading: crmUserLoading } = useCrmUser();
   const [offers, setOffers] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,9 +141,11 @@ export default function OffersPage() {
 
   const businessName = (offer: any) => offer.deals?.businesses?.legal_name || offer.deals?.businesses?.dba || offer.deals?.title || 'Unlinked deal';
 
+  const canCreateOffers = ['super_admin', 'admin', 'manager', 'sales_rep', 'underwriter'].includes(profile?.role || '');
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <CrmTopbar title="Offers" subtitle={`${offers.length} funding offers`} actions={<Button data-testid="create-offer" onClick={() => setShowDialog(true)}><Plus className="mr-2 h-4 w-4" />Create Offer</Button>} />
+      <CrmTopbar title="Offers" subtitle={`${offers.length} funding offers`} actions={canCreateOffers ? <Button data-testid="create-offer" onClick={() => setShowDialog(true)}><Plus className="mr-2 h-4 w-4" />Create Offer</Button> : null} />
       <div className="flex-1 overflow-y-auto bg-[#F6F7FA] p-6">
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card><CardHeader><CardTitle className="text-sm">Total Offered</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">${offers.reduce((sum, offer) => sum + Number(offer.approved_amount || 0), 0).toLocaleString()}</div></CardContent></Card>

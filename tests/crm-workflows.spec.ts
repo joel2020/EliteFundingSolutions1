@@ -48,6 +48,43 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     }
   });
 
+  test('ISO partner workspace can submit links and upload documents without internal admin controls', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page, 'iso_broker');
+
+    await page.goto('/crm');
+    await expect(page.getByTestId('crm-page-partner-workspace')).toBeVisible();
+    await expect(page.getByText('Prime ISO Group')).toBeVisible();
+    await expect(page.getByText('/apply/iso/iso_mock_apply_token')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Submit Application' })).toHaveAttribute('href', /\/apply\/iso\/iso_mock_apply_token$/);
+
+    const shell = page.getByTestId('crm-nexus-shell');
+    await expect(shell.getByText('Leads', { exact: true })).toHaveCount(0);
+    await expect(shell.getByText('Users & Access', { exact: true })).toHaveCount(0);
+
+    await page.goto('/crm/deals');
+    await expect(page.getByTestId('crm-page-my-submissions')).toBeVisible();
+    await expect(page.getByTestId('new-deal')).toHaveCount(0);
+    await expect(page.getByTestId(`deal-row-${DEAL_ID}`)).toContainText('Atlas Retail');
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
+    await expect(page.getByTestId('deal-detail-stage')).toHaveCount(0);
+    await expect(page.getByTestId('deal-upload-partner-application')).toHaveCount(0);
+    await expect(page.getByText('Reveal full fields')).toHaveCount(0);
+
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    await page.getByTestId('deal-upload-document').click();
+    await page.getByTestId('deal-document-file').setInputFiles({
+      name: 'iso-bank-statement.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 iso statement'),
+    });
+    await page.getByTestId('deal-save-document').click();
+
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'iso-bank-statement.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
+    expect(calls.some((call) => call.table === 'deal_documents_api' && call.body.file_name === 'iso-bank-statement.pdf')).toBe(true);
+  });
+
   test('creates a lead and converts it to a deal', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page);
 

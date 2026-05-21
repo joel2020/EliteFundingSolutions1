@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { requireCrmAccess, requireSameOrigin } from '@/lib/server-auth';
+import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
 
 export const dynamic = 'force-dynamic';
 
-const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'iso_broker', 'broker', 'referral_partner'];
 const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif']);
 const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -12,7 +13,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
-  const auth = await requireCrmProfile(WRITE_ROLES);
+  const auth = await requireCrmAccess(WRITE_ROLES);
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
@@ -35,12 +36,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: deal } = await supabase
     .from('deals')
-    .select('id,organization_id,business_id,application_id,lead_id')
+    .select('id,organization_id,business_id,application_id,lead_id,iso_broker_id')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .single();
 
   if (!deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+
+  if (!isInternalCrmRole(profile.role)) {
+    const canUploadAsIso = isIsoPartnerRole(profile.role)
+      && profile.access_entity_id
+      && deal.iso_broker_id === profile.access_entity_id;
+
+    if (!canUploadAsIso) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+  }
 
   if (documentRequestId) {
     const { data: requestRow } = await supabase
@@ -77,6 +88,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       status: 'uploaded',
       uploaded_by_user_id: user.id,
       review_notes: reviewNotes || null,
+      visibility: isInternalCrmRole(profile.role) ? 'internal' : 'shared',
     })
     .select('id,file_name,label,status,created_at')
     .single();
@@ -106,10 +118,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     supabase.from('audit_logs').insert({
       organization_id: profile.organization_id,
       user_id: user.id,
-      action: 'deal_document_uploaded',
+      action: isInternalCrmRole(profile.role) ? 'deal_document_uploaded' : 'external_partner_document_uploaded',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: documentRequestId },
+      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: documentRequestId, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
     }),
   ]);
 

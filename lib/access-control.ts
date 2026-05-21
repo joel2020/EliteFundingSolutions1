@@ -21,6 +21,7 @@ export const CRM_ACCESS_ROLES = [
 ] as const;
 
 export type InternalCrmRole = (typeof INTERNAL_CRM_ROLES)[number];
+export type ExternalCrmRole = (typeof EXTERNAL_CRM_ROLES)[number];
 export type CrmAccessRole = (typeof CRM_ACCESS_ROLES)[number];
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -40,6 +41,14 @@ export const ROLE_LABELS: Record<string, string> = {
 
 export function isInternalCrmRole(role?: string | null): role is InternalCrmRole {
   return !!role && INTERNAL_CRM_ROLES.includes(role as InternalCrmRole);
+}
+
+export function isExternalCrmRole(role?: string | null): role is ExternalCrmRole {
+  return !!role && EXTERNAL_CRM_ROLES.includes(role as ExternalCrmRole);
+}
+
+export function isIsoPartnerRole(role?: string | null) {
+  return role === 'iso_broker' || role === 'broker' || role === 'referral_partner';
 }
 
 export function isCrmAccessRole(role?: string | null): role is CrmAccessRole {

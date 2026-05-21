@@ -9,24 +9,27 @@ export const DOC_ID = '55555555-5555-5555-5555-555555555555';
 export const BUSINESS_ID = '66666666-6666-6666-6666-666666666666';
 export const OFFER_ID = '77777777-7777-7777-7777-777777777777';
 
-export type MockRole = 'super_admin' | 'admin' | 'manager' | 'sales_rep' | 'processor' | 'underwriter' | 'client';
+export type MockRole = 'super_admin' | 'admin' | 'manager' | 'sales_rep' | 'processor' | 'underwriter' | 'client' | 'iso_broker' | 'funder';
 
 type MockState = Record<string, any[]>;
 
 const now = '2026-05-14T12:00:00.000Z';
 
 export function createCrmState(role: MockRole = 'admin'): MockState {
+  const isIso = role === 'iso_broker';
+  const isFunder = role === 'funder';
   const activeProfile = {
     id: ADMIN_PROFILE_ID,
     user_id: 'auth-user-1',
     organization_id: ORG_ID,
-    email: 'admin@elitefunding.test',
-    first_name: role === 'sales_rep' ? 'Sam' : 'Avery',
-    last_name: role === 'sales_rep' ? 'Rep' : 'Admin',
+    email: isIso ? 'casey@iso.test' : isFunder ? 'funder@apex.test' : 'admin@elitefunding.test',
+    first_name: isIso ? 'Casey' : isFunder ? 'Finley' : role === 'sales_rep' ? 'Sam' : 'Avery',
+    last_name: isIso ? 'ISO' : isFunder ? 'Funder' : role === 'sales_rep' ? 'Rep' : 'Admin',
     role,
     is_active: true,
-    access_entity_type: 'internal',
-    access_entity_id: null,
+    company_name: isIso ? 'Prime ISO Group' : isFunder ? 'Apex Business Funding' : '',
+    access_entity_type: isIso ? 'iso_broker' : isFunder ? 'funding_partner' : 'internal',
+    access_entity_id: isIso ? 'iso-1' : isFunder ? '88888888-8888-8888-8888-888888888888' : null,
     invite_status: 'accepted',
     invite_accepted_at: now,
     last_login_at: now,
@@ -67,6 +70,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         assigned_user_id: ADMIN_PROFILE_ID,
         created_at: now,
         updated_at: now,
+        iso_broker_id: isIso ? 'iso-1' : null,
       },
       {
         id: 'deal-prior-1',
@@ -140,7 +144,18 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         created_at: now,
       },
     ],
-    iso_brokers: [],
+    iso_brokers: isIso ? [{
+      id: 'iso-1',
+      organization_id: ORG_ID,
+      company_name: 'Prime ISO Group',
+      broker_name: 'Casey ISO',
+      email: 'casey@iso.test',
+      application_token: 'iso_mock_apply_token',
+      application_slug: 'prime-iso-group-casey',
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    }] : [],
     user_profiles: [
       { ...activeProfile, referral_slug: role === 'sales_rep' ? 'sam-rep-auth-us' : 'avery-admin-auth-us' },
       {
