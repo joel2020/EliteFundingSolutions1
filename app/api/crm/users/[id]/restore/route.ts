@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { createOpaqueApplyToken } from '@/lib/referral-tokens';
 
 export const dynamic = 'force-dynamic';
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
+const REFERRAL_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
@@ -15,7 +17,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: existing } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active,deleted_at,deleted_by')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active,deleted_at,deleted_by,referral_token')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .not('deleted_at', 'is', null)
@@ -31,10 +33,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: restored, error } = await supabase
     .from('user_profiles')
-    .update({ is_active: true, deleted_at: null, deleted_by: null, updated_by: profile.id })
+    .update({
+      is_active: true,
+      deleted_at: null,
+      deleted_by: null,
+      updated_by: profile.id,
+      referral_token:
+        existing.referral_token || (REFERRAL_ROLES.includes(existing.role) ? createOpaqueApplyToken('rep') : null),
+    })
     .eq('id', existing.id)
     .eq('organization_id', profile.organization_id)
-    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug,referral_token')
     .single();
 
   if (error) {

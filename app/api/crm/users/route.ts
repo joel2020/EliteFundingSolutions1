@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { sendEmail, emailTemplates } from '@/lib/email';
+import { createOpaqueApplyToken, isBlockedProductionEmail } from '@/lib/referral-tokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,10 @@ function referralSlugForUser(firstName: string, lastName: string, email: string,
   const base = [firstName, lastName].filter(Boolean).join('-') || email.split('@')[0] || 'rep';
   const clean = base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 64) || 'rep';
   return `${clean}-${userId.slice(0, 8)}`;
+}
+
+function isProductionRuntime() {
+  return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
 }
 
 const createUserSchema = z.object({
@@ -37,6 +42,10 @@ export async function POST(request: Request) {
   }
 
   const form = parsed.data;
+  if (isProductionRuntime() && isBlockedProductionEmail(form.email)) {
+    return NextResponse.json({ success: false, error: 'Test/demo email domains are blocked in production invites.' }, { status: 400 });
+  }
+
   if (form.role === 'super_admin' && profile.role !== 'super_admin') {
     return NextResponse.json({ success: false, error: 'Only a super admin can grant super admin.' }, { status: 403 });
   }
@@ -77,12 +86,13 @@ export async function POST(request: Request) {
         permissions: form.permissions,
         is_active: form.is_active,
         referral_slug: referralSlugForUser(form.first_name, form.last_name, form.email, invitedUser.id),
+        referral_token: createOpaqueApplyToken('rep'),
         created_by: profile.id,
         updated_by: profile.id,
       },
       { onConflict: 'user_id,organization_id' },
     )
-    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug,referral_token')
     .single();
 
   if (profileError) {

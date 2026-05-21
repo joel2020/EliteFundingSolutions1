@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { createOpaqueApplyToken } from '@/lib/referral-tokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: existing } = await supabase
     .from('iso_brokers')
-    .select('id,organization_id,company_name,broker_name,email,is_active,deleted_at,deleted_by')
+    .select('id,organization_id,company_name,broker_name,email,is_active,deleted_at,deleted_by,application_token')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .not('deleted_at', 'is', null)
@@ -27,7 +28,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: restored, error } = await supabase
     .from('iso_brokers')
-    .update({ is_active: true, deleted_at: null, deleted_by: null })
+    .update({
+      is_active: true,
+      deleted_at: null,
+      deleted_by: null,
+      application_token: existing.application_token || createOpaqueApplyToken('iso'),
+    })
     .eq('id', existing.id)
     .eq('organization_id', profile.organization_id)
     .select('*')

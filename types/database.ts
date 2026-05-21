@@ -42,6 +42,7 @@ export interface Database {
           permissions: string[];
           is_active: boolean;
           referral_slug: string | null;
+          referral_token: string | null;
           last_login_at: string | null;
           deleted_at: string | null;
           created_at: string;
@@ -504,6 +505,7 @@ export interface Database {
           payment_terms: string | null;
           is_active: boolean;
           application_slug: string | null;
+          application_token: string | null;
           deleted_at: string | null;
           deleted_by: string | null;
           notes: string | null;

@@ -44,4 +44,14 @@ test.describe('public site production smoke tests', () => {
     await expect(page.locator('[aria-invalid="true"]').first()).toBeVisible();
     await expect(page.getByText(/does not ask for SSN, EIN, bank statements/i)).toBeVisible();
   });
+
+  test('public referral pages do not render readable slug names as advisor identity', async ({ page }) => {
+    await page.goto('/apply/rep/josh-r-eaeeb871');
+    await expect(page.getByText(/your funding advisor/i)).toBeVisible();
+    await expect(page.getByText(/josh r/i)).toHaveCount(0);
+
+    await page.goto('/apply/iso/test-test-mp8hos3x');
+    await expect(page.getByText(/your ISO partner/i)).toBeVisible();
+    await expect(page.getByText(/test test/i)).toHaveCount(0);
+  });
 });

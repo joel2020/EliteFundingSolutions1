@@ -81,7 +81,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
     user_id: user.id,
-    action: 'iso_broker_deleted',
+    action: 'iso_broker_archived',
     resource_type: 'iso_brokers',
     resource_id: id,
     old_data: existing,

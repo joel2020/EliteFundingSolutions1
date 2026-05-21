@@ -26,6 +26,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
     role,
     is_active: true,
     last_login_at: now,
+    referral_token: role === 'sales_rep' ? 'rep_mock_sales_token' : 'rep_mock_admin_token',
   };
 
   return {
@@ -148,6 +149,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         is_active: true,
         last_login_at: now,
         referral_slug: 'riley-rep-auth-us',
+        referral_token: 'rep_mock_riley_token',
       },
     ],
     businesses: [
@@ -258,6 +260,28 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   await page.route('**/api/documents/*/signed-url', async (route) => {
     calls.push({ method: route.request().method(), table: 'document_signed_url', body: route.request().postDataJSON() });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, url: 'https://signed.example/atlas-bank-statements.pdf' }) });
+  });
+
+  await page.route('**/api/auth/login-event', async (route) => {
+    state.user_profiles = state.user_profiles.map((profile) => profile.user_id === 'auth-user-1' ? { ...profile, last_login_at: now } : profile);
+    calls.push({ method: route.request().method(), table: 'login_event_api', body: { user_id: 'auth-user-1' } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, last_login_at: now }) });
+  });
+
+  await page.route('**/api/crm/archive', async (route) => {
+    calls.push({ method: route.request().method(), table: 'archive_api', body: null });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        records: {
+          lenders: state.funding_partners.filter((row) => row.deleted_at),
+          brokers: state.iso_brokers.filter((row) => row.deleted_at),
+          users: state.user_profiles.filter((row) => row.deleted_at),
+        },
+      }),
+    });
   });
 
   await page.route('**/api/documents', async (route) => {
@@ -578,6 +602,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       role: payload.role || 'sales_rep',
       is_active: payload.is_active !== false,
       referral_slug: `${slugBase.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${id}`,
+      referral_token: `rep_mock_${id}`,
       last_login_at: null,
       created_at: now,
       updated_at: now,

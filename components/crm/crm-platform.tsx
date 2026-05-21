@@ -189,7 +189,6 @@ const emptyUser = {
   role: 'sales_rep',
   permissions: [] as string[],
   is_active: true,
-  referral_slug: '',
 };
 
 const USER_PERMISSION_OPTIONS = [
@@ -226,6 +225,10 @@ function repReferralUrl(slug?: string | null) {
 
 function repReferralDisplayUrl(slug?: string | null) {
   return repReferralUrl(slug) || 'Not generated';
+}
+
+function userDisplayName(user: RecordMap) {
+  return [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'Unnamed user';
 }
 
 function businessName(row: RecordMap) {
@@ -571,7 +574,7 @@ export function CrmDashboardExperience() {
   const stageData = STAGE_OPTIONS.map((stage) => ({ name: stage.label, value: deals.filter((deal: RecordMap) => deal.stage_slug === stage.value).length }));
   const partnerData = partners.slice(0, 5).map((partner: RecordMap) => ({ name: partner.name, value: offers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).length || 1 }));
   const repData = users.filter((user: RecordMap) => user.role !== 'client').slice(0, 6).map((user: RecordMap) => ({
-    name: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email,
+    name: userDisplayName(user),
     deals: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).length,
     funded: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0),
   }));
@@ -1729,7 +1732,6 @@ export function CrmUsersExperience() {
       role: user.role || 'sales_rep',
       permissions: Array.isArray(user.permissions) ? user.permissions : [],
       is_active: user.is_active !== false,
-      referral_slug: user.referral_slug || '',
     });
     setDialogOpen(true);
   };
@@ -1745,7 +1747,6 @@ export function CrmUsersExperience() {
       role: form.role,
       permissions: Array.isArray(form.permissions) ? form.permissions : [],
       is_active: form.is_active,
-      referral_slug: form.referral_slug || undefined,
     };
     const response = await fetch(editingUser ? `/api/crm/users/${editingUser.id}` : '/api/crm/users', {
       method: editingUser ? 'PATCH' : 'POST',
@@ -1785,7 +1786,7 @@ export function CrmUsersExperience() {
     setForm({ ...form, permissions: checked ? Array.from(new Set([...current, permission])) : current.filter((item: string) => item !== permission) });
   };
   const copyReferralUrl = async (user: RecordMap) => {
-    const url = repReferralUrl(user.referral_slug);
+    const url = repReferralUrl(user.referral_token || user.referral_slug);
     if (!url) {
       toast.error('This user does not have a referral URL yet.');
       return;
@@ -1805,7 +1806,7 @@ export function CrmUsersExperience() {
   return (
     <PageFrame title="User Management" subtitle="Create users, assign roles, activate accounts, and view performance" actions={canCreateUsers ? <Button data-testid="create-user" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openCreateUser}><Plus className="mr-2 h-4 w-4" />Create user</Button> : null}>
       <CrmCard className="overflow-x-auto">
-        <table className="w-full min-w-[1180px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Referral URL', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); const canDeleteUser = canCreateUsers && user.id !== profile?.id && !(user.role === 'super_admin' && profile?.role !== 'super_admin'); return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</p><p className="text-xs text-[#64748B]">{user.email}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3"><div className="flex max-w-[360px] items-center gap-2"><code className="truncate rounded bg-[#F1F5F9] px-2 py-1 text-[11px] text-[#334155]" title={repReferralDisplayUrl(user.referral_slug)}>{repReferralDisplayUrl(user.referral_slug)}</code><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => copyReferralUrl(user)}>Copy</Button></div></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{date(user.last_login_at)}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</Button>{canDeleteUser ? <DeleteConfirmButton itemLabel={`user ${[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}`} endpoint={`/api/crm/users/${user.id}`} onDeleted={reload} buttonClassName="h-8 rounded-[7px]" /> : null}</> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
+        <table className="w-full min-w-[1180px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Referral URL', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); const canDeleteUser = canCreateUsers && user.id !== profile?.id && !(user.role === 'super_admin' && profile?.role !== 'super_admin'); const referralValue = user.referral_token || user.referral_slug; return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{userDisplayName(user)}</p><p className="text-xs text-[#64748B]">{user.email || 'No email saved'}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3"><div className="flex max-w-[360px] items-center gap-2"><code className="truncate rounded bg-[#F1F5F9] px-2 py-1 text-[11px] text-[#334155]" title={repReferralDisplayUrl(referralValue)}>{repReferralDisplayUrl(referralValue)}</code><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => copyReferralUrl(user)}>Copy</Button></div></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{user.last_login_at ? date(user.last_login_at) : 'Never signed in'}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</Button>{canDeleteUser ? <DeleteConfirmButton itemLabel={`user ${userDisplayName(user)}`} endpoint={`/api/crm/users/${user.id}`} onDeleted={reload} buttonClassName="h-8 rounded-[7px]" /> : null}</> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
       </CrmCard>
       <CrmCard className="mt-4 p-4">
         <h2 className="text-sm font-semibold text-[#0F172A]">Permission Matrix</h2>
@@ -1821,7 +1822,6 @@ export function CrmUsersExperience() {
               ['First name', 'first_name'],
               ['Last name', 'last_name'],
               ['Email', 'email'],
-              ['Referral slug', 'referral_slug'],
             ].map(([label, key]) => (
               <div key={key}>
                 <Label className="text-xs text-[#64748B]">{label}</Label>

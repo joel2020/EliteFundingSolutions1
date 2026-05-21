@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
+import { useCallback, useEffect, useState } from 'react';
 import { FileArchive, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { CrmTopbar } from '@/components/crm/topbar';
@@ -11,10 +10,6 @@ import { useCrmUser } from '@/lib/crm-auth';
 
 type ArchivedRecord = Record<string, any>;
 type ArchiveType = 'lenders' | 'brokers' | 'users';
-
-const ORG_ID = '00000000-0000-0000-0000-000000000001';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
 function formatDate(value?: string | null) {
   if (!value) return 'Unknown';
@@ -103,8 +98,7 @@ function ArchiveTable({
 }
 
 export function ArchiveCenter() {
-  const { profile, organizationId, loading: profileLoading, error: profileError } = useCrmUser();
-  const browserSupabase = useMemo(() => createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY), []);
+  const { profile, loading: profileLoading, error: profileError } = useCrmUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -115,35 +109,32 @@ export function ArchiveCenter() {
   });
 
   const load = useCallback(async () => {
-    const org = organizationId || ORG_ID;
     setLoading(true);
     setError(null);
 
-    const [lenders, brokers, users] = await Promise.all([
-      browserSupabase.from('funding_partners').select('*').eq('organization_id', org).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-      browserSupabase.from('iso_brokers').select('*').eq('organization_id', org).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-      browserSupabase.from('user_profiles').select('*').eq('organization_id', org).not('deleted_at', 'is', null).order('deleted_at', { ascending: false }),
-    ]);
-
-    const failed = [lenders, brokers, users].find((result) => result.error);
-    if (failed?.error) {
-      setError(failed.error.message);
+    const response = await fetch('/api/crm/archive', { cache: 'no-store' });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) {
+      setError(result.error || 'Unable to load archive.');
       setRecords({ lenders: [], brokers: [], users: [] });
     } else {
-      setRecords({
-        lenders: lenders.data || [],
-        brokers: brokers.data || [],
-        users: users.data || [],
-      });
+      setRecords(result.records || { lenders: [], brokers: [], users: [] });
     }
     setLoading(false);
-  }, [browserSupabase, organizationId]);
+  }, []);
 
   useEffect(() => {
-    if (!profileLoading && !profileError) load();
+    if (profileLoading) return;
+    if (profileError) {
+      setError(profileError);
+      setLoading(false);
+      return;
+    }
+    load();
   }, [load, profileError, profileLoading]);
 
   const restore = async (type: ArchiveType, record: ArchivedRecord) => {
+    if (!window.confirm(`Restore ${recordLabel(type, record)} to active CRM workflows?`)) return;
     setRestoringId(record.id);
     try {
       const response = await fetch(restoreEndpoint(type, record.id), { method: 'POST' });

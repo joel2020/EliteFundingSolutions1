@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { sendEmail, emailTemplates } from '@/lib/email';
+import { createOpaqueApplyToken, isBlockedProductionEmail } from '@/lib/referral-tokens';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -39,9 +40,13 @@ function applicationSlugForBroker(broker: { id: string; company_name?: string | 
   return `${slugifyBroker(broker.company_name || '', broker.broker_name || '')}-${broker.id.slice(0, 8)}`;
 }
 
+function isProductionRuntime() {
+  return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+}
+
 function isMissingApplicationSlugColumn(error: { code?: string; message?: string }) {
   const message = (error.message || '').toLowerCase();
-  return error.code === 'PGRST204' || (message.includes('application_slug') && (message.includes('schema cache') || message.includes('column')));
+  return error.code === 'PGRST204' || (message.includes('application_slug') || message.includes('application_token')) && (message.includes('schema cache') || message.includes('column'));
 }
 
 export async function GET() {
@@ -104,6 +109,10 @@ export async function POST(request: Request) {
   }
 
   const form = parsed.data;
+  if (isProductionRuntime() && form.email && isBlockedProductionEmail(form.email)) {
+    return NextResponse.json({ success: false, error: 'Test/demo email domains are blocked in production broker invites.' }, { status: 400, headers: noStoreHeaders });
+  }
+
   const applicationSlug = `${slugifyBroker(form.company_name, form.broker_name)}-${Date.now().toString(36)}`;
   const payload = {
     organization_id: profile.organization_id,
@@ -116,6 +125,7 @@ export async function POST(request: Request) {
     notes: form.notes || null,
     is_active: true,
     application_slug: applicationSlug,
+    application_token: createOpaqueApplyToken('iso'),
   };
 
   let warning: string | null = null;
@@ -123,7 +133,7 @@ export async function POST(request: Request) {
   let result = await supabase.from('iso_brokers').insert(insertPayload).select('*').single();
 
   if (result.error && isMissingApplicationSlugColumn(result.error)) {
-    const { application_slug: _applicationSlug, ...fallbackPayload } = payload;
+    const { application_slug: _applicationSlug, application_token: _applicationToken, ...fallbackPayload } = payload;
     insertPayload = fallbackPayload;
     result = await supabase.from('iso_brokers').insert(insertPayload).select('*').single();
     warning = 'Broker was added, but the application link column is not live in Supabase yet. Apply the ISO broker application links migration to enable broker links.';

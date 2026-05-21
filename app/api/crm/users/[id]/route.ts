@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { isBlockedProductionEmail } from '@/lib/referral-tokens';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,10 @@ const updateUserSchema = z.object({
   ),
 });
 
+function isProductionRuntime() {
+  return process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
+}
+
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -30,6 +35,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const parsed = updateUserSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ success: false, error: 'Invalid user payload.', issues: parsed.error.flatten() }, { status: 400 });
+  }
+
+  if (isProductionRuntime() && parsed.data.email && isBlockedProductionEmail(parsed.data.email)) {
+    return NextResponse.json({ success: false, error: 'Test/demo email domains are blocked in production accounts.' }, { status: 400 });
   }
 
   const { data: existing } = await supabase
@@ -57,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .update({ ...parsed.data, updated_by: profile.id })
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
-    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug,referral_token')
     .single();
 
   if (error) {
@@ -73,6 +82,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     old_data: existing,
     new_data: parsed.data,
   });
+
+  if (parsed.data.role && parsed.data.role !== existing.role) {
+    await supabase.from('audit_logs').insert({
+      organization_id: profile.organization_id,
+      user_id: user.id,
+      action: 'crm_user_role_changed',
+      resource_type: 'user_profiles',
+      resource_id: params.id,
+      old_data: { role: existing.role },
+      new_data: { role: parsed.data.role },
+    });
+  }
 
   return NextResponse.json({ success: true, user: updatedProfile });
 }
@@ -121,7 +142,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
     user_id: user.id,
-    action: 'crm_user_deleted',
+    action: 'crm_user_archived',
     resource_type: 'user_profiles',
     resource_id: existing.id,
     old_data: existing,

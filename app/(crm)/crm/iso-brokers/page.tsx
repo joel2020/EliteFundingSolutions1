@@ -138,7 +138,8 @@ export default function IsoBrokersPage() {
   };
 
   const copyApplicationLink = async (broker: IsoBroker) => {
-    const url = brokerApplicationUrl((broker as any).application_slug);
+    const token = (broker as any).application_token || (broker as any).application_slug;
+    const url = brokerApplicationUrl(token);
     if (!url) {
       toast.error('This broker does not have an application link yet.');
       return;
@@ -212,6 +213,7 @@ export default function IsoBrokersPage() {
           ) : (
             brokers.map((broker) => {
               const quality = getIsoQuality(broker, commissions, deals);
+              const applicationToken = (broker as any).application_token || (broker as any).application_slug;
               return (
               <div
                 key={broker.id}
@@ -237,7 +239,7 @@ export default function IsoBrokersPage() {
                         Copy
                       </Button>
                     </div>
-                    <code className="block truncate text-[11px] text-[#52525B]" title={brokerApplicationDisplayUrl((broker as any).application_slug)}>{brokerApplicationDisplayUrl((broker as any).application_slug)}</code>
+                    <code className="block truncate text-[11px] text-[#52525B]" title={brokerApplicationDisplayUrl(applicationToken)}>{brokerApplicationDisplayUrl(applicationToken)}</code>
                   </div>
                   {broker.email && (
                     <div className="flex items-center gap-2 text-sm text-[#52525B]">

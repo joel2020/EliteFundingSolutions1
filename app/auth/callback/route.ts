@@ -105,5 +105,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(profileError.message)}`, request.url));
   }
 
+  if (existingProfile?.id) {
+    await serviceSupabase.from('audit_logs').insert({
+      organization_id: DEFAULT_ORG_ID,
+      user_id: user.id,
+      action: 'login',
+      resource_type: 'user_profiles',
+      resource_id: existingProfile.id,
+      ip_address: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip'),
+      user_agent: request.headers.get('user-agent'),
+      new_data: { role: existingProfile.role, method: 'oauth', login_at: profilePayload.last_login_at },
+    });
+  }
+
   return response;
 }

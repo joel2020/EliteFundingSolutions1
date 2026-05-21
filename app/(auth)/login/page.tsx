@@ -93,6 +93,8 @@ export default function LoginPage() {
         return;
       }
 
+      await fetch('/api/auth/login-event', { method: 'POST' }).catch(() => null);
+
       if (profile.role === 'client') {
         router.replace('/portal');
       } else if (isInternalCrmRole(profile.role)) {

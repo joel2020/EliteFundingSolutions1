@@ -391,7 +391,7 @@ export default function TasksPage() {
           <DialogHeader>
             <DialogTitle>Delete Task</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this task? This action cannot be undone.
+              Are you sure you want to delete this task? This removes the task from active workflow history.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

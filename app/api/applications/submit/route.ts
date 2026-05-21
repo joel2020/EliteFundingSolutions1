@@ -147,6 +147,7 @@ type ReferralProfile = {
   last_name: string;
   role: string;
   referral_slug: string | null;
+  referral_token?: string | null;
 };
 
 type IsoBrokerReferral = {
@@ -156,6 +157,7 @@ type IsoBrokerReferral = {
   broker_name: string | null;
   email: string | null;
   application_slug: string | null;
+  application_token?: string | null;
 };
 
 type CreatedSubmissionResources = {
@@ -231,9 +233,9 @@ async function resolveReferralProfile(supabase: ReturnType<typeof createServiceS
 
   const { data, error } = await supabase
     .from('user_profiles')
-    .select('id,organization_id,email,first_name,last_name,role,referral_slug')
+    .select('id,organization_id,email,first_name,last_name,role,referral_slug,referral_token')
     .eq('organization_id', DEFAULT_ORG_ID)
-    .eq('referral_slug', referralCode)
+    .or(`referral_token.eq.${referralCode},referral_slug.eq.${referralCode}`)
     .eq('is_active', true)
     .is('deleted_at', null)
     .in('role', ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'])
@@ -252,9 +254,9 @@ async function resolveIsoBrokerReferral(supabase: ReturnType<typeof createServic
 
   const { data, error } = await supabase
     .from('iso_brokers')
-    .select('id,organization_id,company_name,broker_name,email,application_slug')
+    .select('id,organization_id,company_name,broker_name,email,application_slug,application_token')
     .eq('organization_id', DEFAULT_ORG_ID)
-    .eq('application_slug', referralCode)
+    .or(`application_token.eq.${referralCode},application_slug.eq.${referralCode}`)
     .eq('is_active', true)
     .is('deleted_at', null)
     .maybeSingle();
@@ -368,7 +370,7 @@ export async function POST(request: Request) {
 
   const referralProfile = await resolveReferralProfile(supabase, form.referral_code);
   const isoBrokerReferral = referralProfile ? null : await resolveIsoBrokerReferral(supabase, form.referral_code);
-  const referralCode = referralProfile?.referral_slug || form.referral_code || null;
+  const referralCode = referralProfile?.referral_token || referralProfile?.referral_slug || isoBrokerReferral?.application_token || isoBrokerReferral?.application_slug || form.referral_code || null;
   const referralPath = form.referral_path || null;
   const leadSource = isoBrokerReferral ? 'iso' : referralProfile ? 'referral' : 'website';
 

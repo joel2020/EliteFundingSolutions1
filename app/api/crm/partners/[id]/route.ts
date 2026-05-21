@@ -40,7 +40,7 @@ export async function DELETE(
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
     user_id: user.id,
-    action: 'funding_partner_deleted',
+    action: 'funding_partner_archived',
     resource_type: 'funding_partners',
     resource_id: id,
     old_data: existing,

@@ -7,15 +7,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function labelFromSlug(slug: string) {
-  return slug
-    .split('-')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 export default function RepApplyPage({ params }: { params: { slug: string } }) {
   const code = decodeURIComponent(params.slug).trim().toLowerCase();
-  return <ApplyForm referral={{ code, path: `/apply/rep/${encodeURIComponent(code)}`, repName: labelFromSlug(code) }} />;
+  return <ApplyForm referral={{ code, path: `/apply/rep/${encodeURIComponent(code)}`, repName: 'your funding advisor' }} />;
 }

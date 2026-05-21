@@ -17,6 +17,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-an
 type UserProfile = {
   role: string;
   is_active: boolean;
+  deleted_at: string | null;
 };
 
 function isInternalCrmRole(role: string) {
@@ -96,11 +97,11 @@ export async function middleware(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role,is_active')
+    .select('role,is_active,deleted_at')
     .eq('user_id', user.id)
     .maybeSingle() as { data: UserProfile | null };
 
-  if (!profile || !profile.is_active) {
+  if (!profile || !profile.is_active || profile.deleted_at) {
     if (isProtectedRoute) {
       return redirectToLogin(req);
     }

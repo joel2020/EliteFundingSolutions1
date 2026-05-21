@@ -3,7 +3,7 @@ import { DEAL_ID, DOC_ID, LEAD_ID, ORG_ID, mockCrmApis } from './helpers/crm-fix
 
 test.describe('Elite Funding Solutions CRM workflows', () => {
   test('login and logout', async ({ page }) => {
-    await mockCrmApis(page);
+    const { calls } = await mockCrmApis(page);
 
     await page.goto('/login');
     await page.getByTestId('login-email').fill('admin@elitefunding.test');
@@ -12,6 +12,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await expect(page).toHaveURL(/\/crm$/);
     await expect(page.getByTestId('crm-page-executive-dashboard')).toBeVisible();
+    expect(calls.some((call) => call.table === 'login_event_api')).toBe(true);
 
     await page.getByTestId('crm-sign-out').click();
     await expect(page).toHaveURL(/\/login$/);
@@ -24,6 +25,8 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       '/crm',
       '/crm/leads',
       '/crm/deals',
+      '/crm/offers',
+      '/crm/tasks',
       '/crm/renewals',
       '/crm/earnings',
       '/crm/reports',
@@ -39,7 +42,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       await expect(shell).toBeVisible();
       await expect(shell).toContainText('Elite CRM Nexus v2');
       await expect(page.getByLabel('Notifications coming soon')).toHaveCount(0);
-      for (const label of ['Dashboard', 'Leads', 'Deals', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
+      for (const label of ['Dashboard', 'Leads', 'Deals', 'Offers', 'Tasks', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
         await expect(shell.getByText(label, { exact: true })).toBeVisible();
       }
     }
@@ -167,6 +170,8 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByText('jordan.processor@elitefunding.test')).toBeVisible();
 
     const createdUser = state.user_profiles.find((user) => user.email === 'jordan.processor@elitefunding.test')!;
+    await expect(page.getByRole('row', { name: /Jordan Processor/ })).toContainText(`/apply/rep/${createdUser.referral_token}`);
+    await expect(page.getByRole('row', { name: /Jordan Processor/ })).not.toContainText('jordan-processor');
     await page.getByTestId(`edit-user-${createdUser.id}`).click();
     await page.getByTestId('user-first_name').fill('Jordan Updated');
     await page.getByTestId('save-user').click();
@@ -189,6 +194,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
   test('restores archived lenders, brokers, and users from the archive center', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page, 'admin');
+    page.on('dialog', async (dialog) => dialog.accept());
     const archivedAt = '2026-05-20T12:00:00.000Z';
     state.funding_partners.unshift({
       id: 'archived-lender-1',
