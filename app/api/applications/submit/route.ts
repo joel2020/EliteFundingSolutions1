@@ -14,6 +14,8 @@ const isPositiveMoney = (value?: string) => {
   return typeof number === 'number' && Number.isFinite(number) && number > 0;
 };
 const isValidPhone = (value?: string) => digitsOnly(value).length >= 10;
+const isBlankOrValidPhone = (value?: string) => !value || digitsOnly(value).length >= 10;
+const isBlankOrPositiveMoney = (value?: string) => !value || isPositiveMoney(value);
 const allowedFileTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/heic', 'image/heif']);
 const allowedFileExtensions = new Set(['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -53,22 +55,22 @@ const existingAdvanceSchema = z.object({
 const applicationSchema = z.object({
   legal_name: z.string().min(2),
   dba: z.string().optional().default(''),
-  entity_type: z.string().min(1),
-  ein: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'EIN must be exactly 9 digits.'),
-  merchant_type: z.string().min(1),
-  industry: z.string().min(1),
-  start_date: z.string().min(1),
-  business_phone: z.string().refine(isValidPhone, 'Business phone must be a valid U.S. phone number.'),
+  entity_type: z.string().optional().default(''),
+  ein: z.string().optional().default('').transform(digitsOnly).refine((value) => !value || value.length === 9, 'EIN must be 9 digits, or left blank.'),
+  merchant_type: z.string().optional().default(''),
+  industry: z.string().optional().default(''),
+  start_date: z.string().optional().default(''),
+  business_phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Business phone must be a valid U.S. phone number, or left blank.'),
   business_mobile: z.string().optional().default(''),
   fax: z.string().optional().default(''),
-  business_email: z.string().email(),
+  business_email: z.string().optional().default('').refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value), 'Business email must be valid, or left blank.'),
   website: z.string().optional().default(''),
-  address: z.string().min(3),
-  city: z.string().min(1),
-  state: z.string().min(2),
-  zip: z.string().min(5),
-  business_location: z.string().min(1),
-  products_services: z.string().min(1),
+  address: z.string().optional().default(''),
+  city: z.string().optional().default(''),
+  state: z.string().optional().default(''),
+  zip: z.string().optional().default(''),
+  business_location: z.string().optional().default(''),
+  products_services: z.string().optional().default(''),
   pos_contact_name: z.string().optional().default(''),
   pos_contact_phone: z.string().optional().default(''),
   pos_system: z.string().optional().default(''),
@@ -76,30 +78,43 @@ const applicationSchema = z.object({
   has_tax_lien: z.boolean().default(false),
   has_bankruptcy: z.boolean().default(false),
   is_seasonal: z.boolean().default(false),
-  bank_name: z.string().min(1),
+  bank_name: z.string().optional().default(''),
   bank_contact: z.string().optional().default(''),
   bank_phone: z.string().optional().default(''),
   account_type: z.string().optional().default('checking'),
-  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'), email: z.string().email(), phone: z.string().refine(isValidPhone, 'Owner phone must be valid.'), mobile: z.string().refine(isValidPhone, 'Owner mobile phone must be valid.'), dob: z.string().min(1), ssn: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'SSN must be exactly 9 digits.'), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
+  owner1: ownerSchema.extend({
+    first_name: z.string().min(1),
+    last_name: z.string().min(1),
+    ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'),
+    email: z.string().optional().default('').refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value), 'Owner email must be valid, or left blank.'),
+    phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner phone must be valid, or left blank.'),
+    mobile: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner mobile phone must be valid, or left blank.'),
+    dob: z.string().optional().default(''),
+    ssn: z.string().optional().default('').transform(digitsOnly).refine((value) => !value || value.length === 9, 'SSN must be 9 digits, or left blank.'),
+    address: z.string().optional().default(''),
+    city: z.string().optional().default(''),
+    state: z.string().optional().default(''),
+    zip: z.string().optional().default(''),
+  }),
   owner2: ownerSchema.default({}),
   requested_amount: z.string().refine(isPositiveMoney, 'Requested funding amount must be positive.'),
-  use_of_funds: z.string().min(1),
+  use_of_funds: z.string().optional().default(''),
   timeline: z.string().optional().default(''),
-  average_monthly_sales: z.string().refine(isPositiveMoney, 'Average monthly sales must be positive.'),
+  average_monthly_sales: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Average monthly sales must be positive, or left blank.'),
   average_visa_mc_sales: z.string().optional().default(''),
-  monthly_gross_revenue: z.string().refine(isPositiveMoney, 'Monthly revenue must be positive.'),
+  monthly_gross_revenue: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Monthly revenue must be positive, or left blank.'),
   has_existing_advances: z.boolean().default(false),
   notes: z.string().optional().default(''),
   existing_advances: z.array(existingAdvanceSchema).default([]),
   certification_accepted: z.literal(true),
   credit_authorization_accepted: z.literal(true),
   esign_consent_accepted: z.literal(true),
-  sms_consent_accepted: z.literal(true),
+  sms_consent_accepted: z.boolean().default(false),
   terms_accepted: z.literal(true),
   privacy_policy_accepted: z.literal(true),
   authorization_consent: z.literal(true),
   sms_consent: z.boolean().default(false),
-  signature: z.string().min(2),
+  signature: z.string().optional().default(''),
   signature_date: z.string().min(1),
   consent_version: z.string().optional().default(CONSENT_VERSION),
   bot_field: z.string().optional().default(''),
@@ -290,6 +305,22 @@ function uniqueEmails(emails: Array<string | null | undefined>) {
   return Array.from(new Set(emails.map((email) => email?.trim().toLowerCase()).filter(Boolean))) as string[];
 }
 
+function normalizeEntityType(value?: string | null) {
+  if (value === 'corporation') return 'c_corp';
+  return emptyToNull(value || '');
+}
+
+function normalizeCreditRange(value?: string | null) {
+  const ranges: Record<string, string> = {
+    '720+': '700_749',
+    '680-719': '650_699',
+    '640-679': '650_699',
+    '600-639': '600_649',
+    '<600': '550_599',
+  };
+  return value ? ranges[value] || null : null;
+}
+
 function internalApplicationNotification({
   form,
   appId,
@@ -367,17 +398,17 @@ export async function POST(request: Request) {
   if (form.bot_field) {
     return NextResponse.json({ success: true });
   }
+  const contactEmail = form.owner1.email || form.business_email;
+  const contactPhone = form.owner1.mobile || form.owner1.phone || form.business_phone;
+  if (!contactEmail && !contactPhone) {
+    return NextResponse.json({ success: false, error: 'Please provide at least one email or phone number.' }, { status: 400 });
+  }
 
   const referralProfile = await resolveReferralProfile(supabase, form.referral_code);
   const isoBrokerReferral = referralProfile ? null : await resolveIsoBrokerReferral(supabase, form.referral_code);
   const referralCode = referralProfile?.referral_token || referralProfile?.referral_slug || isoBrokerReferral?.application_token || isoBrokerReferral?.application_slug || form.referral_code || null;
   const referralPath = form.referral_path || null;
   const leadSource = isoBrokerReferral ? 'iso' : referralProfile ? 'referral' : 'website';
-
-  const bankStatementFiles = parsedBody.files.filter((item) => item.key === 'bank_statements');
-  if (bankStatementFiles.length < 1) {
-    return NextResponse.json({ success: false, error: 'Please upload your three most recent business bank statements as one combined PDF or separate files.' }, { status: 400 });
-  }
 
   const invalidFile = parsedBody.files.find(({ file }) => {
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -393,6 +424,7 @@ export async function POST(request: Request) {
   };
 
   try {
+    const signedName = form.signature || `${form.owner1.first_name} ${form.owner1.last_name}`.trim();
     const einHash = hashSensitiveLookup(form.ein);
     const { data: priorBusinesses } = einHash
       ? await supabase.from('businesses').select('id,legal_name').eq('organization_id', DEFAULT_ORG_ID).eq('ein_hash', einHash).limit(1)
@@ -405,7 +437,7 @@ export async function POST(request: Request) {
         organization_id: DEFAULT_ORG_ID,
         legal_name: form.legal_name,
         dba: emptyToNull(form.dba),
-        entity_type: emptyToNull(form.entity_type),
+        entity_type: normalizeEntityType(form.entity_type),
         ein_encrypted: encryptSensitiveField(form.ein),
         ein_hash: einHash,
         ein_last4: form.ein.slice(-4),
@@ -440,7 +472,7 @@ export async function POST(request: Request) {
 
     const { data: lead, error: leadErr } = await supabase
       .from('leads')
-      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: leadSource, first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(form.owner1.email || form.business_email), phone: emptyToNull(form.owner1.mobile || form.owner1.phone || form.business_phone), business_name: form.legal_name, status: 'application_started', assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, referral_code: referralCode, referral_path: referralPath, notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.${referralProfile ? ` Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? ` Referred by ${brokerName(isoBrokerReferral)}.` : ''}` })
+      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: leadSource, first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(contactEmail), phone: emptyToNull(contactPhone), business_name: form.legal_name, status: 'application_started', assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, referral_code: referralCode, referral_path: referralPath, notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.${referralProfile ? ` Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? ` Referred by ${brokerName(isoBrokerReferral)}.` : ''}` })
       .select('id')
       .single();
     if (leadErr) throw leadErr;
@@ -461,7 +493,7 @@ export async function POST(request: Request) {
           ssn_encrypted: encryptSensitiveField(ownerSsn),
           ssn_last4: ownerSsn ? ownerSsn.slice(-4) : null,
           ownership_percentage: toNumber(owner.ownership_pct),
-          credit_score_range: emptyToNull(owner.credit_range),
+          credit_score_range: normalizeCreditRange(owner.credit_range),
           address: emptyToNull(owner.address),
           city: emptyToNull(owner.city),
           state: emptyToNull(owner.state),
@@ -511,8 +543,8 @@ export async function POST(request: Request) {
         privacy_policy_accepted: form.privacy_policy_accepted,
         authorization_consent: form.authorization_consent,
         sms_consent: form.sms_consent_accepted,
-        e_signature: form.signature,
-        signed_name: form.signature,
+        e_signature: signedName,
+        signed_name: signedName,
         signature_date: form.signature_date,
         signed_at: new Date().toISOString(),
         signer_ip: clientIp,
@@ -558,7 +590,7 @@ export async function POST(request: Request) {
     }));
 
     await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
-    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
+    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.length ? uploadedDocuments.map((doc) => doc.name).join(', ') : 'none yet'}` });
     await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
 
     if (form.existing_advances.length > 0) {
@@ -570,7 +602,7 @@ export async function POST(request: Request) {
     const internalHtml = internalApplicationNotification({ form, appId: app.id, dealId: deal.id, rep: referralProfile, broker: isoBrokerReferral, uploadedDocuments });
 
     await Promise.allSettled([
-      sendEmail({ to: form.owner1.email || form.business_email, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount)) }),
+      ...(contactEmail ? [sendEmail({ to: contactEmail, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount)) })] : []),
       ...internalRecipients.map((to) => sendEmail({ to, subject: `New funding application: ${form.legal_name}`, html: internalHtml })),
     ]);
 

@@ -2,6 +2,31 @@ import { expect, test } from '@playwright/test';
 import { mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('public funding application', () => {
+  test('submits a short application without documents or sensitive fields', async ({ page }) => {
+    await mockCrmApis(page);
+
+    await page.goto('/apply');
+
+    await page.getByTestId('application-business-legal-name').fill('Fast Submit LLC');
+    await page.getByTestId('application-business-phone').fill('8135550199');
+    await page.getByTestId('application-business-email').fill('owner@fastsubmit.test');
+    await page.getByRole('button', { name: /continue/i }).click();
+
+    await page.getByTestId('application-first-name').first().fill('Taylor');
+    await page.getByTestId('application-last-name').first().fill('Reed');
+    await page.getByRole('button', { name: /continue/i }).click();
+
+    await page.getByTestId('application-amount-requested').fill('35000');
+    await page.getByRole('button', { name: /continue/i }).click();
+
+    await page.getByRole('button', { name: /continue/i }).click();
+
+    await page.getByLabel(/I certify this information is accurate/).check();
+    await page.getByRole('button', { name: /submit application/i }).click();
+
+    await expect(page.getByText('Application Submitted')).toBeVisible();
+  });
+
   test('submits a complete funding application with required document upload', async ({ page }) => {
     await mockCrmApis(page);
 
@@ -23,11 +48,6 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-zip').fill('10001');
     await page.getByTestId('application-products-services-sold').fill('Specialty grocery');
     await page.getByTestId('application-industry').fill('Retail');
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByTestId('application-bank-name').fill('Chase');
-    await page.getByTestId('application-bank-contact').fill('Branch Manager');
-    await page.getByTestId('application-bank-phone').fill('2125550101');
     await page.getByRole('button', { name: /continue/i }).click();
 
     await page.getByTestId('application-first-name').first().fill('Casey');
@@ -54,8 +74,6 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-desired-funding-timeline').selectOption('asap');
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByRole('button', { name: /continue/i }).click();
-
     await page.getByLabel('Business Bank Statements').setInputFiles({
       name: 'cedar-bank-statements.pdf',
       mimeType: 'application/pdf',
@@ -63,11 +81,8 @@ test.describe('public funding application', () => {
     });
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByLabel(/I certify that all information/).check();
-    await page.getByLabel(/I authorize Elite Funding Solutions/).check();
-    await page.getByLabel(/I consent to use electronic records/).check();
-    await page.getByLabel(/I consent to receive text messages/).check();
-    await page.getByLabel(/I agree to the Privacy Policy/).check();
+    await page.getByLabel(/I certify this information is accurate/).check();
+    await page.getByLabel(/Send me optional text message updates/).check();
     await page.getByTestId('application-signed-name').fill('Casey Morgan');
     await page.getByRole('button', { name: /submit application/i }).click();
 
