@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic';
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
 const WAIVE_ROLES = new Set(['super_admin', 'admin', 'manager', 'underwriter']);
+const DOCUMENT_REQUEST_STATUSES = ['missing', 'requested', 'uploaded', 'received', 'in_review', 'approved', 'rejected', 'needs_replacement', 'waived'] as const;
+const DOCUMENT_REQUEST_CATEGORIES = ['submission', 'funding', 'stipulation', 'compliance'] as const;
 
 const checklistSchema = z.object({
   request_id: z.string().uuid().optional().nullable(),
@@ -13,8 +15,8 @@ const checklistSchema = z.object({
   document_type: z.string().trim().min(1),
   label: z.string().trim().min(1),
   required: z.boolean().default(true),
-  status: z.string().trim().min(1),
-  category: z.string().trim().min(1),
+  status: z.enum(DOCUMENT_REQUEST_STATUSES),
+  category: z.enum(DOCUMENT_REQUEST_CATEGORIES),
   notes: z.string().optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
 });

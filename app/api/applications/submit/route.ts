@@ -158,6 +158,64 @@ type IsoBrokerReferral = {
   application_slug: string | null;
 };
 
+type CreatedSubmissionResources = {
+  businessId?: string;
+  leadId?: string;
+  ownerIds: string[];
+  applicationId?: string;
+  dealId?: string;
+  storagePaths: string[];
+};
+
+async function cleanupPartialSubmission(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  created: CreatedSubmissionResources,
+) {
+  await Promise.allSettled([
+    created.storagePaths.length
+      ? supabase.storage.from('application-documents').remove(created.storagePaths)
+      : Promise.resolve(),
+    created.storagePaths.length
+      ? supabase.from('documents').delete().in('storage_path', created.storagePaths)
+      : Promise.resolve(),
+  ]);
+
+  if (created.dealId) {
+    await Promise.allSettled([
+      supabase.from('deal_status_history').delete().eq('deal_id', created.dealId),
+      supabase.from('activities').delete().eq('deal_id', created.dealId),
+      supabase.from('deals').delete().eq('id', created.dealId),
+    ]);
+  }
+
+  if (created.applicationId) {
+    await Promise.allSettled([
+      supabase.from('existing_advances').delete().eq('application_id', created.applicationId),
+      supabase.from('documents').delete().eq('application_id', created.applicationId),
+      supabase.from('activities').delete().eq('application_id', created.applicationId),
+      supabase.from('applications').delete().eq('id', created.applicationId),
+    ]);
+  }
+
+  if (created.ownerIds.length) {
+    await Promise.allSettled([
+      supabase.from('business_owners').delete().in('owner_id', created.ownerIds),
+      supabase.from('owners').delete().in('id', created.ownerIds),
+    ]);
+  }
+
+  if (created.leadId) {
+    await supabase.from('leads').delete().eq('id', created.leadId);
+  }
+
+  if (created.businessId) {
+    await Promise.allSettled([
+      supabase.from('business_owners').delete().eq('business_id', created.businessId),
+      supabase.from('businesses').delete().eq('id', created.businessId),
+    ]);
+  }
+}
+
 function profileName(profile: Pick<ReferralProfile, 'first_name' | 'last_name' | 'email'> | null | undefined) {
   if (!profile) return '';
   return [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.email;
@@ -324,6 +382,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.' }, { status: 400 });
   }
 
+  const created: CreatedSubmissionResources = {
+    ownerIds: [],
+    storagePaths: [],
+  };
+
   try {
     const einHash = hashSensitiveLookup(form.ein);
     const { data: priorBusinesses } = einHash
@@ -361,6 +424,7 @@ export async function POST(request: Request) {
       .single();
 
     if (bizErr) throw bizErr;
+    created.businessId = biz.id;
 
     const { count: priorDealCount } = await supabase
       .from('deals')
@@ -375,6 +439,7 @@ export async function POST(request: Request) {
       .select('id')
       .single();
     if (leadErr) throw leadErr;
+    created.leadId = lead.id;
 
     const createOwner = async (owner: typeof form.owner1 | typeof form.owner2, isPrimary: boolean) => {
       if (!owner.first_name || !owner.last_name) return null;
@@ -401,6 +466,7 @@ export async function POST(request: Request) {
         .select('id')
         .single();
       if (error) throw error;
+      created.ownerIds.push(ownerRow.id);
       await supabase.from('business_owners').insert({ organization_id: DEFAULT_ORG_ID, business_id: biz.id, owner_id: ownerRow.id, ownership_percentage: toNumber(owner.ownership_pct), is_primary: isPrimary });
       return ownerRow;
     };
@@ -455,6 +521,7 @@ export async function POST(request: Request) {
       .single();
 
     if (appErr) throw appErr;
+    created.applicationId = app.id;
 
     const { data: deal, error: dealErr } = await supabase
       .from('deals')
@@ -462,12 +529,14 @@ export async function POST(request: Request) {
       .select('id')
       .single();
     if (dealErr) throw dealErr;
+    created.dealId = deal.id;
 
     const uploadedDocuments = await Promise.all(parsedBody.files.map(async ({ key, file }) => {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const storagePath = `${DEFAULT_ORG_ID}/${app.id}/${key}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage.from('application-documents').upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
       if (uploadError) throw uploadError;
+      created.storagePaths.push(storagePath);
       const { error: docError } = await supabase.from('documents').insert({
         organization_id: DEFAULT_ORG_ID,
         deal_id: deal.id,
@@ -502,6 +571,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, applicationId: app.id });
   } catch (error: any) {
+    await cleanupPartialSubmission(supabase, created);
     console.error('Application submission failed.', error?.message || error);
     return NextResponse.json({ success: false, error: 'Application submission failed. Please contact support if this continues.' }, { status: 500 });
   }

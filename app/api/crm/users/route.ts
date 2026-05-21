@@ -6,6 +6,7 @@ import { sendEmail, emailTemplates } from '@/lib/email';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
+const USER_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'iso_broker', 'client', 'viewer'] as const;
 
 function referralSlugForUser(firstName: string, lastName: string, email: string, userId: string) {
   const base = [firstName, lastName].filter(Boolean).join('-') || email.split('@')[0] || 'rep';
@@ -17,7 +18,7 @@ const createUserSchema = z.object({
   first_name: z.string().optional().default(''),
   last_name: z.string().optional().default(''),
   email: z.string().email(),
-  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'client', 'viewer']).default('sales_rep'),
+  role: z.enum(USER_ROLES).default('sales_rep'),
   permissions: z.array(z.string()).optional().default([]),
   is_active: z.boolean().default(true),
 });

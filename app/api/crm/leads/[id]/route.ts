@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { LEAD_SOURCES, LEAD_STATUSES, normalizeLeadSource, normalizeLeadStatus } from '@/lib/crm-leads';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +12,8 @@ const updateLeadSchema = z.object({
   last_name: z.string().trim().optional().nullable(),
   phone: z.string().trim().optional().nullable(),
   email: z.string().trim().email().optional().nullable().or(z.literal('')),
-  lead_source: z.string().trim().optional(),
-  status: z.string().trim().optional(),
+  lead_source: z.preprocess(normalizeLeadSource, z.enum(LEAD_SOURCES)).optional(),
+  status: z.preprocess(normalizeLeadStatus, z.enum(LEAD_STATUSES)).optional(),
   notes: z.string().optional().nullable(),
   requested_amount: z.coerce.number().nonnegative().optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),

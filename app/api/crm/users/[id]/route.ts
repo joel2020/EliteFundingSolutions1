@@ -5,11 +5,12 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
+const USER_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'iso_broker', 'client', 'viewer'] as const;
 const updateUserSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   email: z.string().email().optional(),
-  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'client', 'viewer']).optional(),
+  role: z.enum(USER_ROLES).optional(),
   permissions: z.array(z.string()).optional(),
   is_active: z.boolean().optional(),
   referral_slug: z.preprocess(
