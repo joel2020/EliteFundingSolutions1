@@ -307,6 +307,18 @@
   .premium-card a:not(.btn-gold):not(.btn-primary):not(.btn-dark-outline) {
     color: #b9c2d0;
   }
+  .premium-card .application-disclosure-copy,
+  .premium-card .application-disclosure-copy p,
+  .premium-card .application-disclosure-copy li,
+  .premium-card .application-disclosure-copy label,
+  .premium-card .application-disclosure-copy span:not([class*="bg-"]) {
+    color: #111827;
+  }
+  .premium-card .application-disclosure-copy h3,
+  .premium-card .application-disclosure-copy h4,
+  .premium-card .application-disclosure-copy strong {
+    color: #0f2b5b !important;
+  }
   .premium-card .input-field,
   .premium-card input,
   .premium-card select,

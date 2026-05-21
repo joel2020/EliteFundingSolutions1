@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { APPLICATION_DISCLOSURE_SECTIONS } from './application-disclosures';
 
 type Owner = Record<string, any>;
 
@@ -56,6 +57,23 @@ function wrap(value: string, max = 42) {
   }
   if (line) lines.push(line);
   return lines.slice(0, 2);
+}
+
+function wrapPdfText(value: string, max = 120) {
+  const words = value.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const next = `${line} ${word}`.trim();
+    if (next.length > max && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 export async function generateLenderApplicationPdf(data: LenderApplicationPdfData) {
@@ -162,6 +180,53 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     draw(ownerName(owner2), 655, 251, 13, 28);
     draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 980, 251, 13, 18);
   }
+
+  const firstPageSize = page.getSize();
+  let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
+  const disclosureMargin = 72;
+  const disclosureTextColor = rgb(0.06, 0.09, 0.16);
+  const disclosureNavy = rgb(0.06, 0.17, 0.36);
+  let cursorY = firstPageSize.height - 86;
+
+  const newDisclosurePage = () => {
+    disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
+    cursorY = firstPageSize.height - 86;
+  };
+
+  const ensureSpace = (space: number) => {
+    if (cursorY - space < 72) newDisclosurePage();
+  };
+
+  const drawDisclosureParagraph = (paragraph: string, size = 10.5, lineHeight = 16.5) => {
+    const maxChars = Math.max(78, Math.floor((firstPageSize.width - disclosureMargin * 2) / (size * 0.47)));
+    const lines = wrapPdfText(paragraph, maxChars);
+    ensureSpace(lines.length * lineHeight + 8);
+    lines.forEach((line) => {
+      disclosurePage.drawText(line, { x: disclosureMargin, y: cursorY, size, font, color: disclosureTextColor });
+      cursorY -= lineHeight;
+    });
+    cursorY -= 6;
+  };
+
+  disclosurePage.drawImage(logo, { x: disclosureMargin, y: firstPageSize.height - 126, width: 170, height: 95 });
+  disclosurePage.drawText('Application Disclosures and Consent', { x: disclosureMargin + 205, y: firstPageSize.height - 88, size: 21, font: boldFont, color: disclosureNavy });
+  disclosurePage.drawText('Elite Funding Solutions', { x: disclosureMargin + 205, y: firstPageSize.height - 115, size: 12, font: boldFont, color: disclosureTextColor });
+  cursorY = firstPageSize.height - 166;
+  drawDisclosureParagraph('This page is intentionally printed in dark, readable type. The applicant should be able to review these disclosures on screen, mobile, and paper before signing or submitting an application.', 11, 17);
+
+  APPLICATION_DISCLOSURE_SECTIONS.forEach((section) => {
+    ensureSpace(64);
+    disclosurePage.drawText(section.title, { x: disclosureMargin, y: cursorY, size: 13.5, font: boldFont, color: disclosureNavy });
+    cursorY -= 21;
+    section.paragraphs.forEach((paragraph) => drawDisclosureParagraph(paragraph, 10.5, 16.5));
+    cursorY -= 5;
+  });
+
+  ensureSpace(68);
+  disclosurePage.drawLine({ start: { x: disclosureMargin, y: cursorY }, end: { x: firstPageSize.width - disclosureMargin, y: cursorY }, thickness: 1, color: rgb(0.78, 0.82, 0.88) });
+  cursorY -= 24;
+  disclosurePage.drawText(`Applicant signature: ${signer || 'Not provided'}`, { x: disclosureMargin, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
+  disclosurePage.drawText(`Date: ${dateValue(application.signature_date || payload.signature_date || application.submitted_at) || 'Not provided'}`, { x: firstPageSize.width - 330, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
 
   return Buffer.from(await pdfDoc.save());
 }

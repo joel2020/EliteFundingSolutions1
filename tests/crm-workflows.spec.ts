@@ -171,6 +171,8 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.getByRole('button', { name: /Reveal full fields/i }).click();
     await expect(page.getByText('123-45-6789')).toBeVisible();
+    await expect(page.getByText('Application disclosure preview')).toBeVisible();
+    await expect(page.getByText('Credit Review Consent').first()).toBeVisible();
     expect(calls.some((call) => call.table === 'partner_application_uploads_api')).toBe(true);
     expect(calls.some((call) => call.table === 'application_generate_api')).toBe(true);
     expect(calls.some((call) => call.table === 'application_link_api')).toBe(true);

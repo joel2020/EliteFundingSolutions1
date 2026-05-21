@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import { APPLICATION_CHECKBOX_CONSENT, APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 import { COMPANY, CONSENT_VERSION } from '@/lib/company';
 
 type Step = 1 | 2 | 3 | 4;
@@ -173,15 +174,35 @@ function StepReview({ data, update }: { data: ApplicationFormData; update: <K ex
         <ReviewRow label="EIN" value={data.ein} sensitive />
         <ReviewRow label="Business start date" value={data.business_start_date} />
       </div>
-      <label className="flex cursor-pointer gap-3 rounded-[10px] border border-[#CBD5E1] bg-white p-4">
+      <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] md:p-5">
+        <div className="mb-4 rounded-[10px] border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+          <h3 className="text-[16px] font-semibold text-[#0F2B5B]">Important Application Authorization</h3>
+          <p className="mt-2 text-[15px] font-medium leading-[1.6] text-[#0F172A]">
+            Please read these disclosures before submitting. They explain what Elite Funding Solutions and its funding partners may review, how consent is recorded, and how your information may be used.
+          </p>
+        </div>
+        <div className="grid gap-4">
+          {APPLICATION_DISCLOSURE_SECTIONS.map((section) => (
+            <section key={section.title} className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <h3 className="text-[15px] font-semibold text-[#0F2B5B]">{section.title}</h3>
+              <div className="mt-2 space-y-3">
+                {section.paragraphs.map((paragraph) => (
+                  <p key={paragraph} className="text-[14px] font-normal leading-[1.6] text-[#111827]">{paragraph}</p>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+      <label className="application-disclosure-copy flex cursor-pointer gap-3 rounded-[10px] border border-[#94A3B8] bg-white p-4">
         <input
           type="checkbox"
           checked={data.consent_accepted}
           onChange={(event) => update('consent_accepted', event.target.checked)}
-          className="mt-1 h-4 w-4 rounded border-[#94A3B8]"
+          className="mt-1 h-5 w-5 shrink-0 rounded border-[#475569]"
         />
-        <span className="text-sm leading-6 text-[#334155]">
-          I certify that this information is accurate and authorize Elite Funding Solutions and its funding partners to review my business, identity, credit, and financial information for funding options. I consent to electronic records and communications for this application.
+        <span className="text-[14px] font-medium leading-[1.6] text-[#111827]">
+          {APPLICATION_CHECKBOX_CONSENT}
         </span>
       </label>
       <input type="text" value={data.bot_field} onChange={(event) => update('bot_field', event.target.value)} tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />

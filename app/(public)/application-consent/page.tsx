@@ -1,11 +1,8 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/public/legal-page';
-import { COMPANY } from '@/lib/company';
+import { APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 export const metadata: Metadata = { title: 'Application Authorization and Consent | Elite Funding Solutions' };
 export default function ApplicationConsentPage() { return <LegalPage title="Application Authorization and Consent" intro="This authorization reflects the Elite Funding Solutions application certification, voided-check requirement, and underwriting consent language presented before application submission." sections={[
   { title: 'Certification of accuracy', body: ['By submitting an application, each applicant and owner/principal certifies that all information and documents submitted are accurate, true, correct, current, and complete, including business information, owner information, banking information, financial records, uploaded documents, IDs, bank statements, processor statements, and voided check.'] },
-  { title: 'Authorization to obtain reports', body: ['You authorize Elite Funding Solutions and its recipients, partners, successors, assigns, agents, affiliates, service providers, lenders, funding partners, banks, processors, credit bureaus, and underwriting partners to obtain consumer, personal, business, investigative, credit, processor, bank statement, bank, and financial reports for underwriting, funding, renewal, servicing, verification, fraud-prevention, and compliance purposes.'] },
-  { title: 'Authorization to share application information', body: ['You authorize Elite Funding Solutions to share application information, owner/principal information, credit authorization data, bank and processor data, financial records, uploaded documents, and related information with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.'] },
-  { title: 'E-signature consent', body: ['You consent to electronic records and electronic signatures. Your typed name, checkbox selections, timestamp, IP address, user agent, and consent version may be stored with the application and treated as evidence of your authorization and signature.'] },
-  { title: 'SMS/text consent', body: [`By checking the SMS consent box, you consent to receive text messages from ${COMPANY.name} about your application, documents, offers, funding status, and related services. Message and data rates may apply. Reply STOP to opt out and HELP for help. Consent is not a condition of purchase where legally required.`] },
+  ...APPLICATION_DISCLOSURE_SECTIONS.map((section) => ({ title: section.title, body: [...section.paragraphs] })),
 ]}/>; }

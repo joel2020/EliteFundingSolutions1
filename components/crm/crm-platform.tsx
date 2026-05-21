@@ -62,6 +62,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
+import { APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 import {
   getComplianceBlocks,
   getDealScore,
@@ -1694,6 +1695,20 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                   <Button size="sm" variant="outline" className="h-8" onClick={revealSensitiveApplicationData} disabled={revealingSensitiveData || !app?.id}>{revealingSensitiveData ? 'Revealing...' : 'Reveal full fields'}</Button>
                 </div>
                 <InfoGrid rows={[['Business EIN', revealedSensitiveData?.business?.ein || `***-**${deal.businesses?.ein_last4 || '****'}`], ['Primary owner SSN', revealedSensitiveData?.owners?.[0]?.ssn || `***-**-${businessOwners[0]?.ssn_last4 || '****'}`], ['Primary owner DOB', revealedSensitiveData?.owners?.[0]?.dob || (businessOwners[0]?.dob_encrypted ? 'Encrypted' : 'Not set')], ['Primary owner', businessOwners[0] ? `${businessOwners[0].first_name || ''} ${businessOwners[0].last_name || ''}`.trim() : 'Not set'], ['Consent version', app?.consent_version || 'Not set'], ['Source', app?.application_source?.replaceAll('_', ' ') || 'Not set']]} />
+              </CrmCard>
+              <CrmCard className="p-4 xl:col-span-2">
+                <h3 className="text-sm font-semibold text-[#0F172A]">Application disclosure preview</h3>
+                <p className="mt-1 text-[14px] font-normal leading-[1.6] text-[#111827]">Readable consent language for staff review, generated PDFs, and customer-facing application records.</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {APPLICATION_DISCLOSURE_SECTIONS.map((section) => (
+                    <section key={section.title} className="rounded-[8px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
+                      <h4 className="text-[15px] font-semibold text-[#0F2B5B]">{section.title}</h4>
+                      <div className="mt-2 space-y-2">
+                        {section.paragraphs.map((paragraph) => <p key={paragraph} className="text-[14px] font-normal leading-[1.6] text-[#111827]">{paragraph}</p>)}
+                      </div>
+                    </section>
+                  ))}
+                </div>
               </CrmCard>
             </div>
           </TabsContent>

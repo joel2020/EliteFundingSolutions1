@@ -54,4 +54,13 @@ test.describe('public site production smoke tests', () => {
     await expect(page.getByText(/your ISO partner/i)).toBeVisible();
     await expect(page.getByText(/test test/i)).toHaveCount(0);
   });
+
+  test('legal disclosure pages use readable contrast and font size', async ({ page }) => {
+    await page.goto('/application-consent');
+    const disclosure = page.getByText(/I authorize Elite Funding Solutions and its funding partners to review/i).first();
+    await expect(page.getByRole('heading', { name: 'Credit Review Consent' })).toBeVisible();
+    expect(['rgb(17, 24, 39)', 'rgb(0, 0, 0)']).toContain(await disclosure.evaluate((element) => getComputedStyle(element).color));
+    await expect(disclosure).toHaveCSS('font-size', '16px');
+    await expect(disclosure).toHaveCSS('font-weight', '400');
+  });
 });

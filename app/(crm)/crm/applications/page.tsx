@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Link from 'next/link';
+import { APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 
 const sensitiveKeyPattern = /(ssn|social|dob|birth|ein|tax|routing|account|bank|processor|statement|license|document|financial)/i;
 
@@ -271,6 +272,24 @@ export default function ApplicationsPage() {
                       <pre className="md:col-span-2 whitespace-pre-wrap break-words text-[12px] text-[#09090B] font-sans">{typeof (revealSensitive ? value : maskValue(key, value)) === 'string' ? (revealSensitive ? value : maskValue(key, value)) : JSON.stringify(revealSensitive ? value : maskValue(key, value), null, 2)}</pre>
                     </div>
                   ))}
+                </div>
+                <div className="mt-5 rounded-[12px] border border-[#CBD5E1] bg-white p-4">
+                  <h3 className="text-[16px] font-semibold text-[#0F2B5B]">Application Disclosure and Consent Record</h3>
+                  <p className="mt-2 text-[14px] font-normal leading-[1.6] text-[#111827]">
+                    This is the disclosure language presented with the current public application. Keep it readable when reviewing, printing, or exporting application records.
+                  </p>
+                  <div className="mt-4 grid gap-3">
+                    {APPLICATION_DISCLOSURE_SECTIONS.map((section) => (
+                      <section key={section.title} className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                        <h4 className="text-[15px] font-semibold text-[#0F2B5B]">{section.title}</h4>
+                        <div className="mt-2 space-y-2">
+                          {section.paragraphs.map((paragraph) => (
+                            <p key={paragraph} className="text-[14px] font-normal leading-[1.6] text-[#111827]">{paragraph}</p>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="space-y-5">
