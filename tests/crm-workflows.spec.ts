@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEAL_ID, DOC_ID, LEAD_ID, mockCrmApis } from './helpers/crm-fixtures';
+import { DEAL_ID, DOC_ID, LEAD_ID, ORG_ID, mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('Elite Funding Solutions CRM workflows', () => {
   test('login and logout', async ({ page }) => {
@@ -27,6 +27,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       '/crm/renewals',
       '/crm/earnings',
       '/crm/reports',
+      '/crm/archive',
       '/crm/tools',
       '/crm/users',
       '/crm/settings',
@@ -38,7 +39,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       await expect(shell).toBeVisible();
       await expect(shell).toContainText('Elite CRM Nexus v2');
       await expect(page.getByLabel('Notifications coming soon')).toHaveCount(0);
-      for (const label of ['Dashboard', 'Leads', 'Deals', 'Renewals', 'Earnings', 'Reports', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
+      for (const label of ['Dashboard', 'Leads', 'Deals', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
         await expect(shell.getByText(label, { exact: true })).toBeVisible();
       }
     }
@@ -184,6 +185,58 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(salesPage.getByTestId('crm-page-user-management')).toBeVisible();
     await expect(salesPage.getByTestId('create-user')).toHaveCount(0);
     await salesPage.close();
+  });
+
+  test('restores archived lenders, brokers, and users from the archive center', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page, 'admin');
+    const archivedAt = '2026-05-20T12:00:00.000Z';
+    state.funding_partners.unshift({
+      id: 'archived-lender-1',
+      organization_id: ORG_ID,
+      name: 'Archived Capital',
+      email: 'archive-lender@example.test',
+      is_active: false,
+      deleted_at: archivedAt,
+    });
+    state.iso_brokers.unshift({
+      id: 'archived-broker-1',
+      organization_id: ORG_ID,
+      company_name: 'Archived ISO Group',
+      broker_name: 'Blake Broker',
+      email: 'archive-broker@example.test',
+      is_active: false,
+      deleted_at: archivedAt,
+    });
+    state.user_profiles.unshift({
+      id: 'archived-user-1',
+      user_id: 'auth-archived-user-1',
+      organization_id: ORG_ID,
+      email: 'archived.user@elitefunding.test',
+      first_name: 'Archived',
+      last_name: 'User',
+      role: 'sales_rep',
+      is_active: false,
+      deleted_at: archivedAt,
+    });
+
+    await page.goto('/crm/archive');
+    await expect(page.getByTestId('archive-lenders-archived-lender-1')).toContainText('Archived Capital');
+    await page.getByTestId('restore-lenders-archived-lender-1').click();
+    await expect.poll(() => state.funding_partners.find((partner) => partner.id === 'archived-lender-1')?.deleted_at).toBeNull();
+
+    await page.getByRole('tab', { name: /Brokers/ }).click();
+    await expect(page.getByTestId('archive-brokers-archived-broker-1')).toContainText('Archived ISO Group');
+    await page.getByTestId('restore-brokers-archived-broker-1').click();
+    await expect.poll(() => state.iso_brokers.find((broker) => broker.id === 'archived-broker-1')?.deleted_at).toBeNull();
+
+    await page.getByRole('tab', { name: /Users/ }).click();
+    await expect(page.getByTestId('archive-users-archived-user-1')).toContainText('Archived User');
+    await page.getByTestId('restore-users-archived-user-1').click();
+    await expect.poll(() => state.user_profiles.find((user) => user.id === 'archived-user-1')?.deleted_at).toBeNull();
+
+    expect(calls.some((call) => call.table === 'funding_partners_restore_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'iso_brokers_restore_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'user_profiles_restore_api')).toBe(true);
   });
 
 

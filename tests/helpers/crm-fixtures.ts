@@ -134,6 +134,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         created_at: now,
       },
     ],
+    iso_brokers: [],
     user_profiles: [
       { ...activeProfile, referral_slug: role === 'sales_rep' ? 'sam-rep-auth-us' : 'avery-admin-auth-us' },
       {
@@ -487,6 +488,14 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   });
 
   await page.route('**/api/crm/partners**', async (route) => {
+    if (route.request().url().endsWith('/restore')) {
+      const segments = new URL(route.request().url()).pathname.split('/');
+      const id = segments.at(-2);
+      state.funding_partners = state.funding_partners.map((partner) => partner.id === id ? { ...partner, is_active: true, deleted_at: null, deleted_by: null } : partner);
+      calls.push({ method: 'POST', table: 'funding_partners_restore_api', body: { id } });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+      return;
+    }
     if (route.request().method() === 'DELETE') {
       const id = new URL(route.request().url()).pathname.split('/').pop();
       state.funding_partners = state.funding_partners.map((partner) => partner.id === id ? { ...partner, is_active: false, deleted_at: now } : partner);
@@ -520,6 +529,14 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.funding_partners.unshift(partner);
     calls.push({ method: route.request().method(), table: 'funding_partners_api', body: payload });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, partner }) });
+  });
+
+  await page.route('**/api/crm/iso-brokers/*/restore', async (route) => {
+    const segments = new URL(route.request().url()).pathname.split('/');
+    const id = segments.at(-2);
+    state.iso_brokers = state.iso_brokers.map((broker) => broker.id === id ? { ...broker, is_active: true, deleted_at: null, deleted_by: null } : broker);
+    calls.push({ method: 'POST', table: 'iso_brokers_restore_api', body: { id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
   });
 
   await page.route('**/api/crm/offers/*/present', async (route) => {
@@ -570,7 +587,23 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, user }) });
   });
 
+  await page.route('**/api/crm/users/*/restore', async (route) => {
+    const segments = new URL(route.request().url()).pathname.split('/');
+    const id = segments.at(-2);
+    state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: true, deleted_at: null, deleted_by: null } : user);
+    calls.push({ method: 'POST', table: 'user_profiles_restore_api', body: { id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
   await page.route('**/api/crm/users/*', async (route) => {
+    if (route.request().url().endsWith('/restore')) {
+      const segments = new URL(route.request().url()).pathname.split('/');
+      const id = segments.at(-2);
+      state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: true, deleted_at: null, deleted_by: null } : user);
+      calls.push({ method: 'POST', table: 'user_profiles_restore_api', body: { id } });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+      return;
+    }
     if (route.request().method() === 'DELETE') {
       const id = new URL(route.request().url()).pathname.split('/').pop();
       state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: false, deleted_at: now } : user);
@@ -655,14 +688,23 @@ async function handleRestRoute(route: Route, state: MockState, calls: Array<{ me
 
 function filterRows(table: string, rows: any[], url: URL) {
   let filtered = [...rows];
+  const deletedAtFilter = url.searchParams.get('deleted_at');
   url.searchParams.forEach((value, key) => {
     if (value.startsWith('eq.')) {
       const field = key.split('.')[0];
       const expected = value.replace('eq.', '');
       filtered = filtered.filter((row) => String(row[field]) === expected);
     }
+    if (value === 'is.null') {
+      const field = key.split('.')[0];
+      filtered = filtered.filter((row) => row[field] == null);
+    }
+    if (value === 'not.is.null') {
+      const field = key.split('.')[0];
+      filtered = filtered.filter((row) => row[field] != null);
+    }
   });
-  if (['leads', 'deals', 'applications', 'funding_partners', 'iso_brokers', 'user_profiles'].includes(table)) {
+  if (!deletedAtFilter && ['leads', 'deals', 'applications', 'funding_partners', 'iso_brokers', 'user_profiles'].includes(table)) {
     filtered = filtered.filter((row) => !row.deleted_at);
   }
   return filtered;

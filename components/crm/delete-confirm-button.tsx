@@ -74,7 +74,7 @@ export function DeleteConfirmButton({
           <DialogHeader>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <strong>{itemLabel}</strong>? This action cannot be undone.
+              Are you sure you want to delete <strong>{itemLabel}</strong>? This archives the record and removes it from active CRM workflows.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

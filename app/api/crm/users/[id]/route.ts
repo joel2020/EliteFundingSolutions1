@@ -37,6 +37,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .select('id,organization_id,role,email,is_active,referral_slug,permissions')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   if (!existing) {
@@ -117,15 +118,6 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
-  let authDeleteWarning: string | null = null;
-  if (existing.user_id) {
-    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(existing.user_id, true);
-    if (authDeleteError) {
-      authDeleteWarning = authDeleteError.message;
-      console.error('Supabase auth user soft delete failed.', authDeleteError.message);
-    }
-  }
-
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
     user_id: user.id,
@@ -133,12 +125,11 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     resource_type: 'user_profiles',
     resource_id: existing.id,
     old_data: existing,
-    new_data: { is_active: false, deleted_at: deletedAt, auth_user_soft_deleted: Boolean(existing.user_id && !authDeleteWarning) },
+    new_data: { is_active: false, deleted_at: deletedAt, auth_user_preserved_for_restore: Boolean(existing.user_id) },
   });
 
   return NextResponse.json({
     success: true,
     user: deletedProfile,
-    warning: authDeleteWarning ? 'User profile was deleted, but Supabase Auth soft delete needs manual review.' : null,
   });
 }
