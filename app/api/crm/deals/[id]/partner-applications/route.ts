@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { decryptSensitiveField } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,14 @@ function safeName(value: string) {
 
 function text(value: FormDataEntryValue | null) {
   return String(value || '').trim();
+}
+
+function safeDealName(value?: string | null) {
+  return (value || 'merchant-application')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 64) || 'merchant-application';
 }
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
@@ -136,7 +146,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     business_email: (deal as any).businesses?.email || '',
     requested_amount: deal.requested_amount || '',
     source_partner_name: sourcePartnerName,
-    extraction_note: extension === 'csv' ? 'CSV uploaded. Review rows before generating the Elite PDF.' : 'Automatic OCR is not enabled. Review and edit fields before generating the Elite PDF.',
+    extraction_note: extension === 'csv' ? 'CSV uploaded. Elite PDF generated from current CRM fields; review rows and regenerate if needed.' : 'Elite PDF generated from current CRM fields. Review and edit fields if the partner file has newer data.',
   };
 
   const { data: upload, error: uploadRecordError } = await supabase
@@ -150,7 +160,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       original_file_name: file.name,
       original_file_mime_type: file.type || null,
       original_file_size: file.size,
-      status: 'extraction_needed',
+      status: 'draft_ready',
       extracted_payload: extractedPayload,
       edited_payload: extractedPayload,
       notes: notes || null,
@@ -160,6 +170,103 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .single();
 
   if (uploadRecordError) return NextResponse.json({ success: false, error: uploadRecordError.message }, { status: 500 });
+
+  const [{ data: application }, { data: business }, { data: ownerLinks }] = await Promise.all([
+    supabase
+      .from('applications')
+      .select('*')
+      .eq('id', applicationId)
+      .eq('organization_id', profile.organization_id)
+      .maybeSingle(),
+    deal.business_id
+      ? supabase
+        .from('businesses')
+        .select('*')
+        .eq('id', deal.business_id)
+        .eq('organization_id', profile.organization_id)
+        .maybeSingle()
+      : Promise.resolve({ data: null }),
+    deal.business_id
+      ? supabase
+        .from('business_owners')
+        .select('is_primary,ownership_percentage,owners(id,first_name,last_name,email,phone,address,city,state,zip,dob_encrypted,ssn_encrypted,ssn_last4,ownership_percentage,credit_score_range)')
+        .eq('organization_id', profile.organization_id)
+        .eq('business_id', deal.business_id)
+        .order('is_primary', { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const owners = (ownerLinks || []).map((link: any) => ({
+    ...(link.owners || {}),
+    ownership_percentage: link.ownership_percentage || link.owners?.ownership_percentage,
+    dob_decrypted: decryptSensitiveField(link.owners?.dob_encrypted),
+    ssn_decrypted: decryptSensitiveField(link.owners?.ssn_encrypted),
+  }));
+  const applicationForPdf = {
+    ...(application || {}),
+    application_payload: { ...((application as any)?.application_payload || {}), ...extractedPayload },
+    requested_amount: (application as any)?.requested_amount || deal.requested_amount,
+  };
+  const pdf = await generateLenderApplicationPdf({
+    deal,
+    application: applicationForPdf,
+    business: { ...(business || {}), legal_name: extractedPayload.company_name || (business as any)?.legal_name || (deal as any).businesses?.legal_name },
+    owners,
+    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || (deal as any).businesses?.ein_last4 || null,
+  });
+  const fileBase = safeDealName((business as any)?.legal_name || (deal as any).businesses?.legal_name || deal.title);
+  const convertedPath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-elite-application.pdf`;
+  const { error: convertedUploadError } = await supabase.storage
+    .from('application-documents')
+    .upload(convertedPath, pdf, { contentType: 'application/pdf', upsert: false });
+
+  if (convertedUploadError) {
+    await supabase
+      .from('partner_application_uploads')
+      .update({ status: 'failed', updated_by: profile.id })
+      .eq('id', upload.id)
+      .eq('organization_id', profile.organization_id);
+    return NextResponse.json({ success: false, error: `Partner app uploaded, but Elite PDF generation failed: ${convertedUploadError.message}` }, { status: 500 });
+  }
+
+  const { data: convertedDocument, error: convertedDocumentError } = await supabase
+    .from('documents')
+    .insert({
+      organization_id: profile.organization_id,
+      deal_id: deal.id,
+      application_id: applicationId,
+      uploaded_by_user_id: user.id,
+      document_type: 'completed_application',
+      label: 'Elite Funding Solutions converted application',
+      file_name: `${fileBase}-elite-application.pdf`,
+      file_size: pdf.length,
+      mime_type: 'application/pdf',
+      storage_path: convertedPath,
+      status: 'uploaded',
+      application_source: 'partner_upload',
+      application_variant: 'elite_converted_partner',
+      related_partner_application_upload_id: upload.id,
+      review_notes: 'Generated automatically from the uploaded partner application workflow.',
+    })
+    .select('*')
+    .single();
+
+  if (convertedDocumentError) {
+    await supabase
+      .from('partner_application_uploads')
+      .update({ status: 'failed', updated_by: profile.id })
+      .eq('id', upload.id)
+      .eq('organization_id', profile.organization_id);
+    return NextResponse.json({ success: false, error: `Partner app uploaded, but Elite PDF record failed: ${convertedDocumentError.message}` }, { status: 500 });
+  }
+
+  const { data: convertedUpload } = await supabase
+    .from('partner_application_uploads')
+    .update({ converted_document_id: convertedDocument.id, status: 'converted', updated_by: profile.id })
+    .eq('id', upload.id)
+    .eq('organization_id', profile.organization_id)
+    .select('*')
+    .single();
 
   await Promise.allSettled([
     supabase.from('documents').update({ related_partner_application_upload_id: upload.id }).eq('id', document.id),
@@ -171,8 +278,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       business_id: deal.business_id,
       lead_id: deal.lead_id,
       activity_type: 'document_event',
-      title: 'Partner application uploaded',
-      body: `${file.name}${sourcePartnerName ? ` from ${sourcePartnerName}` : ''}`,
+      title: 'Partner application converted',
+      body: `${file.name}${sourcePartnerName ? ` from ${sourcePartnerName}` : ''} was converted into an Elite Funding application.`,
       performed_by: profile.id,
     }),
     supabase.from('audit_logs').insert({
@@ -181,9 +288,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       action: 'partner_application_uploaded',
       resource_type: 'partner_application_uploads',
       resource_id: upload.id,
-      new_data: { deal_id: deal.id, document_id: document.id, file_name: file.name, source_partner_name: sourcePartnerName || null },
+      new_data: { deal_id: deal.id, document_id: document.id, converted_document_id: convertedDocument.id, file_name: file.name, source_partner_name: sourcePartnerName || null },
     }),
   ]);
 
-  return NextResponse.json({ success: true, partnerApplication: upload, document });
+  return NextResponse.json({ success: true, partnerApplication: convertedUpload || upload, document, convertedDocument });
 }

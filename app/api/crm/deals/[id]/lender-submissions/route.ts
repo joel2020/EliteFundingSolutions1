@@ -95,7 +95,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const invalidDocument = (selectedDocuments || []).find((doc: any) => doc.deal_id !== deal.id && doc.application_id !== deal.application_id);
   if (invalidDocument) return NextResponse.json({ success: false, error: 'Selected attachments must belong to this deal.' }, { status: 400 });
 
-  const [{ data: application }, { data: business }] = await Promise.all([
+  const { data: latestConvertedApplication } = await supabase
+    .from('documents')
+    .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size,application_variant,application_source,created_at')
+    .eq('organization_id', profile.organization_id)
+    .eq('deal_id', deal.id)
+    .eq('document_type', 'completed_application')
+    .eq('application_variant', 'elite_converted_partner')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const [{ data: application }, { data: business }, { data: latestPartnerApplication }] = await Promise.all([
     deal.application_id
       ? supabase
         .from('applications')
@@ -112,6 +123,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
         .eq('organization_id', profile.organization_id)
         .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from('partner_application_uploads')
+      .select('id,edited_payload,converted_document_id,status')
+      .eq('organization_id', profile.organization_id)
+      .eq('deal_id', deal.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   let owners: any[] = [];
@@ -130,51 +150,75 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }));
   }
 
-  const applicationPdf = await generateLenderApplicationPdf({
-    deal,
-    application,
-    business,
-    owners,
-    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+  let generatedApplicationDocument = latestConvertedApplication;
+  if (!generatedApplicationDocument) {
+    const editedPayload = (latestPartnerApplication as any)?.edited_payload || {};
+    const applicationForPdf = {
+      ...(application || {}),
+      application_payload: { ...((application as any)?.application_payload || {}), ...editedPayload },
+    };
+    const applicationPdf = await generateLenderApplicationPdf({
+      deal,
+      application: applicationForPdf,
+      business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
+      owners,
+      ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+    });
+    const safeDealName = (deal.title || (business as any)?.legal_name || 'merchant-application')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+      .slice(0, 64) || 'merchant-application';
+    const generatedApplicationPath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${safeDealName}.pdf`;
+    const { error: applicationUploadError } = await supabase.storage
+      .from('application-documents')
+      .upload(generatedApplicationPath, applicationPdf, { contentType: 'application/pdf', upsert: false });
+
+    if (applicationUploadError) {
+      return NextResponse.json({ success: false, error: `Unable to generate lender application PDF: ${applicationUploadError.message}` }, { status: 500 });
+    }
+
+    const { data: createdApplicationDocument, error: applicationDocError } = await supabase
+      .from('documents')
+      .insert({
+        organization_id: profile.organization_id,
+        deal_id: deal.id,
+        application_id: deal.application_id,
+        uploaded_by_user_id: user.id,
+        document_type: 'completed_application',
+        label: latestPartnerApplication ? 'Elite Funding Solutions converted application' : 'Completed lender application',
+        file_name: latestPartnerApplication ? `${safeDealName}-elite-application.pdf` : `${safeDealName}-application.pdf`,
+        file_size: applicationPdf.length,
+        mime_type: 'application/pdf',
+        storage_path: generatedApplicationPath,
+        status: 'uploaded',
+        application_source: latestPartnerApplication ? 'partner_upload' : 'crm_manual',
+        application_variant: latestPartnerApplication ? 'elite_converted_partner' : 'elite_generated',
+        related_partner_application_upload_id: (latestPartnerApplication as any)?.id || null,
+        review_notes: latestPartnerApplication ? `Generated from partner application for lender submission to ${partner.name}.` : `Generated automatically for lender submission to ${partner.name}.`,
+      })
+      .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size,application_variant,application_source,created_at')
+      .single();
+
+    if (applicationDocError) {
+      return NextResponse.json({ success: false, error: `Unable to record lender application PDF: ${applicationDocError.message}` }, { status: 500 });
+    }
+    generatedApplicationDocument = createdApplicationDocument;
+
+    if (latestPartnerApplication) {
+      await supabase
+        .from('partner_application_uploads')
+        .update({ converted_document_id: createdApplicationDocument.id, status: 'converted', updated_by: profile.id })
+        .eq('id', (latestPartnerApplication as any).id)
+        .eq('organization_id', profile.organization_id);
+    }
+  }
+
+  const documentMap = new Map<string, any>();
+  [generatedApplicationDocument, ...(selectedDocuments || [])].forEach((doc: any) => {
+    if (doc?.id && !documentMap.has(doc.id)) documentMap.set(doc.id, doc);
   });
-  const safeDealName = (deal.title || (business as any)?.legal_name || 'merchant-application')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 64) || 'merchant-application';
-  const generatedApplicationPath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${safeDealName}.pdf`;
-  const { error: applicationUploadError } = await supabase.storage
-    .from('application-documents')
-    .upload(generatedApplicationPath, applicationPdf, { contentType: 'application/pdf', upsert: false });
-
-  if (applicationUploadError) {
-    return NextResponse.json({ success: false, error: `Unable to generate lender application PDF: ${applicationUploadError.message}` }, { status: 500 });
-  }
-
-  const { data: generatedApplicationDocument, error: applicationDocError } = await supabase
-    .from('documents')
-    .insert({
-      organization_id: profile.organization_id,
-      deal_id: deal.id,
-      application_id: deal.application_id,
-      uploaded_by_user_id: user.id,
-      document_type: 'completed_application',
-      label: 'Completed lender application',
-      file_name: `${safeDealName}-application.pdf`,
-      file_size: applicationPdf.length,
-      mime_type: 'application/pdf',
-      storage_path: generatedApplicationPath,
-      status: 'uploaded',
-      review_notes: `Generated automatically for lender submission to ${partner.name}.`,
-    })
-    .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size')
-    .single();
-
-  if (applicationDocError) {
-    return NextResponse.json({ success: false, error: `Unable to record lender application PDF: ${applicationDocError.message}` }, { status: 500 });
-  }
-
-  const documents = [generatedApplicationDocument, ...(selectedDocuments || [])];
+  const documents = Array.from(documentMap.values());
   const documentIds = documents.map((doc: any) => doc.id);
 
   const { data: priorDefaults } = await supabase
