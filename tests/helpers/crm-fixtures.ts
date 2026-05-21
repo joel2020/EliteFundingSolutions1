@@ -51,6 +51,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         id: DEAL_ID,
         organization_id: ORG_ID,
         business_id: BUSINESS_ID,
+        application_id: 'application-1',
         title: 'Atlas Retail - $75K MCA',
         submission_sequence: 2,
         duplicate_of_business_id: BUSINESS_ID,
@@ -163,6 +164,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         phone: '2125550123',
         email: 'ops@atlas.test',
         monthly_gross_revenue: 125000,
+        ein_last4: '6789',
         city: 'New York',
         state: 'NY',
         created_at: now,
@@ -201,7 +203,19 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
     lender_submission_attachments: [],
     lead_sources: [],
     document_categories: [],
-    applications: [],
+    applications: [{
+      id: 'application-1',
+      organization_id: ORG_ID,
+      business_id: BUSINESS_ID,
+      status: 'submitted',
+      application_source: 'website',
+      application_review_status: 'submitted',
+      consent_version: '2026-05',
+      submitted_at: now,
+      created_at: now,
+      updated_at: now,
+    }],
+    partner_application_uploads: [],
     status_history: [],
   };
 }
@@ -335,6 +349,105 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'document_event', title: `Document uploaded: ${document.label}`, body: fileName, created_at: now });
     calls.push({ method: route.request().method(), table: 'deal_documents_api', body: { file_name: fileName } });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document }) });
+  });
+
+  await page.route('**/api/crm/deals/*/partner-applications', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, partnerApplications: state.partner_application_uploads.filter((row) => row.deal_id === id) }) });
+      return;
+    }
+    const body = route.request().postData() || '';
+    const fileName = body.match(/filename="([^"]+)"/)?.[1] || 'partner-application.pdf';
+    const upload = {
+      id: `partner-app-${state.partner_application_uploads.length + 1}`,
+      organization_id: ORG_ID,
+      deal_id: id,
+      application_id: 'application-1',
+      source_partner_name: 'Mock Partner',
+      original_file_name: fileName,
+      original_file_mime_type: 'application/pdf',
+      original_file_size: 128000,
+      status: 'extraction_needed',
+      extracted_payload: { company_name: 'Atlas Retail LLC', requested_amount: 75000, business_phone: '2125550123' },
+      edited_payload: { company_name: 'Atlas Retail LLC', requested_amount: 75000, business_phone: '2125550123' },
+      notes: 'Mock partner app upload',
+      created_at: now,
+      updated_at: now,
+    };
+    const document = {
+      id: `document-${state.documents.length + 1}`,
+      organization_id: ORG_ID,
+      deal_id: id,
+      application_id: 'application-1',
+      document_type: 'partner_application',
+      label: 'Original partner application',
+      file_name: fileName,
+      file_size: 128000,
+      mime_type: 'application/pdf',
+      storage_path: `${ORG_ID}/${id}/partner-applications/${fileName}`,
+      status: 'uploaded',
+      application_source: 'partner_upload',
+      application_variant: 'original_partner',
+      related_partner_application_upload_id: upload.id,
+      created_at: now,
+      updated_at: now,
+    };
+    state.partner_application_uploads.unshift(upload);
+    state.documents.unshift(document);
+    calls.push({ method: route.request().method(), table: 'partner_application_uploads_api', body: { file_name: fileName } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, partnerApplication: upload, document }) });
+  });
+
+  await page.route('**/api/crm/partner-applications/*', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').pop();
+    state.partner_application_uploads = state.partner_application_uploads.map((row) => row.id === id ? { ...row, ...payload, updated_at: now } : row);
+    calls.push({ method: route.request().method(), table: 'partner_application_uploads_update_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/deals/*/applications/generate', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-3);
+    const document = {
+      id: `document-${state.documents.length + 1}`,
+      organization_id: ORG_ID,
+      deal_id: id,
+      application_id: 'application-1',
+      document_type: 'completed_application',
+      label: 'Elite Funding Solutions converted application',
+      file_name: 'elite-application.pdf',
+      file_size: 56000,
+      mime_type: 'application/pdf',
+      storage_path: `${ORG_ID}/${id}/generated-applications/elite-application.pdf`,
+      status: 'uploaded',
+      application_source: 'crm_generated',
+      application_variant: payload.partner_application_id ? 'elite_converted_partner' : 'elite_generated',
+      related_partner_application_upload_id: payload.partner_application_id || null,
+      created_at: now,
+      updated_at: now,
+    };
+    state.documents.unshift(document);
+    if (payload.partner_application_id) {
+      state.partner_application_uploads = state.partner_application_uploads.map((row) => row.id === payload.partner_application_id ? { ...row, status: 'converted', converted_document_id: document.id, updated_at: now } : row);
+    }
+    calls.push({ method: route.request().method(), table: 'application_generate_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, documentId: document.id }) });
+  });
+
+  await page.route('**/api/crm/deals/*/application-link', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const token = 'deal_mock_completion_token';
+    state.deals = state.deals.map((deal) => deal.id === id ? { ...deal, application_link_token: token, application_link_sent_at: now } : deal);
+    calls.push({ method: route.request().method(), table: 'application_link_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationUrl: `http://localhost:3000/apply?deal=${token}`, emailStatus: payload.email ? 'sent' : 'created' }) });
+  });
+
+  await page.route('**/api/crm/applications/*/sensitive', async (route) => {
+    calls.push({ method: route.request().method(), table: 'application_sensitive_api', body: null });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { business: { ein: '12-3456789' }, owners: [{ id: 'owner-1', name: 'Jordan Lee', ssn: '123-45-6789', dob: '1985-04-10' }] } }) });
   });
 
   await page.route('**/api/crm/deals/*/checklist', async (route) => {

@@ -122,7 +122,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'Readiness', 'Applications', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -135,6 +135,46 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByRole('tab', { name: 'History' }).click();
     await expect(page.getByTestId('merchant-history-view')).toContainText('Atlas Retail #1');
     await expect(page.getByTestId('merchant-history-view')).toContainText('defaulted with Apex Business Funding');
+  });
+
+  test('uploads partner applications, generates Elite PDFs, and creates completion links', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page);
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
+    await page.getByRole('tab', { name: 'Applications' }).click();
+
+    await page.getByTestId('deal-upload-partner-application').click();
+    await page.getByTestId('partner-application-file').setInputFiles({
+      name: 'partner-app.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 partner app'),
+    });
+    await page.getByTestId('partner-application-source').fill('Apex Business Funding');
+    await page.getByTestId('partner-application-notes').fill('Received from partner portal.');
+    await page.getByTestId('save-partner-application').click();
+
+    await expect.poll(() => state.partner_application_uploads.some((row) => row.original_file_name === 'partner-app.pdf')).toBe(true);
+    await page.getByRole('tab', { name: 'Applications' }).click();
+    await expect(page.getByText('Original partner application')).toBeVisible();
+
+    await page.getByTestId('deal-generate-elite-application').click();
+    await expect.poll(() => state.documents.some((doc) => doc.application_variant === 'elite_generated')).toBe(true);
+    await page.getByRole('tab', { name: 'Applications' }).click();
+
+    await page.getByTestId('deal-send-application-link').click();
+    await page.getByTestId('application-link-email').fill('owner@atlas.test');
+    await page.getByTestId('save-application-link').click();
+    await expect(page.getByText('/apply?deal=deal_mock_completion_token')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.getByRole('tab', { name: 'Applications' }).click();
+
+    await page.getByRole('button', { name: /Reveal full fields/i }).click();
+    await expect(page.getByText('123-45-6789')).toBeVisible();
+    expect(calls.some((call) => call.table === 'partner_application_uploads_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'application_generate_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'application_link_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'application_sensitive_api')).toBe(true);
   });
 
   test('loads earnings and reports pages', async ({ page }) => {

@@ -97,7 +97,7 @@ const applicationSchema = z.object({
     zip: z.string().optional().default(''),
   }),
   owner2: ownerSchema.default({}),
-  requested_amount: z.string().refine(isPositiveMoney, 'Requested funding amount must be positive.'),
+  requested_amount: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Requested funding amount must be positive, or left blank.'),
   use_of_funds: z.string().optional().default(''),
   timeline: z.string().optional().default(''),
   average_monthly_sales: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Average monthly sales must be positive, or left blank.'),
@@ -120,6 +120,7 @@ const applicationSchema = z.object({
   bot_field: z.string().optional().default(''),
   referral_code: referralCodeSchema,
   referral_path: z.string().trim().max(240).optional().default(''),
+  application_source: z.string().optional().default('website'),
 });
 
 const documentKeys = ['bank_statements', 'license_verification', 'other_documents'] as const;
@@ -342,10 +343,11 @@ function internalApplicationNotification({
   const brokerLine = broker
     ? `<p><strong>ISO / broker:</strong> ${escapeHtml(brokerName(broker))}${broker.email ? ` (${escapeHtml(broker.email)})` : ''}</p>`
     : '';
+  const requestedAmount = Number(form.requested_amount || 0);
 
   return `
     <p>A new digital application was submitted by ${escapeHtml(form.owner1.first_name)} ${escapeHtml(form.owner1.last_name)} for ${escapeHtml(form.legal_name)}.</p>
-    <p><strong>Requested amount:</strong> $${Number(form.requested_amount).toLocaleString()}</p>
+    <p><strong>Requested amount:</strong> ${requestedAmount > 0 ? `$${requestedAmount.toLocaleString()}` : 'Not provided'}</p>
     ${repLine}
     ${brokerLine}
     <p><strong>Referral code:</strong> ${escapeHtml(form.referral_code || 'none')}</p>
@@ -366,6 +368,92 @@ async function readPayloadAndFiles(request: Request) {
   }
 
   return { payload: await request.json(), files: [] as Array<{ key: (typeof documentKeys)[number]; file: File }> };
+}
+
+function splitFullName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  return {
+    first_name: parts[0] || '',
+    last_name: parts.slice(1).join(' ') || '',
+  };
+}
+
+function normalizeIncomingPayload(payload: any) {
+  if (!payload || typeof payload !== 'object' || !('full_name' in payload)) return payload;
+
+  const ownerName = splitFullName(String(payload.full_name || ''));
+  const consentAccepted = Boolean(payload.consent_accepted);
+
+  return {
+    legal_name: String(payload.company_name || ''),
+    dba: '',
+    entity_type: '',
+    ein: String(payload.ein || ''),
+    merchant_type: '',
+    industry: '',
+    start_date: String(payload.business_start_date || ''),
+    business_phone: String(payload.cell_phone || ''),
+    business_mobile: String(payload.cell_phone || ''),
+    business_email: '',
+    website: '',
+    address: String(payload.business_address || ''),
+    city: '',
+    state: '',
+    zip: '',
+    business_location: '',
+    products_services: '',
+    pos_contact_name: '',
+    pos_contact_phone: '',
+    pos_system: '',
+    has_judgments: false,
+    has_tax_lien: false,
+    has_bankruptcy: false,
+    is_seasonal: false,
+    bank_name: '',
+    bank_contact: '',
+    bank_phone: '',
+    account_type: 'checking',
+    owner1: {
+      ...ownerName,
+      title: 'Owner',
+      ownership_pct: '100',
+      email: '',
+      phone: String(payload.cell_phone || ''),
+      mobile: String(payload.cell_phone || ''),
+      dob: String(payload.dob || ''),
+      ssn: String(payload.ssn || ''),
+      address: String(payload.home_address || ''),
+      city: '',
+      state: '',
+      zip: '',
+      credit_range: '',
+    },
+    owner2: {},
+    requested_amount: '',
+    use_of_funds: '',
+    timeline: '',
+    average_monthly_sales: '',
+    average_visa_mc_sales: '',
+    monthly_gross_revenue: '',
+    has_existing_advances: false,
+    existing_advances: [],
+    notes: 'Submitted from short public funding-options application.',
+    certification_accepted: consentAccepted,
+    credit_authorization_accepted: consentAccepted,
+    esign_consent_accepted: consentAccepted,
+    sms_consent_accepted: false,
+    terms_accepted: consentAccepted,
+    privacy_policy_accepted: consentAccepted,
+    authorization_consent: consentAccepted,
+    sms_consent: false,
+    signature: String(payload.full_name || ''),
+    signature_date: new Date().toISOString().slice(0, 10),
+    consent_version: payload.consent_version || CONSENT_VERSION,
+    bot_field: String(payload.bot_field || ''),
+    referral_code: payload.referral_code || '',
+    referral_path: payload.referral_path || '',
+    application_source: payload.referral_code ? 'referral' : 'website',
+  };
 }
 
 export async function POST(request: Request) {
@@ -389,7 +477,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Invalid application payload.' }, { status: 400 });
   }
 
-  const parsed = applicationSchema.safeParse(parsedBody.payload);
+  const parsed = applicationSchema.safeParse(normalizeIncomingPayload(parsedBody.payload));
   if (!parsed.success) {
     return NextResponse.json({ success: false, error: 'Please complete all required fields and authorization language.', issues: parsed.error.flatten() }, { status: 400 });
   }
@@ -406,9 +494,19 @@ export async function POST(request: Request) {
 
   const referralProfile = await resolveReferralProfile(supabase, form.referral_code);
   const isoBrokerReferral = referralProfile ? null : await resolveIsoBrokerReferral(supabase, form.referral_code);
+  const { data: linkedDeal } = !referralProfile && !isoBrokerReferral && form.referral_code
+    ? await supabase
+      .from('deals')
+      .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount,assigned_user_id')
+      .eq('organization_id', DEFAULT_ORG_ID)
+      .eq('application_link_token', form.referral_code)
+      .is('deleted_at', null)
+      .maybeSingle()
+    : { data: null };
   const referralCode = referralProfile?.referral_token || referralProfile?.referral_slug || isoBrokerReferral?.application_token || isoBrokerReferral?.application_slug || form.referral_code || null;
   const referralPath = form.referral_path || null;
   const leadSource = isoBrokerReferral ? 'iso' : referralProfile ? 'referral' : 'website';
+  const applicationSource = linkedDeal ? 'customer_completion_link' : isoBrokerReferral ? 'iso_referral' : referralProfile ? 'rep_referral' : form.application_source || 'website';
 
   const invalidFile = parsedBody.files.find(({ file }) => {
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
@@ -431,9 +529,7 @@ export async function POST(request: Request) {
       : { data: [] as Array<{ id: string; legal_name: string }> };
     const duplicateBusiness = priorBusinesses?.[0] || null;
 
-    const { data: biz, error: bizErr } = await supabase
-      .from('businesses')
-      .insert({
+    const businessPayload = {
         organization_id: DEFAULT_ORG_ID,
         legal_name: form.legal_name,
         dba: emptyToNull(form.dba),
@@ -456,12 +552,23 @@ export async function POST(request: Request) {
         has_bankruptcy: form.has_bankruptcy,
         risk_flags: [form.has_judgments ? 'judgments' : '', form.is_seasonal ? 'seasonal' : ''].filter(Boolean),
         notes: `Merchant type: ${form.merchant_type || 'N/A'}\nProducts/services: ${form.products_services || 'N/A'}\nBusiness location: ${form.business_location || 'N/A'}`,
-      })
-      .select('id')
-      .single();
+      };
+    const { data: biz, error: bizErr } = linkedDeal?.business_id
+      ? await supabase
+        .from('businesses')
+        .update(businessPayload)
+        .eq('id', linkedDeal.business_id)
+        .eq('organization_id', DEFAULT_ORG_ID)
+        .select('id')
+        .single()
+      : await supabase
+        .from('businesses')
+        .insert(businessPayload)
+        .select('id')
+        .single();
 
     if (bizErr) throw bizErr;
-    created.businessId = biz.id;
+    if (!linkedDeal?.business_id) created.businessId = biz.id;
 
     const { count: priorDealCount } = await supabase
       .from('deals')
@@ -470,13 +577,22 @@ export async function POST(request: Request) {
       .eq('business_id', duplicateBusiness?.id || biz.id);
     const submissionSequence = Number(priorDealCount || 0) + 1;
 
-    const { data: lead, error: leadErr } = await supabase
-      .from('leads')
-      .insert({ organization_id: DEFAULT_ORG_ID, lead_source: leadSource, first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(contactEmail), phone: emptyToNull(contactPhone), business_name: form.legal_name, status: 'application_started', assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, referral_code: referralCode, referral_path: referralPath, notes: `Digital application submitted for $${Number(form.requested_amount).toLocaleString()} requested funding.${referralProfile ? ` Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? ` Referred by ${brokerName(isoBrokerReferral)}.` : ''}` })
-      .select('id')
-      .single();
+    const leadPayload = { organization_id: DEFAULT_ORG_ID, lead_source: leadSource, first_name: form.owner1.first_name, last_name: form.owner1.last_name, email: emptyToNull(contactEmail), phone: emptyToNull(contactPhone), business_name: form.legal_name, status: 'application_started', assigned_user_id: referralProfile?.id || linkedDeal?.assigned_user_id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, referral_code: referralCode, referral_path: referralPath, notes: `Digital application submitted${Number(form.requested_amount || 0) > 0 ? ` for $${Number(form.requested_amount).toLocaleString()} requested funding` : ''}.${referralProfile ? ` Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? ` Referred by ${brokerName(isoBrokerReferral)}.` : linkedDeal ? ' Submitted from customer completion link.' : ''}` };
+    const { data: lead, error: leadErr } = linkedDeal?.lead_id
+      ? await supabase
+        .from('leads')
+        .update(leadPayload)
+        .eq('id', linkedDeal.lead_id)
+        .eq('organization_id', DEFAULT_ORG_ID)
+        .select('id')
+        .single()
+      : await supabase
+        .from('leads')
+        .insert(leadPayload)
+        .select('id')
+        .single();
     if (leadErr) throw leadErr;
-    created.leadId = lead.id;
+    if (!linkedDeal?.lead_id) created.leadId = lead.id;
 
     const createOwner = async (owner: typeof form.owner1 | typeof form.owner2, isPrimary: boolean) => {
       if (!owner.first_name || !owner.last_name) return null;
@@ -513,9 +629,7 @@ export async function POST(request: Request) {
 
     const payloadForCrm = sanitizePayloadForCrm(form, parsedBody.files.map((item) => item.key));
 
-    const { data: app, error: appErr } = await supabase
-      .from('applications')
-      .insert({
+    const applicationPayload = {
         organization_id: DEFAULT_ORG_ID,
         business_id: biz.id,
         lead_id: lead.id,
@@ -550,23 +664,45 @@ export async function POST(request: Request) {
         signer_ip: clientIp,
         signer_user_agent: userAgent,
         consent_version: form.consent_version,
+        application_source: applicationSource,
+        application_review_status: 'submitted',
         ip_address: clientIp,
         user_agent: userAgent,
         submitted_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+      };
+    const { data: app, error: appErr } = linkedDeal?.application_id
+      ? await supabase
+        .from('applications')
+        .update(applicationPayload)
+        .eq('id', linkedDeal.application_id)
+        .eq('organization_id', DEFAULT_ORG_ID)
+        .select('id')
+        .single()
+      : await supabase
+        .from('applications')
+        .insert(applicationPayload)
+        .select('id')
+        .single();
 
     if (appErr) throw appErr;
-    created.applicationId = app.id;
+    if (!linkedDeal?.application_id) created.applicationId = app.id;
 
-    const { data: deal, error: dealErr } = await supabase
-      .from('deals')
-      .insert({ organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: `${form.legal_name} #${submissionSequence}`, requested_amount: toNumber(form.requested_amount), assigned_user_id: referralProfile?.id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, lead_source: leadSource, referral_code: referralCode, referral_path: referralPath, submission_sequence: submissionSequence, duplicate_of_business_id: duplicateBusiness?.id || null, notes: emptyToNull(form.notes || (referralProfile ? `Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? `Referred by ${brokerName(isoBrokerReferral)}.` : duplicateBusiness ? `Repeat submission matched by EIN to ${duplicateBusiness.legal_name}.` : '')) })
-      .select('id')
-      .single();
+    const dealPayload = { organization_id: DEFAULT_ORG_ID, application_id: app.id, business_id: biz.id, lead_id: lead.id, stage_slug: 'application_submitted', title: linkedDeal?.title || `${form.legal_name} #${submissionSequence}`, requested_amount: toNumber(form.requested_amount), assigned_user_id: referralProfile?.id || linkedDeal?.assigned_user_id || null, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, lead_source: leadSource, referral_code: referralCode, referral_path: referralPath, submission_sequence: submissionSequence, duplicate_of_business_id: duplicateBusiness?.id || null, application_link_token: null, application_link_sent_at: null, notes: emptyToNull(form.notes || (referralProfile ? `Referred by ${profileName(referralProfile)}.` : isoBrokerReferral ? `Referred by ${brokerName(isoBrokerReferral)}.` : linkedDeal ? 'Customer completed missing application fields.' : duplicateBusiness ? `Repeat submission matched by EIN to ${duplicateBusiness.legal_name}.` : '')) };
+    const { data: deal, error: dealErr } = linkedDeal?.id
+      ? await supabase
+        .from('deals')
+        .update(dealPayload)
+        .eq('id', linkedDeal.id)
+        .eq('organization_id', DEFAULT_ORG_ID)
+        .select('id')
+        .single()
+      : await supabase
+        .from('deals')
+        .insert(dealPayload)
+        .select('id')
+        .single();
     if (dealErr) throw dealErr;
-    created.dealId = deal.id;
+    if (!linkedDeal?.id) created.dealId = deal.id;
 
     const uploadedDocuments = await Promise.all(parsedBody.files.map(async ({ key, file }) => {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');

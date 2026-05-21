@@ -95,6 +95,7 @@ type CrmDataset = {
   stipulations: RecordMap[];
   applications: RecordMap[];
   owners: RecordMap[];
+  partnerApplications: RecordMap[];
 };
 
 const STAGES = [
@@ -426,6 +427,7 @@ function useCrmDataset() {
     stipulations: [],
     applications: [],
     owners: [],
+    partnerApplications: [],
   });
 
   const load = useCallback(async () => {
@@ -455,6 +457,7 @@ function useCrmDataset() {
       browserSupabase.from('owners').select('*').eq('organization_id', org).is('deleted_at', null).limit(200),
       browserSupabase.from('commission_recipients').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(200),
       browserSupabase.from('deal_risk_events').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(200),
+      browserSupabase.from('partner_application_uploads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(200),
     ]);
 
     const unwrap = (index: number) => {
@@ -520,6 +523,7 @@ function useCrmDataset() {
       owners: unwrap(18),
       commissionRecipients: unwrap(19).map((row: RecordMap) => ({ ...row, user_profiles: usersById[row.recipient_user_profile_id] })),
       riskEvents: unwrap(20).map((row: RecordMap) => ({ ...row, funding_partners: partnersById[row.funding_partner_id] })),
+      partnerApplications: unwrap(21),
     });
     setLoading(false);
   }, [browserSupabase, organizationId]);
@@ -1254,14 +1258,27 @@ function getOfferInsights(offers: RecordMap[]) {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, organizationId, profile, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, partnerApplications, organizationId, profile, loading, reload } = useCrmDataset();
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [partnerApplicationDialogOpen, setPartnerApplicationDialogOpen] = useState(false);
+  const [applicationLinkDialogOpen, setApplicationLinkDialogOpen] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [uploadingPartnerApplication, setUploadingPartnerApplication] = useState(false);
+  const [generatingApplicationPdf, setGeneratingApplicationPdf] = useState(false);
+  const [sendingApplicationLink, setSendingApplicationLink] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [savingSubmission, setSavingSubmission] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [partnerApplicationFile, setPartnerApplicationFile] = useState<File | null>(null);
+  const [partnerApplicationSource, setPartnerApplicationSource] = useState('');
+  const [partnerApplicationNotes, setPartnerApplicationNotes] = useState('');
+  const [applicationLinkEmail, setApplicationLinkEmail] = useState('');
+  const [applicationLinkMessage, setApplicationLinkMessage] = useState('');
+  const [generatedApplicationLink, setGeneratedApplicationLink] = useState('');
+  const [revealedSensitiveData, setRevealedSensitiveData] = useState<RecordMap | null>(null);
+  const [revealingSensitiveData, setRevealingSensitiveData] = useState(false);
   const [documentType, setDocumentType] = useState('bank_statement');
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentFilter, setDocumentFilter] = useState('all');
@@ -1286,6 +1303,10 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const dealRiskEvents = riskEvents.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
   const repeatDeals = deals.filter((row: RecordMap) => row.id !== deal.id && (row.business_id === deal.business_id || row.duplicate_of_business_id === deal.business_id || row.business_id === deal.duplicate_of_business_id));
   const dealDocs = documents.filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
+  const dealPartnerApplications = partnerApplications.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id);
+  const originalPartnerApplicationDocs = dealDocs.filter((doc: RecordMap) => doc.application_variant === 'original_partner' || doc.document_type === 'partner_application');
+  const convertedApplicationDocs = dealDocs.filter((doc: RecordMap) => doc.application_variant === 'elite_converted_partner' || doc.application_variant === 'elite_generated' || doc.document_type === 'completed_application');
+  const publicApplicationStatus = app?.application_source ? app.application_source : app?.submitted_at ? 'website' : 'not_started';
   const dealRequests = documentRequests.filter((request: RecordMap) => request.deal_id === deal.id || request.application_id === deal.application_id);
   const dealStips = stipulations.filter((stip: RecordMap) => stip.deal_id === deal.id || dealOffers.some((offer: RecordMap) => offer.id === stip.offer_id));
   const dealTasks = tasks.filter((task: RecordMap) => task.deal_id === deal.id || task.application_id === deal.application_id).sort((a: RecordMap, b: RecordMap) => new Date(a.due_date || '2999-01-01').getTime() - new Date(b.due_date || '2999-01-01').getTime());
@@ -1329,6 +1350,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   };
 
   const resetDocumentDialog = () => { setDocumentFile(null); setDocumentDescription(''); setDocumentType('bank_statement'); };
+  const resetPartnerApplicationDialog = () => { setPartnerApplicationFile(null); setPartnerApplicationSource(''); setPartnerApplicationNotes(''); };
 
   const uploadDealDocument = async () => {
     if (!documentFile) { toast.error('Please select a document.'); return; }
@@ -1351,6 +1373,88 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       toast.success('Deal document uploaded');
       setDocumentDialogOpen(false); resetDocumentDialog(); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to upload document'); } finally { setUploadingDocument(false); }
+  };
+
+  const uploadPartnerApplication = async () => {
+    if (!partnerApplicationFile) { toast.error('Please select a partner application file.'); return; }
+    const extension = partnerApplicationFile.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx', 'csv'];
+    if (partnerApplicationFile.size > 15 * 1024 * 1024 || !allowedExtensions.includes(extension)) {
+      toast.error('Supported files: PDF, image, DOC/DOCX, or CSV up to 15MB.');
+      return;
+    }
+    setUploadingPartnerApplication(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', partnerApplicationFile);
+      formData.set('source_partner_name', partnerApplicationSource);
+      formData.set('notes', partnerApplicationNotes);
+      const response = await fetch(`/api/crm/deals/${deal.id}/partner-applications`, { method: 'POST', body: formData });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload partner application');
+      toast.success('Partner application attached to this deal');
+      setPartnerApplicationDialogOpen(false);
+      resetPartnerApplicationDialog();
+      reload();
+    } catch (error: any) { toast.error(error.message || 'Failed to upload partner application'); } finally { setUploadingPartnerApplication(false); }
+  };
+
+  const generateEliteApplicationPdf = async (partnerApplicationId?: string) => {
+    setGeneratingApplicationPdf(true);
+    try {
+      const response = await fetch(`/api/crm/deals/${deal.id}/applications/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partner_application_id: partnerApplicationId || null }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to generate Elite application PDF');
+      toast.success('Elite application PDF generated');
+      reload();
+    } catch (error: any) { toast.error(error.message || 'Unable to generate Elite application PDF'); } finally { setGeneratingApplicationPdf(false); }
+  };
+
+  const savePartnerApplicationFields = async (partnerApplication: RecordMap, payload: RecordMap) => {
+    const response = await fetch(`/api/crm/partner-applications/${partnerApplication.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ edited_payload: payload, status: 'draft_ready', notes: partnerApplication.notes || '' }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) { toast.error(result.error || 'Unable to save partner application fields'); return; }
+    toast.success('Partner application fields saved');
+    reload();
+  };
+
+  const sendApplicationLink = async () => {
+    setSendingApplicationLink(true);
+    setGeneratedApplicationLink('');
+    try {
+      const response = await fetch(`/api/crm/deals/${deal.id}/application-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: applicationLinkEmail, message: applicationLinkMessage }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to create application link');
+      setGeneratedApplicationLink(result.applicationUrl || '');
+      if (result.emailStatus === 'sent') toast.success('Application link sent');
+      else if (result.emailStatus === 'failed') toast.warning('Link created, but email failed. Copy the link manually.');
+      else toast.success('Application link created');
+      reload();
+    } catch (error: any) { toast.error(error.message || 'Unable to create application link'); } finally { setSendingApplicationLink(false); }
+  };
+
+  const revealSensitiveApplicationData = async () => {
+    if (!app?.id) { toast.error('No application is linked to this deal yet.'); return; }
+    setRevealingSensitiveData(true);
+    try {
+      const response = await fetch(`/api/crm/applications/${app.id}/sensitive`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to reveal sensitive fields');
+      setRevealedSensitiveData(result.data || null);
+      toast.success('Sensitive application data revealed');
+    } catch (error: any) { toast.error(error.message || 'Unable to reveal sensitive fields'); } finally { setRevealingSensitiveData(false); }
   };
 
   const updateDocumentStatus = async (doc: RecordMap, status: string, reason?: string) => {
@@ -1522,9 +1626,77 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       </div>
       <CrmCard className="p-4">
         <div className="mb-4 flex flex-col gap-2 border-b border-[#E2E8F0] pb-4 md:flex-row md:items-center md:justify-between"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Current stage</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p></div><Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px] md:w-[220px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
-        <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
+        <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['applications','Applications'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
           <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2">{repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. Current version: #{deal.submission_sequence || repeatDeals.length + 1}. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}<InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]}/><div className="grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
           <TabsContent value="readiness"><div className="mb-4 grid gap-3 md:grid-cols-2"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><ChecklistTable rows={checklist} /></TabsContent>
+          <TabsContent value="applications">
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[#0F172A]">Deal application workspace</p>
+                <p className="text-xs text-[#64748B]">Original partner app, Elite converted app, public app, and customer completion link stay attached to this deal.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button data-testid="deal-upload-partner-application" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setPartnerApplicationDialogOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload Partner Application</Button>
+                <Button data-testid="deal-generate-elite-application" variant="outline" className="h-9 rounded-[7px]" onClick={() => generateEliteApplicationPdf()} disabled={generatingApplicationPdf}><FileText className="mr-2 h-4 w-4" />{generatingApplicationPdf ? 'Generating...' : 'Generate Elite Application PDF'}</Button>
+                <Button data-testid="deal-send-application-link" variant="outline" className="h-9 rounded-[7px]" onClick={() => setApplicationLinkDialogOpen(true)}><Mail className="mr-2 h-4 w-4" />Send Application Link</Button>
+              </div>
+            </div>
+            <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <CrmCard className="p-3"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Public website application</p><div className="mt-2"><StatusBadge value={app?.submitted_at ? app.application_review_status || 'submitted' : 'not_started'} /></div><p className="mt-2 text-xs text-[#64748B]">Source: {publicApplicationStatus.replaceAll('_', ' ')}</p><p className="text-xs text-[#64748B]">Submitted: {date(app?.submitted_at)}</p></CrmCard>
+              <CrmCard className="p-3"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Partner application</p><div className="mt-2"><StatusBadge value={dealPartnerApplications[0]?.status || 'not_started'} /></div><p className="mt-2 text-xs text-[#64748B]">Original files: {originalPartnerApplicationDocs.length}</p><p className="text-xs text-[#64748B]">Last upload: {date(dealPartnerApplications[0]?.created_at)}</p></CrmCard>
+              <CrmCard className="p-3"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Elite converted app</p><div className="mt-2"><StatusBadge value={convertedApplicationDocs.length ? 'converted_from_partner_app' : 'not_started'} /></div><p className="mt-2 text-xs text-[#64748B]">Generated PDFs: {convertedApplicationDocs.length}</p><p className="text-xs text-[#64748B]">Application ID: {app?.id ? shortId(app.id) : 'Not set'}</p></CrmCard>
+            </div>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <CrmCard className="p-4">
+                <h3 className="text-sm font-semibold text-[#0F172A]">Partner uploads</h3>
+                <div className="mt-3 grid gap-3">
+                  {dealPartnerApplications.length ? dealPartnerApplications.map((row: RecordMap) => {
+                    const payload = row.edited_payload || row.extracted_payload || {};
+                    return (
+                      <div key={row.id} className="rounded-[8px] border border-[#E2E8F0] p-3 text-sm">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <b>{row.source_partner_name || 'Unknown partner'}</b>
+                            <p className="text-xs text-[#64748B]">{row.original_file_name || 'Partner application'} · {date(row.created_at)}</p>
+                          </div>
+                          <StatusBadge value={row.status || 'uploaded'} />
+                        </div>
+                        <InfoGrid rows={[['Company', payload.company_name || payload.legal_name || businessName(deal)], ['Requested', payload.requested_amount ? currency(payload.requested_amount) : currency(deal.requested_amount)], ['Phone', payload.business_phone || deal.businesses?.phone || 'Not set'], ['Notes', row.notes || 'None']]} />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" className="h-8" onClick={() => {
+                            const current = JSON.stringify(payload, null, 2);
+                            const next = window.prompt('Edit extracted application JSON before generating the Elite PDF.', current);
+                            if (!next) return;
+                            try { savePartnerApplicationFields(row, JSON.parse(next)); } catch { toast.error('Invalid JSON. No changes saved.'); }
+                          }}><SlidersHorizontal className="mr-1 h-3 w-3" />Edit fields</Button>
+                          <Button size="sm" className="h-8 bg-[#0F2B5B]" onClick={() => generateEliteApplicationPdf(row.id)} disabled={generatingApplicationPdf}><FileText className="mr-1 h-3 w-3" />Generate PDF</Button>
+                        </div>
+                      </div>
+                    );
+                  }) : <EmptyState title="No partner applications uploaded." body="Upload a partner app to create an Elite-branded review copy and PDF." />}
+                </div>
+              </CrmCard>
+              <CrmCard className="p-4">
+                <h3 className="text-sm font-semibold text-[#0F172A]">Application documents</h3>
+                <div className="mt-3 grid gap-3">
+                  {[...originalPartnerApplicationDocs, ...convertedApplicationDocs].length ? [...originalPartnerApplicationDocs, ...convertedApplicationDocs].map((doc: RecordMap) => (
+                    <div key={doc.id} className="grid gap-2 rounded-[8px] border border-[#E2E8F0] p-3 text-sm md:grid-cols-[24px_1fr_auto]">
+                      <span className="text-[#64748B]">{fileIcon(doc.file_name)}</span>
+                      <div><b>{doc.label || doc.file_name}</b><p className="text-xs text-[#64748B]">{doc.application_variant?.replaceAll('_', ' ') || doc.document_type?.replaceAll('_', ' ')} · {date(doc.created_at)}</p></div>
+                      <div className="flex gap-1"><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(doc, 'preview')}><Eye className="mr-1 h-3 w-3" />Preview</Button><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(doc, 'download')}><Download className="h-3 w-3" /></Button></div>
+                    </div>
+                  )) : <EmptyState title="No application files attached." body="Uploaded and generated applications will appear here." />}
+                </div>
+              </CrmCard>
+              <CrmCard className="p-4 xl:col-span-2">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div><h3 className="text-sm font-semibold text-[#0F172A]">Sensitive fields</h3><p className="text-xs text-[#64748B]">SSN, EIN, and DOB are masked by default. Reveals are admin-only and audit logged.</p></div>
+                  <Button size="sm" variant="outline" className="h-8" onClick={revealSensitiveApplicationData} disabled={revealingSensitiveData || !app?.id}>{revealingSensitiveData ? 'Revealing...' : 'Reveal full fields'}</Button>
+                </div>
+                <InfoGrid rows={[['Business EIN', revealedSensitiveData?.business?.ein || `***-**${deal.businesses?.ein_last4 || '****'}`], ['Primary owner SSN', revealedSensitiveData?.owners?.[0]?.ssn || `***-**-${businessOwners[0]?.ssn_last4 || '****'}`], ['Primary owner DOB', revealedSensitiveData?.owners?.[0]?.dob || (businessOwners[0]?.dob_encrypted ? 'Encrypted' : 'Not set')], ['Primary owner', businessOwners[0] ? `${businessOwners[0].first_name || ''} ${businessOwners[0].last_name || ''}`.trim() : 'Not set'], ['Consent version', app?.consent_version || 'Not set'], ['Source', app?.application_source?.replaceAll('_', ' ') || 'Not set']]} />
+              </CrmCard>
+            </div>
+          </TabsContent>
           <TabsContent value="documents"><div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"><div className="flex gap-2"><Select value={documentFilter} onValueChange={setDocumentFilter}><SelectTrigger className="h-9 w-[180px] rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All docs</SelectItem>{['uploaded','in_review','approved','rejected','needs_replacement','expired'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}{DETAIL_DOCUMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent></Select></div><Button data-testid="deal-upload-document" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload / replace document</Button></div>{missingDocItems.length > 0 && <div className="mb-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Missing required documents</p><div className="mt-2 flex flex-wrap gap-2">{missingDocItems.map((item) => <button key={item.id} className="rounded-[6px] border border-amber-300 bg-white px-2 py-1 text-xs text-amber-900" onClick={() => updateChecklistItem(item, 'requested')}>{item.name}</button>)}</div></div>}{groupedDocs.length ? <div className="grid gap-3">{groupedDocs.map((group) => <div key={group.type.value} className="rounded-[8px] border border-[#E2E8F0]"><div className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold">{group.type.label}</div>{group.docs.map((row) => <div key={row.id} className="grid gap-2 border-b border-[#E2E8F0] p-3 text-sm last:border-b-0 md:grid-cols-[24px_1.4fr_1fr_120px_260px]"><span className="text-[#64748B]">{fileIcon(row.file_name)}</span><b>{row.label || row.file_name}<span className="ml-2 text-xs font-normal text-[#64748B]">{formatBytes(row.file_size)}</span></b><StatusBadge value={row.status} /><span>{date(row.updated_at || row.created_at)}</span><span className="flex flex-wrap gap-1"><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'preview')}><Eye className="mr-1 h-3 w-3" />Preview</Button><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'download')}><Download className="h-3 w-3" /></Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'approved')}>Approve</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'needs_replacement', window.prompt('Replacement reason') || 'Replacement requested')}>Request replacement</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'rejected', window.prompt('Reject reason') || 'Rejected')}>Reject</Button></span></div>)}</div>)}</div> : <EmptyState title="No documents attached." body="Upload documents here so this deal page remains the source of truth." />}</TabsContent>
           <TabsContent value="notes"><div className="mb-3 flex justify-end"><Button data-testid="deal-add-note" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setNoteDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Add note</Button></div><SimpleRows rows={dealNotes} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>
           <TabsContent value="lenders"><div className="mb-3 flex justify-end">{canSendToLenders ? <Button data-testid="deal-submit-lender" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => { setSubmissionPartnerId(partnerMatches[0]?.partner?.id || partners[0]?.id || ''); setSubmissionDialogOpen(true); }}><Send className="mr-2 h-4 w-4" />Send to Lender</Button> : <Button data-testid="deal-submit-lender-disabled" className="h-9 rounded-[7px]" variant="outline" disabled>Only admins and sales reps can send</Button>}</div><SimpleRows rows={dealSubmissions} empty="No lender submissions yet." render={(row) => { const relatedOffer = dealOffers.find((o: RecordMap) => o.partner_submission_id === row.id || o.funding_partner_id === row.funding_partner_id); return <div className="grid gap-3 md:grid-cols-[1.2fr_170px_1fr_1fr_220px]"><div><b>{partnerName(row)}</b><p className="text-xs text-[#64748B]">{row.funding_partners?.submission_email || row.funding_partners?.portal_url || 'No route saved'}</p><p className="text-xs text-[#64748B]">Sent {date(row.submitted_at || row.created_at)} · Updated {date(row.updated_at)}</p></div><Select value={row.status || 'draft'} onValueChange={(status) => updateSubmission(row, { status })}><SelectTrigger data-testid={`lender-status-${row.id}`} className="h-9 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{['draft','submitted','in_review','more_info_needed','approved','declined','withdrawn','funded'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}</SelectContent></Select><div><p>{row.notes || 'No lender notes'}</p><Button size="sm" variant="outline" className="mt-2 h-8" onClick={() => updateSubmission(row, { notes: window.prompt('Lender notes', row.notes || '') || row.notes })}>Edit notes</Button></div><div><p>{row.decline_reason || row.conditions || 'No decline reason / stips'}</p><Button size="sm" variant="outline" className="mt-2 h-8" onClick={() => updateSubmission(row, { decline_reason: window.prompt('Decline reason or conditions', row.decline_reason || '') || row.decline_reason })}>Add reason/stips</Button></div><div>{relatedOffer ? <div><b>{currency(relatedOffer.approved_amount)}</b><p>{relatedOffer.factor_rate || 'N/A'} factor · {relatedOffer.term_days || 'N/A'} days</p><StatusBadge value={relatedOffer.status} /></div> : <Button size="sm" className="h-8 bg-[#0F2B5B]" onClick={() => convertSubmissionToOffer(row)}>Convert to offer</Button>}</div></div>; }} /></TabsContent>
@@ -1536,6 +1708,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         </Tabs>
       </CrmCard>
       <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload or replace deal document</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document file</Label><Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Document type</Label><Select value={documentType} onValueChange={setDocumentType}><SelectTrigger data-testid="deal-document-type" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{DETAIL_DOCUMENT_TYPES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={partnerApplicationDialogOpen} onOpenChange={(open) => { setPartnerApplicationDialogOpen(open); if (!open) resetPartnerApplicationDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload Partner Application</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Application file</Label><Input data-testid="partner-application-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,.csv" onChange={(event) => setPartnerApplicationFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{partnerApplicationFile && <p className="mt-1 text-xs text-[#64748B]">{partnerApplicationFile.name} · {formatBytes(partnerApplicationFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Source partner</Label><Input data-testid="partner-application-source" value={partnerApplicationSource} onChange={(event) => setPartnerApplicationSource(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Funding partner or broker name" /></div><div><Label className="text-xs text-[#64748B]">Notes</Label><Textarea data-testid="partner-application-notes" value={partnerApplicationNotes} onChange={(event) => setPartnerApplicationNotes(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="What came in, missing fields, or conversion notes" /></div><div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This attaches the original file to the deal and creates a review draft for an Elite-branded PDF. Automatic OCR is not enabled yet, so extracted fields start from the current deal data and can be edited before generation.</div></div><DialogFooter><Button variant="outline" onClick={() => setPartnerApplicationDialogOpen(false)}>Cancel</Button><Button data-testid="save-partner-application" onClick={uploadPartnerApplication} disabled={uploadingPartnerApplication || !partnerApplicationFile}>{uploadingPartnerApplication ? 'Uploading...' : 'Upload Partner Application'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={applicationLinkDialogOpen} onOpenChange={(open) => { setApplicationLinkDialogOpen(open); if (!open) { setGeneratedApplicationLink(''); setApplicationLinkMessage(''); } }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Send Application Link</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Customer email</Label><Input data-testid="application-link-email" value={applicationLinkEmail} onChange={(event) => setApplicationLinkEmail(event.target.value)} className="mt-1 rounded-[7px]" placeholder={deal.businesses?.email || 'customer@email.com'} /></div><div><Label className="text-xs text-[#64748B]">Message</Label><Textarea data-testid="application-link-message" value={applicationLinkMessage} onChange={(event) => setApplicationLinkMessage(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="Optional note to include in the email" /></div>{generatedApplicationLink && <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm"><p className="text-xs font-semibold uppercase text-[#64748B]">Generated link</p><button className="mt-1 break-all text-left font-semibold text-[#0F2B5B]" onClick={() => navigator.clipboard?.writeText(generatedApplicationLink)}>{generatedApplicationLink}</button><p className="mt-1 text-xs text-[#64748B]">Click the link text to copy it.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setApplicationLinkDialogOpen(false)}>Cancel</Button><Button data-testid="save-application-link" onClick={sendApplicationLink} disabled={sendingApplicationLink}>{sendingApplicationLink ? 'Creating...' : 'Create and send link'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>
         <DialogContent className="max-w-2xl rounded-[8px]">

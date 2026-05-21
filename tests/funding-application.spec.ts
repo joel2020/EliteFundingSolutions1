@@ -2,90 +2,38 @@ import { expect, test } from '@playwright/test';
 import { mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('public funding application', () => {
-  test('submits a short application without documents or sensitive fields', async ({ page }) => {
+  test('submits the simplified funding-options application', async ({ page }) => {
     await mockCrmApis(page);
 
     await page.goto('/apply');
 
-    await page.getByTestId('application-business-legal-name').fill('Fast Submit LLC');
-    await page.getByTestId('application-business-phone').fill('8135550199');
-    await page.getByTestId('application-business-email').fill('owner@fastsubmit.test');
+    await page.getByTestId('application-full-name').fill('Taylor Reed');
+    await page.getByTestId('application-home-address').fill('20 Broadway, New York, NY 10002');
+    await page.getByTestId('application-social-security-number').fill('123456789');
+    await page.getByTestId('application-date-of-birth').fill('1985-04-10');
+    await page.getByTestId('application-cell-phone-number').fill('2125550144');
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByTestId('application-first-name').first().fill('Taylor');
-    await page.getByTestId('application-last-name').first().fill('Reed');
+    await page.getByTestId('application-company-name').fill('Fast Submit LLC');
+    await page.getByTestId('application-business-address').fill('10 Main Street, New York, NY 10001');
+    await page.getByTestId('application-tax-id-ein').fill('123456789');
+    await page.getByTestId('application-business-start-date').fill('2021-01-15');
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByTestId('application-amount-requested').fill('35000');
-    await page.getByRole('button', { name: /continue/i }).click();
+    await expect(page.getByText('***-6789')).toHaveCount(2);
+    await page.getByLabel(/I certify that this information is accurate/).check();
+    await page.getByRole('button', { name: /Get My Funding Options/i }).click();
 
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByLabel(/I certify this information is accurate/).check();
-    await page.getByRole('button', { name: /submit application/i }).click();
-
-    await expect(page.getByText('Application Submitted')).toBeVisible();
+    await expect(page.getByText('Application Received')).toBeVisible();
+    await expect(page.getByText('Thank you. Your application has been received. An Elite Funding Solutions funding specialist will review your information and contact you shortly.')).toBeVisible();
   });
 
-  test('submits a complete funding application with required document upload', async ({ page }) => {
+  test('requires the minimum identity and business fields', async ({ page }) => {
     await mockCrmApis(page);
 
     await page.goto('/apply');
-
-    await page.getByTestId('application-business-legal-name').fill('Cedar Market LLC');
-    await page.getByTestId('application-dba-name').fill('Cedar Market');
-    await page.getByTestId('application-legal-entity-type').selectOption('llc');
-    await page.getByTestId('application-full-federal-tax-id-ein').fill('12-3456789');
-    await page.getByTestId('application-merchant-type').selectOption('retail');
-    await page.getByTestId('application-date-business-started').fill('2021-01-15');
-    await page.getByTestId('application-business-location').selectOption('leased');
-    await page.getByTestId('application-business-phone').fill('2125550199');
-    await page.getByTestId('application-business-mobile-phone').fill('2125550188');
-    await page.getByTestId('application-business-email').fill('owner@cedarmarket.test');
-    await page.getByTestId('application-address').fill('10 Main Street');
-    await page.getByTestId('application-city').fill('New York');
-    await page.getByTestId('application-state').selectOption('NY');
-    await page.getByTestId('application-zip').fill('10001');
-    await page.getByTestId('application-products-services-sold').fill('Specialty grocery');
-    await page.getByTestId('application-industry').fill('Retail');
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByTestId('application-first-name').first().fill('Casey');
-    await page.getByTestId('application-last-name').first().fill('Morgan');
-    await page.getByTestId('application-title').first().fill('Owner');
-    await page.getByTestId('application-ownership').first().fill('100');
-    await page.getByTestId('application-email').first().fill('casey@cedarmarket.test');
-    await page.getByTestId('application-owner-phone').first().fill('2125550133');
-    await page.getByTestId('application-owner-mobile-phone').first().fill('2125550144');
-    await page.getByTestId('application-date-of-birth').first().fill('1985-04-10');
-    await page.getByTestId('application-full-social-security-number').first().fill('123-45-6789');
-    await page.getByTestId('application-credit-score-range').first().selectOption('680-719');
-    await page.getByTestId('application-home-address').first().fill('20 Broadway');
-    await page.getByTestId('application-city').first().fill('New York');
-    await page.getByTestId('application-state').first().selectOption('NY');
-    await page.getByTestId('application-zip').first().fill('10002');
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByTestId('application-amount-requested').fill('50000');
-    await page.getByTestId('application-use-of-funds').fill('Inventory');
-    await page.getByTestId('application-average-monthly-sales').fill('85000');
-    await page.getByTestId('application-average-visa-mastercard-monthly-sales').fill('30000');
-    await page.getByTestId('application-monthly-gross-revenue').fill('90000');
-    await page.getByTestId('application-desired-funding-timeline').selectOption('asap');
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByLabel('Business Bank Statements').setInputFiles({
-      name: 'cedar-bank-statements.pdf',
-      mimeType: 'application/pdf',
-      buffer: Buffer.from('%PDF-1.4 bank statements'),
-    });
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByLabel(/I certify this information is accurate/).check();
-    await page.getByLabel(/Send me optional text message updates/).check();
-    await page.getByTestId('application-signed-name').fill('Casey Morgan');
-    await page.getByRole('button', { name: /submit application/i }).click();
-
-    await expect(page.getByText('Application Submitted')).toBeVisible();
+    await expect(page.getByText('Please enter your full name.')).toBeVisible();
   });
 });
