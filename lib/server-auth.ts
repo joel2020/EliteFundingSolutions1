@@ -78,6 +78,7 @@ export async function requireCrmProfile(roles: readonly string[] = INTERNAL_CRM_
     .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (!profile || !roles.includes(profile.role)) {
@@ -97,6 +98,7 @@ export async function requirePortalProfile() {
     .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (!profile || !PORTAL_ROLES.includes(profile.role as (typeof PORTAL_ROLES)[number])) {
@@ -161,6 +163,7 @@ export async function getPortalApplicationIds(
       .eq('organization_id', organizationId)
       .eq('email', email)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .limit(25);
 
     const brokerIds = (brokers || []).map((broker: { id: string }) => broker.id);

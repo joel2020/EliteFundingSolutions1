@@ -75,3 +75,70 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json({ success: true, user: updatedProfile });
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
+  const auth = await requireCrmProfile(ADMIN_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+
+  const { data: existing } = await supabase
+    .from('user_profiles')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active,deleted_at')
+    .eq('id', params.id)
+    .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
+    .single();
+
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'User profile not found.' }, { status: 404 });
+  }
+
+  if (existing.id === profile.id || existing.user_id === user.id) {
+    return NextResponse.json({ success: false, error: 'You cannot delete your own active admin account.' }, { status: 400 });
+  }
+
+  if (existing.role === 'super_admin' && profile.role !== 'super_admin') {
+    return NextResponse.json({ success: false, error: 'Only a super admin can delete a super admin.' }, { status: 403 });
+  }
+
+  const deletedAt = new Date().toISOString();
+  const { data: deletedProfile, error } = await supabase
+    .from('user_profiles')
+    .update({ is_active: false, deleted_at: deletedAt, deleted_by: profile.id, updated_by: profile.id })
+    .eq('id', existing.id)
+    .eq('organization_id', profile.organization_id)
+    .select('id,email')
+    .single();
+
+  if (error) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+
+  let authDeleteWarning: string | null = null;
+  if (existing.user_id) {
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(existing.user_id, true);
+    if (authDeleteError) {
+      authDeleteWarning = authDeleteError.message;
+      console.error('Supabase auth user soft delete failed.', authDeleteError.message);
+    }
+  }
+
+  await supabase.from('audit_logs').insert({
+    organization_id: profile.organization_id,
+    user_id: user.id,
+    action: 'crm_user_deleted',
+    resource_type: 'user_profiles',
+    resource_id: existing.id,
+    old_data: existing,
+    new_data: { is_active: false, deleted_at: deletedAt, auth_user_soft_deleted: Boolean(existing.user_id && !authDeleteWarning) },
+  });
+
+  return NextResponse.json({
+    success: true,
+    user: deletedProfile,
+    warning: authDeleteWarning ? 'User profile was deleted, but Supabase Auth soft delete needs manual review.' : null,
+  });
+}

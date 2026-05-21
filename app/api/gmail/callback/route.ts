@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
       .select('id,role,is_active')
       .eq('user_id', user.id)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (!profile || !INTERNAL_CRM_ROLES.includes(profile.role as any)) {

@@ -172,6 +172,12 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.user_profiles.find((user) => user.id === createdUser.id)?.first_name).toBe('Jordan Updated');
     await expect(page.getByText('Jordan Updated')).toBeVisible();
 
+    await page.getByRole('row', { name: /Jordan Updated/ }).getByRole('button', { name: 'Delete' }).click();
+    await expect(page.getByText('Confirm Deletion')).toBeVisible();
+    await page.getByRole('button', { name: 'Yes, Delete' }).click();
+    await expect.poll(() => state.user_profiles.find((user) => user.id === createdUser.id)?.deleted_at).toBeTruthy();
+    await expect(page.getByText('Jordan Updated')).toHaveCount(0);
+
     const salesPage = await page.context().newPage();
     await mockCrmApis(salesPage, 'sales_rep');
     await salesPage.goto('/crm/users');
@@ -255,6 +261,12 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.funding_partners.some((partner) => partner.name === 'Keystone Capital')).toBe(true);
     expect(calls.some((call) => call.table === 'funding_partners_api' && call.body.name === 'Keystone Capital')).toBe(true);
     await expect(page.getByText('Keystone Capital')).toBeVisible();
+
+    const createdPartner = state.funding_partners.find((partner) => partner.name === 'Keystone Capital')!;
+    await page.getByTestId(`partner-card-${createdPartner.id}`).getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'Yes, Delete' }).click();
+    await expect.poll(() => state.funding_partners.find((partner) => partner.id === createdPartner.id)?.deleted_at).toBeTruthy();
+    await expect(page.getByText('Keystone Capital')).toHaveCount(0);
 
     await page.goto('/crm/offers');
     await page.getByTestId('create-offer').click();

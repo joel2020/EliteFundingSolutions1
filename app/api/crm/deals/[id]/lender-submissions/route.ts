@@ -57,6 +57,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('id,name,email,submission_email,portal_url')
     .eq('id', parsed.data.funding_partner_id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });

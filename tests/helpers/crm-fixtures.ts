@@ -487,6 +487,13 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   });
 
   await page.route('**/api/crm/partners**', async (route) => {
+    if (route.request().method() === 'DELETE') {
+      const id = new URL(route.request().url()).pathname.split('/').pop();
+      state.funding_partners = state.funding_partners.map((partner) => partner.id === id ? { ...partner, is_active: false, deleted_at: now } : partner);
+      calls.push({ method: 'DELETE', table: 'funding_partners_api', body: { id } });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+      return;
+    }
     const payload = route.request().postDataJSON() as any;
     const partner = {
       id: `partner-${state.funding_partners.length + 1}`,
@@ -564,6 +571,13 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   });
 
   await page.route('**/api/crm/users/*', async (route) => {
+    if (route.request().method() === 'DELETE') {
+      const id = new URL(route.request().url()).pathname.split('/').pop();
+      state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: false, deleted_at: now } : user);
+      calls.push({ method: 'DELETE', table: 'user_profiles', body: { id } });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+      return;
+    }
     const payload = route.request().postDataJSON() as any;
     const id = new URL(route.request().url()).pathname.split('/').pop();
     state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, ...payload, updated_at: now } : user);
@@ -648,7 +662,7 @@ function filterRows(table: string, rows: any[], url: URL) {
       filtered = filtered.filter((row) => String(row[field]) === expected);
     }
   });
-  if (table === 'leads' || table === 'deals' || table === 'applications') {
+  if (['leads', 'deals', 'applications', 'funding_partners', 'iso_brokers', 'user_profiles'].includes(table)) {
     filtered = filtered.filter((row) => !row.deleted_at);
   }
   return filtered;

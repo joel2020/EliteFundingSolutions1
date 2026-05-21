@@ -235,6 +235,7 @@ async function resolveReferralProfile(supabase: ReturnType<typeof createServiceS
     .eq('organization_id', DEFAULT_ORG_ID)
     .eq('referral_slug', referralCode)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .in('role', ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'])
     .maybeSingle();
 
@@ -255,6 +256,7 @@ async function resolveIsoBrokerReferral(supabase: ReturnType<typeof createServic
     .eq('organization_id', DEFAULT_ORG_ID)
     .eq('application_slug', referralCode)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) {
@@ -274,6 +276,7 @@ async function resolveRohanEmail(supabase: ReturnType<typeof createServiceSupaba
     .eq('organization_id', DEFAULT_ORG_ID)
     .eq('role', 'super_admin')
     .eq('is_active', true)
+    .is('deleted_at', null)
     .or('first_name.ilike.%rohan%,last_name.ilike.%rohan%,email.ilike.%rohan%')
     .limit(1)
     .maybeSingle();

@@ -43,12 +43,14 @@ export interface Database {
           is_active: boolean;
           referral_slug: string | null;
           last_login_at: string | null;
+          deleted_at: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
           updated_by: string | null;
+          deleted_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['user_profiles']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['user_profiles']['Row'], 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'deleted_by'>;
         Update: Partial<Database['public']['Tables']['user_profiles']['Insert']>;
       };
       leads: {
@@ -287,11 +289,13 @@ export interface Database {
           commission_rules: Json;
           notes: string | null;
           is_active: boolean;
+          deleted_at: string | null;
+          deleted_by: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['funding_partners']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['funding_partners']['Row'], 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'deleted_by'>;
         Update: Partial<Database['public']['Tables']['funding_partners']['Insert']>;
       };
       documents: {
@@ -500,11 +504,13 @@ export interface Database {
           payment_terms: string | null;
           is_active: boolean;
           application_slug: string | null;
+          deleted_at: string | null;
+          deleted_by: string | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['iso_brokers']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['iso_brokers']['Row'], 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'deleted_by'>;
         Update: Partial<Database['public']['Tables']['iso_brokers']['Insert']>;
       };
       contracts: {

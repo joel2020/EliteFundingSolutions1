@@ -19,20 +19,19 @@ export async function DELETE(
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
-  // Verify partner/lender belongs to this organization
   const { data: existing } = await supabase
     .from('funding_partners')
-    .select('id, organization_id, name')
+    .select('id,organization_id,name,is_active,deleted_at')
     .eq('id', id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   if (!existing) return NextResponse.json({ error: 'Lender not found' }, { status: 404 });
 
-  // Delete the partner/lender record
   const { error } = await supabase
     .from('funding_partners')
-    .delete()
+    .update({ is_active: false, deleted_at: new Date().toISOString(), deleted_by: profile.id })
     .eq('id', id)
     .eq('organization_id', profile.organization_id);
 
@@ -44,8 +43,8 @@ export async function DELETE(
     action: 'funding_partner_deleted',
     resource_type: 'funding_partners',
     resource_id: id,
-    old_data: { name: existing.name },
-    new_data: null,
+    old_data: existing,
+    new_data: { is_active: false, deleted_at: true },
   });
 
   return NextResponse.json({ success: true, message: 'Lender deleted successfully' });

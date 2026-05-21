@@ -39,6 +39,7 @@ export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; err
     .from('user_profiles')
     .select('id,user_id,organization_id,email,first_name,last_name,role,is_active')
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) return { profile: null, error: error.message };

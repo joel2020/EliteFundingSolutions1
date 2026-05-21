@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { useCrmUser } from '@/lib/crm-auth';
-import { Copy, Plus, Users, TrendingUp, DollarSign, Mail, Phone , Trash2 } from 'lucide-react';
+import { Copy, Plus, Users, DollarSign, Mail, Phone } from 'lucide-react';
 import type { IsoBroker } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +47,7 @@ function brokerApplicationDisplayUrl(slug?: string | null) {
 }
 
 export default function IsoBrokersPage() {
-  const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
+  const { organizationId, loading: crmUserLoading } = useCrmUser();
 
   const [brokers, setBrokers] = useState<IsoBroker[]>([]);
   const [commissions, setCommissions] = useState<Record<string, any>[]>([]);
@@ -215,6 +215,7 @@ export default function IsoBrokersPage() {
               return (
               <div
                 key={broker.id}
+                data-testid={`broker-card-${broker.id}`}
                 className="bg-white border border-[#E4E4E7] rounded-[16px] p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">

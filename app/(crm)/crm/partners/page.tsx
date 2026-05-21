@@ -47,6 +47,7 @@ export default function PartnersPage() {
       .from('funding_partners')
       .select('*')
       .eq('organization_id', organizationId)
+      .is('deleted_at', null)
       .order('name');
 
     if (error) {
@@ -121,6 +122,7 @@ export default function PartnersPage() {
           ) : partners.map((partner) => (
             <div
               key={partner.id}
+              data-testid={`partner-card-${partner.id}`}
               className="rounded-[16px] border border-[#E4E4E7] bg-white p-5 transition-all hover:border-[#D4D4D8]"
               style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
             >

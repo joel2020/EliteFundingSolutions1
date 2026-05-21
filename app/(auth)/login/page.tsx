@@ -20,6 +20,7 @@ const INTERNAL_CRM_ROLES = [
 type UserProfile = {
   role: string;
   is_active: boolean;
+  deleted_at: string | null;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
@@ -74,7 +75,7 @@ export default function LoginPage() {
       // Check profile and route accordingly
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
-        .select('role,is_active')
+        .select('role,is_active,deleted_at')
         .eq('user_id', data.user.id)
         .maybeSingle() as { data: UserProfile | null; error: Error | null };
 
@@ -86,7 +87,7 @@ export default function LoginPage() {
         return;
       }
 
-      if (!profile.is_active) {
+      if (!profile.is_active || profile.deleted_at) {
         await supabase.auth.signOut();
         toast.error('This account is inactive.');
         return;

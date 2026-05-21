@@ -25,6 +25,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     .select('id,organization_id,is_active,company_name')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   if (!existing) return NextResponse.json({ success: false, error: 'Broker not found.' }, { status: 404 });
@@ -64,13 +65,18 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
 
   const { data: existing } = await supabase
     .from('iso_brokers')
-    .select('id,organization_id,company_name')
+    .select('id,organization_id,company_name,broker_name,email,is_active,deleted_at')
     .eq('id', id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   if (!existing) return NextResponse.json({ error: 'Broker not found' }, { status: 404 });
-  const { error } = await supabase.from('iso_brokers').delete().eq('id', id).eq('organization_id', profile.organization_id);
+  const { error } = await supabase
+    .from('iso_brokers')
+    .update({ is_active: false, deleted_at: new Date().toISOString(), deleted_by: profile.id })
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   await supabase.from('audit_logs').insert({
     organization_id: profile.organization_id,
@@ -78,8 +84,8 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     action: 'iso_broker_deleted',
     resource_type: 'iso_brokers',
     resource_id: id,
-    old_data: { company_name: existing.company_name },
-    new_data: null,
+    old_data: existing,
+    new_data: { is_active: false, deleted_at: true },
   });
   return NextResponse.json({ success: true, message: 'Broker deleted successfully' });
 }

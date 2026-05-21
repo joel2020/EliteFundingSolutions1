@@ -12,6 +12,7 @@ export async function createUserProfile(userId: string, email: string, firstName
     .from('user_profiles')
     .select('id')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (existingProfile) {
@@ -36,6 +37,7 @@ export async function getCurrentUserProfile() {
     .from('user_profiles')
     .select('*')
     .eq('user_id', user.id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   return profile;

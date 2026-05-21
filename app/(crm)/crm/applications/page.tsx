@@ -58,6 +58,7 @@ export default function ApplicationsPage() {
       .select('id, role, organization_id')
       .eq('user_id', authData.user.id)
       .eq('organization_id', organizationId)
+      .is('deleted_at', null)
       .single();
     setCurrentProfile(data);
   }, [organizationId]);

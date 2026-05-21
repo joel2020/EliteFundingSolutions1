@@ -50,7 +50,7 @@ export async function GET() {
   const { profile, supabase } = auth;
 
   const [brokerResult, commissionResult, dealResult] = await Promise.all([
-    supabase.from('iso_brokers').select('*').eq('organization_id', profile.organization_id).order('created_at', { ascending: false }),
+    supabase.from('iso_brokers').select('*').eq('organization_id', profile.organization_id).is('deleted_at', null).order('created_at', { ascending: false }),
     supabase.from('commissions').select('id,iso_broker_id,deal_id,commission_amount,payment_status').eq('organization_id', profile.organization_id),
     supabase.from('deals').select('id,stage_slug,funded_at,funded_amount').eq('organization_id', profile.organization_id).is('deleted_at', null),
   ]);

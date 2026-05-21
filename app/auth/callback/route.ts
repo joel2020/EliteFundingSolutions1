@@ -64,13 +64,18 @@ export async function GET(request: NextRequest) {
 
   const { data: existingProfile, error: existingProfileError } = await serviceSupabase
     .from('user_profiles')
-    .select('id,role,is_active')
+    .select('id,role,is_active,deleted_at')
     .eq('user_id', user.id)
     .eq('organization_id', DEFAULT_ORG_ID)
     .maybeSingle();
 
   if (existingProfileError) {
     return NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(existingProfileError.message)}`, request.url));
+  }
+
+  if (existingProfile?.deleted_at) {
+    await supabase.auth.signOut();
+    return NextResponse.redirect(new URL('/login?error=account_deleted', request.url));
   }
 
   const profilePayload = {

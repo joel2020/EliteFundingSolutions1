@@ -22,6 +22,8 @@ interface DeleteConfirmButtonProps {
   onDeleted: () => void;
   /** Optional: disable the button (e.g. while another action is in flight) */
   disabled?: boolean;
+  buttonLabel?: string;
+  buttonClassName?: string;
 }
 
 export function DeleteConfirmButton({
@@ -29,6 +31,8 @@ export function DeleteConfirmButton({
   endpoint,
   onDeleted,
   disabled = false,
+  buttonLabel = 'Delete',
+  buttonClassName = 'w-full',
 }: DeleteConfirmButtonProps) {
   const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -57,12 +61,12 @@ export function DeleteConfirmButton({
       <Button
         variant="outline"
         size="sm"
-        className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+        className={`${buttonClassName} border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300`}
         onClick={() => setOpen(true)}
         disabled={disabled}
       >
         <Trash2 className="h-4 w-4 mr-1" />
-        Delete
+        {buttonLabel}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
