@@ -194,6 +194,14 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.partner_application_uploads.some((row) => row.original_file_name === 'partner-app.pdf')).toBe(true);
     await page.getByRole('tab', { name: 'Applications' }).click();
     await expect(page.getByText('Original partner application')).toBeVisible();
+    await expect(page.getByText('Elite Funding Solutions converted application')).toBeVisible();
+    await page.getByRole('button', { name: /Review fields/i }).click();
+    await expect(page.getByRole('dialog', { name: 'Elite Application Review' })).toBeVisible();
+    await page.getByLabel('Company legal name').fill('Atlas Retail Group LLC');
+    await page.getByRole('button', { name: 'Save & Regenerate Elite Application' }).click();
+    await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.edited_payload?.legal_name).toBe('Atlas Retail Group LLC');
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'atlas-retail-regenerated-elite-application.pdf')).toBe(true);
+    await page.getByRole('tab', { name: 'Applications' }).click();
 
     await page.getByTestId('deal-generate-elite-application').click();
     await expect.poll(() => state.documents.some((doc) => doc.application_variant === 'elite_generated')).toBe(true);

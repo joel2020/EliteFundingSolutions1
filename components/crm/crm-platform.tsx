@@ -36,6 +36,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { DeleteConfirmButton } from '@/components/crm/delete-confirm-button';
+import { PartnerApplicationReviewForm } from '@/components/crm/partner-application-review-form';
 import {
   Bar,
   BarChart,
@@ -1364,6 +1365,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const activeProfile = directProfile || profile;
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [partnerApplicationDialogOpen, setPartnerApplicationDialogOpen] = useState(false);
+  const [partnerApplicationReviewOpen, setPartnerApplicationReviewOpen] = useState(false);
   const [applicationLinkDialogOpen, setApplicationLinkDialogOpen] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(false);
@@ -1377,6 +1379,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [partnerApplicationFile, setPartnerApplicationFile] = useState<File | null>(null);
   const [partnerApplicationSource, setPartnerApplicationSource] = useState('');
   const [partnerApplicationNotes, setPartnerApplicationNotes] = useState('');
+  const [reviewingPartnerApplication, setReviewingPartnerApplication] = useState<RecordMap | null>(null);
   const [applicationLinkEmail, setApplicationLinkEmail] = useState('');
   const [applicationLinkMessage, setApplicationLinkMessage] = useState('');
   const [generatedApplicationLink, setGeneratedApplicationLink] = useState('');
@@ -1533,15 +1536,22 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     } catch (error: any) { toast.error(error.message || 'Unable to generate Elite application PDF'); } finally { setGeneratingApplicationPdf(false); }
   };
 
-  const savePartnerApplicationFields = async (partnerApplication: RecordMap, payload: RecordMap) => {
+  const openPartnerApplicationReview = (partnerApplication: RecordMap) => {
+    setReviewingPartnerApplication(partnerApplication);
+    setPartnerApplicationReviewOpen(true);
+  };
+
+  const savePartnerApplicationFields = async (partnerApplication: RecordMap, payload: RecordMap, notesValue: string, regeneratePdf: boolean) => {
     const response = await fetch(`/api/crm/partner-applications/${partnerApplication.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ edited_payload: payload, status: 'draft_ready', notes: partnerApplication.notes || '' }),
+      body: JSON.stringify({ edited_payload: payload, status: regeneratePdf ? 'converted' : 'draft_ready', notes: notesValue, regenerate_pdf: regeneratePdf }),
     });
     const result = await response.json();
     if (!response.ok || !result.success) { toast.error(result.error || 'Unable to save partner application fields'); return; }
-    toast.success('Partner application fields saved');
+    toast.success(regeneratePdf ? 'Elite application regenerated and ready for lenders' : 'Partner application review saved');
+    setPartnerApplicationReviewOpen(false);
+    setReviewingPartnerApplication(null);
     reload();
   };
 
@@ -1784,12 +1794,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                         </div>
                         <InfoGrid rows={[['Company', payload.company_name || payload.legal_name || businessName(deal)], ['Requested', payload.requested_amount ? currency(payload.requested_amount) : currency(deal.requested_amount)], ['Phone', payload.business_phone || deal.businesses?.phone || 'Not set'], ['Notes', row.notes || 'None']]} />
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {canManageApplications && <Button size="sm" variant="outline" className="h-8" onClick={() => {
-                            const current = JSON.stringify(payload, null, 2);
-                            const next = window.prompt('Edit extracted application JSON before generating the Elite PDF.', current);
-                            if (!next) return;
-                            try { savePartnerApplicationFields(row, JSON.parse(next)); } catch { toast.error('Invalid JSON. No changes saved.'); }
-                          }}><SlidersHorizontal className="mr-1 h-3 w-3" />Edit fields</Button>}
+                          {canManageApplications && <Button size="sm" variant="outline" className="h-8" onClick={() => openPartnerApplicationReview(row)}><SlidersHorizontal className="mr-1 h-3 w-3" />Review fields</Button>}
                           {canManageApplications && <Button size="sm" className="h-8 bg-[#0F2B5B]" onClick={() => generateEliteApplicationPdf(row.id)} disabled={generatingApplicationPdf}><FileText className="mr-1 h-3 w-3" />Generate PDF</Button>}
                         </div>
                       </div>
@@ -1844,6 +1849,18 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       </CrmCard>
       <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload or replace deal document</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document file</Label><Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Document type</Label><Select value={documentType} onValueChange={setDocumentType}><SelectTrigger data-testid="deal-document-type" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{DETAIL_DOCUMENT_TYPES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={partnerApplicationDialogOpen} onOpenChange={(open) => { setPartnerApplicationDialogOpen(open); if (!open) resetPartnerApplicationDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload Partner Application</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Application file</Label><Input data-testid="partner-application-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,.csv" onChange={(event) => setPartnerApplicationFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{partnerApplicationFile && <p className="mt-1 text-xs text-[#64748B]">{partnerApplicationFile.name} · {formatBytes(partnerApplicationFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Source partner</Label><Input data-testid="partner-application-source" value={partnerApplicationSource} onChange={(event) => setPartnerApplicationSource(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Funding partner or broker name" /></div><div><Label className="text-xs text-[#64748B]">Notes</Label><Textarea data-testid="partner-application-notes" value={partnerApplicationNotes} onChange={(event) => setPartnerApplicationNotes(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="What came in, missing fields, or conversion notes" /></div><div className="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">Upload stores the original partner file on this deal and immediately creates an Elite Funding Solutions application PDF. That Elite application is automatically included when this deal is sent to lenders. Review/edit fields and regenerate if the partner file has newer details.</div></div><DialogFooter><Button variant="outline" onClick={() => setPartnerApplicationDialogOpen(false)}>Cancel</Button><Button data-testid="save-partner-application" onClick={uploadPartnerApplication} disabled={uploadingPartnerApplication || !partnerApplicationFile}>{uploadingPartnerApplication ? 'Converting...' : 'Upload and Create Elite Application'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={partnerApplicationReviewOpen} onOpenChange={(open) => { setPartnerApplicationReviewOpen(open); if (!open) setReviewingPartnerApplication(null); }}>
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-[8px]">
+          <DialogHeader><DialogTitle>Elite Application Review</DialogTitle></DialogHeader>
+          {reviewingPartnerApplication && (
+            <PartnerApplicationReviewForm
+              partnerApplication={reviewingPartnerApplication}
+              onCancel={() => { setPartnerApplicationReviewOpen(false); setReviewingPartnerApplication(null); }}
+              onSave={(payload, notesValue, regeneratePdf) => savePartnerApplicationFields(reviewingPartnerApplication, payload, notesValue, regeneratePdf)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog open={applicationLinkDialogOpen} onOpenChange={(open) => { setApplicationLinkDialogOpen(open); if (!open) { setGeneratedApplicationLink(''); setApplicationLinkMessage(''); } }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Send Application Link</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Customer email</Label><Input data-testid="application-link-email" value={applicationLinkEmail} onChange={(event) => setApplicationLinkEmail(event.target.value)} className="mt-1 rounded-[7px]" placeholder={deal.businesses?.email || 'customer@email.com'} /></div><div><Label className="text-xs text-[#64748B]">Message</Label><Textarea data-testid="application-link-message" value={applicationLinkMessage} onChange={(event) => setApplicationLinkMessage(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="Optional note to include in the email" /></div>{generatedApplicationLink && <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm"><p className="text-xs font-semibold uppercase text-[#64748B]">Generated link</p><button className="mt-1 break-all text-left font-semibold text-[#0F2B5B]" onClick={() => navigator.clipboard?.writeText(generatedApplicationLink)}>{generatedApplicationLink}</button><p className="mt-1 text-xs text-[#64748B]">Click the link text to copy it.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setApplicationLinkDialogOpen(false)}>Cancel</Button><Button data-testid="save-application-link" onClick={sendApplicationLink} disabled={sendingApplicationLink}>{sendingApplicationLink ? 'Creating...' : 'Create and send link'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>

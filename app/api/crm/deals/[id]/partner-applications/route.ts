@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -139,15 +140,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
 
-  const extractedPayload = {
+  const extractedPayload = buildPartnerApplicationPayload({
     company_name: (deal as any).businesses?.legal_name || deal.title || '',
+    legal_name: (deal as any).businesses?.legal_name || deal.title || '',
     business_address: (deal as any).businesses?.address || '',
+    address: (deal as any).businesses?.address || '',
     business_phone: (deal as any).businesses?.phone || '',
     business_email: (deal as any).businesses?.email || '',
+    start_date: (deal as any).businesses?.start_date || '',
     requested_amount: deal.requested_amount || '',
     source_partner_name: sourcePartnerName,
     extraction_note: extension === 'csv' ? 'CSV uploaded. Elite PDF generated from current CRM fields; review rows and regenerate if needed.' : 'Elite PDF generated from current CRM fields. Review and edit fields if the partner file has newer data.',
-  };
+  });
 
   const { data: upload, error: uploadRecordError } = await supabase
     .from('partner_application_uploads')
