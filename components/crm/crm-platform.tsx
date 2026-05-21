@@ -84,7 +84,9 @@ type CrmDataset = {
   commissionRecipients: RecordMap[];
   riskEvents: RecordMap[];
   partners: RecordMap[];
+  isoBrokers: RecordMap[];
   users: RecordMap[];
+  accessInvites: RecordMap[];
   activities: RecordMap[];
   documents: RecordMap[];
   notes: RecordMap[];
@@ -189,6 +191,9 @@ const emptyUser = {
   last_name: '',
   email: '',
   role: 'sales_rep',
+  company_name: '',
+  access_entity_type: 'internal',
+  access_entity_id: '',
   permissions: [] as string[],
   is_active: true,
 };
@@ -198,8 +203,12 @@ const USER_PERMISSION_OPTIONS = [
   ['manage_documents', 'Manage deal documents'],
   ['manage_commissions', 'Manage finance and commissions'],
   ['manage_users', 'Add and edit users'],
+  ['manage_funders', 'Manage funders'],
+  ['manage_isos', 'Manage ISOs'],
   ['reveal_sensitive', 'Reveal sensitive application data'],
   ['mark_defaulted', 'Mark funded deals defaulted'],
+  ['view_shared_deals', 'View shared deals'],
+  ['submit_applications', 'Submit applications'],
 ] as const;
 
 function currency(value: any) {
@@ -231,6 +240,13 @@ function repReferralDisplayUrl(slug?: string | null) {
 
 function userDisplayName(user: RecordMap) {
   return [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'Unnamed user';
+}
+
+function accessEntityTypeForUserRole(role: string) {
+  if (role === 'funder') return 'funding_partner';
+  if (role === 'iso_broker' || role === 'broker' || role === 'referral_partner') return 'iso_broker';
+  if (role === 'client') return 'client';
+  return 'internal';
 }
 
 function businessName(row: RecordMap) {
@@ -416,7 +432,9 @@ function useCrmDataset() {
     commissionRecipients: [],
     riskEvents: [],
     partners: [],
+    isoBrokers: [],
     users: [],
+    accessInvites: [],
     activities: [],
     documents: [],
     notes: [],
@@ -459,6 +477,8 @@ function useCrmDataset() {
       browserSupabase.from('commission_recipients').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(200),
       browserSupabase.from('deal_risk_events').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(200),
       browserSupabase.from('partner_application_uploads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(200),
+      browserSupabase.from('iso_brokers').select('*').eq('organization_id', org).is('deleted_at', null).order('company_name'),
+      browserSupabase.from('crm_access_invites').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(250),
     ]);
 
     const unwrap = (index: number) => {
@@ -510,7 +530,9 @@ function useCrmDataset() {
       renewals: renewals.map((renewal: RecordMap) => ({ ...renewal, deals: dealsById[renewal.original_deal_id] })),
       commissions,
       partners,
+      isoBrokers: unwrap(22),
       users,
+      accessInvites: unwrap(23),
       activities: unwrap(7),
       documents: unwrap(8),
       notes: unwrap(9),
@@ -1294,6 +1316,14 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [checklistNotes, setChecklistNotes] = useState<Record<string, string>>({});
   const [commissionForm, setCommissionForm] = useState<RecordMap>({ recipient_name: '', recipient_type: 'referral_partner', percentage: '20', flat_amount: '', notes: '', payout_status: 'pending' });
   const [riskForm, setRiskForm] = useState<RecordMap>({ event_type: 'defaulted', funding_partner_id: '', amount: '', notes: '' });
+  useEffect(() => {
+    if (!profile || ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer'].includes(profile.role)) return;
+    fetch('/api/crm/access-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'external_deal_viewed', resource_type: 'deals', resource_id: dealId }),
+    }).catch(() => null);
+  }, [dealId, profile]);
   if (loading) return <LoadingScreen title="Deal Detail" />;
   const deal = deals.find((row: RecordMap) => row.id === dealId) || deals[0];
   if (!deal) return <PageFrame title="Deal Detail" subtitle="No deal selected"><EmptyState title="Deal not found" body="The requested deal could not be loaded." /></PageFrame>;
@@ -1852,7 +1882,7 @@ export function CrmToolsExperience() {
     ['Funding partner management', 'Maintain funder criteria, contacts, and product rules.', Building2, '/crm/partners'],
     ['Stage management', 'Review MCA stage definitions and pipeline routing.', SlidersHorizontal, '/crm/pipeline'],
     ['Import/export tools', 'Prepare CSV exports and future import mapping.', Database, '/crm/reports'],
-    ['User management', 'Create, activate, deactivate, and measure CRM users.', Users, '/crm/users'],
+    ['Users & Access', 'Invite, revoke, audit, and manage CRM access.', Users, '/crm/users'],
     ['System settings', 'Organization, security, and connected-service settings.', Settings, '/crm/settings'],
   ];
   return (
@@ -1901,7 +1931,7 @@ export function CrmRenewalsExperience() {
 }
 
 export function CrmUsersExperience() {
-  const { users, deals, commissions, profile, organizationId, loading, reload } = useCrmDataset();
+  const { users, deals, commissions, partners, isoBrokers, accessInvites, profile, loading, reload } = useCrmDataset();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<RecordMap>(emptyUser);
   const [editingUser, setEditingUser] = useState<RecordMap | null>(null);
@@ -1919,6 +1949,9 @@ export function CrmUsersExperience() {
       last_name: user.last_name || '',
       email: user.email || '',
       role: user.role || 'sales_rep',
+      company_name: user.company_name || '',
+      access_entity_type: user.access_entity_type || accessEntityTypeForUserRole(user.role || 'sales_rep'),
+      access_entity_id: user.access_entity_id || '',
       permissions: Array.isArray(user.permissions) ? user.permissions : [],
       is_active: user.is_active !== false,
     });
@@ -1934,6 +1967,9 @@ export function CrmUsersExperience() {
       last_name: form.last_name,
       email: form.email,
       role: form.role,
+      company_name: form.company_name,
+      access_entity_type: form.access_entity_type || accessEntityTypeForUserRole(form.role),
+      access_entity_id: form.access_entity_id,
       permissions: Array.isArray(form.permissions) ? form.permissions : [],
       is_active: form.is_active,
     };
@@ -1945,7 +1981,7 @@ export function CrmUsersExperience() {
     const result = await response.json();
     if (!response.ok || !result.success) toast.error(result.error || 'Unable to save user');
     else {
-      toast.success(editingUser ? 'User updated' : 'User created');
+      toast.success(editingUser ? 'User updated' : 'Invite sent');
       setDialogOpen(false);
       setEditingUser(null);
       setForm(emptyUser);
@@ -1965,11 +2001,26 @@ export function CrmUsersExperience() {
     const result = await response.json();
     if (!response.ok || !result.success) toast.error(result.error || 'Unable to update user');
     else {
-      toast.success(user.is_active ? 'User deactivated' : 'User activated');
+      toast.success(user.is_active ? 'Access revoked' : 'User activated');
       reload();
     }
   };
-  const roles = profile?.role === 'super_admin' ? ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'iso_broker', 'viewer', 'client'] : ['admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'iso_broker', 'viewer', 'client'];
+  const resendInvite = async (user: RecordMap) => {
+    if (!canCreateUsers) {
+      toast.error('Only admins can resend invites.');
+      return;
+    }
+    const response = await fetch(`/api/crm/users/${user.id}/invite`, { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to resend invite');
+    else {
+      toast.success(result.emailSent ? 'Invite resent' : 'Invite created but email failed');
+      reload();
+    }
+  };
+  const roles = profile?.role === 'super_admin'
+    ? ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'funder', 'iso_broker', 'broker', 'referral_partner', 'viewer', 'client']
+    : ['admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'funder', 'iso_broker', 'broker', 'referral_partner', 'viewer', 'client'];
   const togglePermission = (permission: string, checked: boolean) => {
     const current = Array.isArray(form.permissions) ? form.permissions : [];
     setForm({ ...form, permissions: checked ? Array.from(new Set([...current, permission])) : current.filter((item: string) => item !== permission) });
@@ -1990,12 +2041,18 @@ export function CrmUsersExperience() {
     ['sales_rep', 'Work assigned leads and deals without sensitive-field reveal or user administration.'],
     ['processor', 'Manage documents, applications, tasks, and underwriting support.'],
     ['underwriter', 'Review files, offers, underwriting, and risk workflow.'],
-    ['client', 'Portal only. Internal CRM access is blocked by middleware.'],
+    ['funder', 'External lender. Can only see submitted deals and shared documents for their funding company.'],
+    ['iso_broker', 'External ISO. Can submit and track their own submissions.'],
+    ['broker', 'External broker. Can submit and track their own submissions.'],
+    ['referral_partner', 'External referral partner. Can submit referrals and view allowed status.'],
+    ['viewer', 'Read-only internal CRM visibility.'],
+    ['client', 'Portal only. CRM access is limited to customer-facing records.'],
   ];
+  const inviteByProfile = new Map(accessInvites.filter((invite: RecordMap) => invite.user_profile_id).map((invite: RecordMap) => [invite.user_profile_id, invite]));
   return (
-    <PageFrame title="User Management" subtitle="Create users, assign roles, activate accounts, and view performance" actions={canCreateUsers ? <Button data-testid="create-user" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openCreateUser}><Plus className="mr-2 h-4 w-4" />Create user</Button> : null}>
+    <PageFrame title="Users & Access" subtitle="Invite users, assign roles, connect funder and ISO organizations, revoke access, and audit invite status" actions={canCreateUsers ? <Button data-testid="create-user" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openCreateUser}><Plus className="mr-2 h-4 w-4" />Send Invite</Button> : null}>
       <CrmCard className="overflow-x-auto">
-        <table className="w-full min-w-[1180px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Status', 'Referral URL', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); const canDeleteUser = canCreateUsers && user.id !== profile?.id && !(user.role === 'super_admin' && profile?.role !== 'super_admin'); const referralValue = user.referral_token || user.referral_slug; return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{userDisplayName(user)}</p><p className="text-xs text-[#64748B]">{user.email || 'No email saved'}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'inactive'} /></td><td className="px-4 py-3"><div className="flex max-w-[360px] items-center gap-2"><code className="truncate rounded bg-[#F1F5F9] px-2 py-1 text-[11px] text-[#334155]" title={repReferralDisplayUrl(referralValue)}>{repReferralDisplayUrl(referralValue)}</code><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => copyReferralUrl(user)}>Copy</Button></div></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{user.last_login_at ? date(user.last_login_at) : 'Never signed in'}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Deactivate' : 'Activate'}</Button>{canDeleteUser ? <DeleteConfirmButton itemLabel={`user ${userDisplayName(user)}`} endpoint={`/api/crm/users/${user.id}`} onDeleted={reload} buttonClassName="h-8 rounded-[7px]" /> : null}</> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
+        <table className="w-full min-w-[1320px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['User', 'Role', 'Organization', 'Access', 'Invite', 'Deals', 'Funded volume', 'Earnings', 'Last login', 'Actions'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{users.map((user: RecordMap) => { const userDeals = deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id); const userEarnings = commissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0); const canDeleteUser = canCreateUsers && user.id !== profile?.id && !(user.role === 'super_admin' && profile?.role !== 'super_admin'); const referralValue = user.referral_token || user.referral_slug; const invite = inviteByProfile.get(user.id) || {}; const accessName = user.access_entity_type === 'funding_partner' ? partners.find((partner: RecordMap) => partner.id === user.access_entity_id)?.name : user.access_entity_type === 'iso_broker' ? isoBrokers.find((broker: RecordMap) => broker.id === user.access_entity_id)?.company_name : user.company_name; return <tr key={user.id}><td className="px-4 py-3"><p className="font-semibold">{userDisplayName(user)}</p><p className="text-xs text-[#64748B]">{user.email || 'No email saved'}</p></td><td className="px-4 py-3 capitalize">{user.role?.replaceAll('_', ' ')}</td><td className="px-4 py-3"><p className="font-medium text-[#0F172A]">{accessName || 'Elite Funding Solutions'}</p><p className="text-xs capitalize text-[#64748B]">{(user.access_entity_type || 'internal').replaceAll('_', ' ')}</p>{referralValue && ['sales_rep','admin','manager','processor','underwriter'].includes(user.role) ? <code className="mt-1 block max-w-[320px] truncate rounded bg-[#F1F5F9] px-2 py-1 text-[11px] text-[#334155]" title={repReferralDisplayUrl(referralValue)}>{repReferralDisplayUrl(referralValue)}</code> : null}</td><td className="px-4 py-3"><StatusBadge value={user.is_active ? 'active' : 'revoked'} /></td><td className="px-4 py-3"><StatusBadge value={user.invite_status || invite.status || (user.last_login_at ? 'accepted' : 'not_invited')} /><p className="mt-1 text-xs text-[#64748B]">{user.invite_accepted_at ? `Accepted ${date(user.invite_accepted_at)}` : user.invited_at ? `Sent ${date(user.invited_at)}` : 'No invite recorded'}</p></td><td className="px-4 py-3">{userDeals.length}</td><td className="px-4 py-3">{currency(userDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0))}</td><td className="px-4 py-3">{currency(userEarnings)}</td><td className="px-4 py-3">{user.last_login_at ? date(user.last_login_at) : 'Never signed in'}</td><td className="px-4 py-3"><div className="flex flex-wrap gap-2">{canCreateUsers ? <><Button data-testid={`edit-user-${user.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openEditUser(user)}>Edit</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => resendInvite(user)}>Resend Invite</Button><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => toggleUserActive(user)}>{user.is_active ? 'Revoke' : 'Activate'}</Button>{['sales_rep','admin','manager','processor','underwriter'].includes(user.role) ? <Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => copyReferralUrl(user)}>Copy Referral</Button> : null}{canDeleteUser ? <DeleteConfirmButton itemLabel={`user ${userDisplayName(user)}`} endpoint={`/api/crm/users/${user.id}`} onDeleted={reload} buttonClassName="h-8 rounded-[7px]" /> : null}</> : <span className="text-xs text-[#64748B]">Read only</span>}</div></td></tr>; })}</tbody></table>
       </CrmCard>
       <CrmCard className="mt-4 p-4">
         <h2 className="text-sm font-semibold text-[#0F172A]">Permission Matrix</h2>
@@ -2005,7 +2062,7 @@ export function CrmUsersExperience() {
       </CrmCard>
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl rounded-[8px]">
-          <DialogHeader><DialogTitle>{editingUser ? 'Edit user' : 'Create user'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingUser ? 'Edit access' : 'Send invite'}</DialogTitle></DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
             {[
               ['First name', 'first_name'],
@@ -2019,11 +2076,39 @@ export function CrmUsersExperience() {
             ))}
             <div>
               <Label className="text-xs text-[#64748B]">Role</Label>
-              <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
+              <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value, access_entity_type: accessEntityTypeForUserRole(value), access_entity_id: '' })}>
                 <SelectTrigger data-testid="user-role" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
                 <SelectContent>{roles.map((role) => <SelectItem key={role} value={role}>{role.replaceAll('_', ' ')}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Company / Organization</Label>
+              <Input data-testid="user-company-name" value={form.company_name || ''} onChange={(event) => setForm({ ...form, company_name: event.target.value })} placeholder={form.access_entity_type === 'funding_partner' ? 'ABC Funding' : form.access_entity_type === 'iso_broker' ? 'Elite Capital Brokers' : 'Elite Funding Solutions'} className="mt-1 rounded-[7px]" />
+            </div>
+            {form.access_entity_type === 'funding_partner' && (
+              <div>
+                <Label className="text-xs text-[#64748B]">Funder organization</Label>
+                <Select value={form.access_entity_id || 'new'} onValueChange={(value) => setForm({ ...form, access_entity_id: value === 'new' ? '' : value })}>
+                  <SelectTrigger data-testid="user-access-entity" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">Create from company name</SelectItem>
+                    {partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {form.access_entity_type === 'iso_broker' && (
+              <div>
+                <Label className="text-xs text-[#64748B]">ISO / broker organization</Label>
+                <Select value={form.access_entity_id || 'new'} onValueChange={(value) => setForm({ ...form, access_entity_id: value === 'new' ? '' : value })}>
+                  <SelectTrigger data-testid="user-access-entity" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">Create from company name</SelectItem>
+                    {isoBrokers.map((broker: RecordMap) => <SelectItem key={broker.id} value={broker.id}>{broker.company_name || broker.broker_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="md:col-span-2">
               <Label className="text-xs text-[#64748B]">Permissions</Label>
               <div className="mt-2 grid gap-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 md:grid-cols-2">
@@ -2040,7 +2125,7 @@ export function CrmUsersExperience() {
               Active user
             </label>
           </div>
-          <DialogFooter><Button data-testid="save-user" onClick={saveUser} className="rounded-[7px] bg-[#0F2B5B]">Save user</Button></DialogFooter>
+          <DialogFooter><Button data-testid="save-user" onClick={saveUser} className="rounded-[7px] bg-[#0F2B5B]">{editingUser ? 'Save access' : 'Send Invite'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </PageFrame>

@@ -2,13 +2,18 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const INTERNAL_CRM_ROLES = [
+const CRM_ACCESS_ROLES = [
   'super_admin',
   'admin',
   'manager',
   'sales_rep',
   'processor',
   'underwriter',
+  'funder',
+  'iso_broker',
+  'broker',
+  'referral_partner',
+  'viewer',
 ] as const;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
@@ -20,8 +25,8 @@ type UserProfile = {
   deleted_at: string | null;
 };
 
-function isInternalCrmRole(role: string) {
-  return INTERNAL_CRM_ROLES.includes(role as (typeof INTERNAL_CRM_ROLES)[number]);
+function isCrmAccessRole(role: string) {
+  return CRM_ACCESS_ROLES.includes(role as (typeof CRM_ACCESS_ROLES)[number]);
 }
 
 function redirect(req: NextRequest, pathname: string) {
@@ -109,8 +114,8 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  const isPortalRole = profile.role === 'client' || profile.role === 'iso_broker';
-  const isInternalRole = isInternalCrmRole(profile.role);
+  const isPortalRole = profile.role === 'client';
+  const isCrmRole = isCrmAccessRole(profile.role);
 
   // Redirect logged-in users away from login based on their profile role.
   if (isLoginRoute) {
@@ -118,14 +123,14 @@ export async function middleware(req: NextRequest) {
       return redirect(req, '/portal');
     }
 
-    if (isInternalRole) {
+    if (isCrmRole) {
       return redirect(req, '/crm');
     }
 
     return res;
   }
 
-  if (pathname.startsWith('/crm') && !isInternalRole) {
+  if (pathname.startsWith('/crm') && !isCrmRole) {
     if (isPortalRole) {
       return redirect(req, '/portal');
     }
@@ -134,7 +139,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith('/portal') && !isPortalRole) {
-    if (isInternalRole) {
+    if (isCrmRole) {
       return redirect(req, '/crm');
     }
 

@@ -7,15 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
-
-const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
+import { CRM_ACCESS_ROLES } from '@/lib/access-control';
 
 type UserProfile = {
   role: string;
@@ -25,10 +17,6 @@ type UserProfile = {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
-
-function isInternalCrmRole(role: string) {
-  return INTERNAL_CRM_ROLES.includes(role as (typeof INTERNAL_CRM_ROLES)[number]);
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -97,7 +85,7 @@ export default function LoginPage() {
 
       if (profile.role === 'client') {
         router.replace('/portal');
-      } else if (isInternalCrmRole(profile.role)) {
+      } else if (CRM_ACCESS_ROLES.includes(profile.role as any)) {
         router.replace('/crm');
       } else {
         await supabase.auth.signOut();

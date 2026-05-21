@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { requireCrmAccess, requireSameOrigin } from '@/lib/server-auth';
+import { isInternalCrmRole } from '@/lib/access-control';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
-  const auth = await requireCrmProfile();
+  const auth = await requireCrmAccess();
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
@@ -25,12 +26,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const { data: submission } = await supabase
     .from('partner_submissions')
-    .select('id,organization_id,deal_id,application_id,status,notes,decline_reason,funding_partners(name)')
+    .select('id,organization_id,deal_id,application_id,funding_partner_id,status,notes,decline_reason,funding_partners(name)')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .single();
 
   if (!submission) return NextResponse.json({ success: false, error: 'Lender submission not found.' }, { status: 404 });
+  if (!isInternalCrmRole(profile.role) && (profile.role !== 'funder' || profile.access_entity_type !== 'funding_partner' || profile.access_entity_id !== submission.funding_partner_id)) {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  }
 
   const patch = {
     ...parsed.data,
@@ -59,7 +63,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     supabase.from('audit_logs').insert({
       organization_id: profile.organization_id,
       user_id: user.id,
-      action: 'partner_submission_updated',
+      action: isInternalCrmRole(profile.role) ? 'partner_submission_updated' : 'external_funder_decision_updated',
       resource_type: 'partner_submissions',
       resource_id: submission.id,
       old_data: { status: submission.status, notes: submission.notes, decline_reason: submission.decline_reason },

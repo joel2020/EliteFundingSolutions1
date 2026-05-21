@@ -3,19 +3,13 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
+import { CRM_ACCESS_ROLES, INTERNAL_CRM_ROLES } from '@/lib/access-control';
+
+export { INTERNAL_CRM_ROLES };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 const PORTAL_ROLES = ['client', 'iso_broker'] as const;
-
-export const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
 
 export type ServerCrmProfile = {
   id: string;
@@ -26,6 +20,8 @@ export type ServerCrmProfile = {
   last_name: string;
   role: string;
   permissions?: string[];
+  access_entity_type?: string | null;
+  access_entity_id?: string | null;
   is_active: boolean;
 };
 
@@ -75,7 +71,7 @@ export async function requireCrmProfile(roles: readonly string[] = INTERNAL_CRM_
   const supabase = createServiceSupabaseClient();
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,access_entity_type,access_entity_id,is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -95,7 +91,7 @@ export async function requirePortalProfile() {
   const supabase = createServiceSupabaseClient();
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,access_entity_type,access_entity_id,is_active')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .is('deleted_at', null)
@@ -180,4 +176,8 @@ export async function getPortalApplicationIds(
   }
 
   return Array.from(ids);
+}
+
+export async function requireCrmAccess(roles: readonly string[] = CRM_ACCESS_ROLES) {
+  return requireCrmProfile(roles);
 }

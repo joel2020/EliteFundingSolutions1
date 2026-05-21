@@ -25,6 +25,10 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
     last_name: role === 'sales_rep' ? 'Rep' : 'Admin',
     role,
     is_active: true,
+    access_entity_type: 'internal',
+    access_entity_id: null,
+    invite_status: 'accepted',
+    invite_accepted_at: now,
     last_login_at: now,
     referral_token: role === 'sales_rep' ? 'rep_mock_sales_token' : 'rep_mock_admin_token',
   };
@@ -148,6 +152,10 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
         last_name: 'Rep',
         role: 'sales_rep',
         is_active: true,
+        access_entity_type: 'internal',
+        access_entity_id: null,
+        invite_status: 'accepted',
+        invite_accepted_at: now,
         last_login_at: now,
         referral_slug: 'riley-rep-auth-us',
         referral_token: 'rep_mock_riley_token',
@@ -216,6 +224,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
       updated_at: now,
     }],
     partner_application_uploads: [],
+    crm_access_invites: [],
     status_history: [],
   };
 }
@@ -713,7 +722,14 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       first_name: payload.first_name || '',
       last_name: payload.last_name || '',
       role: payload.role || 'sales_rep',
+      company_name: payload.company_name || '',
+      access_entity_type: payload.access_entity_type || 'internal',
+      access_entity_id: payload.access_entity_id || null,
+      permissions: payload.permissions || [],
       is_active: payload.is_active !== false,
+      invite_status: 'sent',
+      invited_at: now,
+      invite_expires_at: '2026-05-15T12:00:00.000Z',
       referral_slug: `${slugBase.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${id}`,
       referral_token: `rep_mock_${id}`,
       last_login_at: null,
@@ -721,6 +737,21 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       updated_at: now,
     };
     state.user_profiles.unshift(user);
+    state.crm_access_invites.unshift({
+      id: `invite-${state.crm_access_invites.length + 1}`,
+      organization_id: ORG_ID,
+      email: payload.email,
+      first_name: payload.first_name || '',
+      last_name: payload.last_name || '',
+      company_name: payload.company_name || null,
+      role: payload.role || 'sales_rep',
+      permissions: payload.permissions || [],
+      access_entity_type: payload.access_entity_type || 'internal',
+      access_entity_id: payload.access_entity_id || null,
+      status: 'sent',
+      user_profile_id: id,
+      created_at: now,
+    });
     calls.push({ method: route.request().method(), table: 'user_profiles', body: payload });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, user }) });
   });
@@ -731,6 +762,32 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: true, deleted_at: null, deleted_by: null } : user);
     calls.push({ method: 'POST', table: 'user_profiles_restore_api', body: { id } });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
+  await page.route('**/api/crm/users/*/invite', async (route) => {
+    const segments = new URL(route.request().url()).pathname.split('/');
+    const id = segments.at(-2);
+    state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, invite_status: 'sent', invited_at: now, invite_expires_at: '2026-05-15T12:00:00.000Z' } : user);
+    const user = state.user_profiles.find((item) => item.id === id);
+    if (user) {
+      state.crm_access_invites.unshift({
+        id: `invite-${state.crm_access_invites.length + 1}`,
+        organization_id: ORG_ID,
+        email: user.email,
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        company_name: user.company_name || null,
+        role: user.role,
+        permissions: user.permissions || [],
+        access_entity_type: user.access_entity_type || 'internal',
+        access_entity_id: user.access_entity_id || null,
+        status: 'sent',
+        user_profile_id: id,
+        created_at: now,
+      });
+    }
+    calls.push({ method: 'POST', table: 'user_invite_resend_api', body: { id } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, emailSent: true }) });
   });
 
   await page.route('**/api/crm/users/*', async (route) => {
@@ -744,14 +801,14 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     }
     if (route.request().method() === 'DELETE') {
       const id = new URL(route.request().url()).pathname.split('/').pop();
-      state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: false, deleted_at: now } : user);
+      state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, is_active: false, invite_status: 'revoked', deleted_at: now } : user);
       calls.push({ method: 'DELETE', table: 'user_profiles', body: { id } });
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
       return;
     }
     const payload = route.request().postDataJSON() as any;
     const id = new URL(route.request().url()).pathname.split('/').pop();
-    state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, ...payload, updated_at: now } : user);
+    state.user_profiles = state.user_profiles.map((user) => user.id === id ? { ...user, ...payload, invite_status: payload.is_active === false ? 'revoked' : user.invite_status, updated_at: now } : user);
     const user = state.user_profiles.find((item) => item.id === id);
     calls.push({ method: route.request().method(), table: 'user_profiles', body: payload });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, user }) });

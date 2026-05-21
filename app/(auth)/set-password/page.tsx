@@ -87,16 +87,22 @@ export default function SetPasswordPage() {
 
     setStatus('success')
 
-    // Get the user's role and redirect accordingly
-    const { data: { user } } = await supabase.auth.getUser()
-    const role = user?.user_metadata?.role || user?.app_metadata?.role
+    await fetch('/api/auth/invite-accepted', { method: 'POST' }).catch(() => null)
 
-    const isoBrokerRoles = ['iso_broker', 'broker', 'iso']
-    if (role && isoBrokerRoles.includes(role)) {
-      setTimeout(() => router.push('/portal'), 2000)
-    } else {
-      setTimeout(() => router.push('/crm'), 2000)
-    }
+    // Get the user's CRM profile and redirect accordingly
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = user
+      ? await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .maybeSingle()
+      : { data: null }
+    const role = profile?.role || user?.user_metadata?.role || user?.app_metadata?.role
+
+    setTimeout(() => router.push(role === 'client' ? '/portal' : '/crm'), 2000)
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────

@@ -42,7 +42,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       await expect(shell).toBeVisible();
       await expect(shell).toContainText('Elite CRM Nexus v2');
       await expect(page.getByLabel('Notifications coming soon')).toHaveCount(0);
-      for (const label of ['Dashboard', 'Leads', 'Deals', 'Offers', 'Tasks', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
+      for (const label of ['Dashboard', 'Leads', 'Deals', 'Offers', 'Tasks', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users & Access', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
         await expect(shell.getByText(label, { exact: true })).toBeVisible();
       }
     }
@@ -201,7 +201,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     const { state } = await mockCrmApis(page, 'admin');
 
     await page.goto('/crm/users');
-    await expect(page.getByTestId('crm-page-user-management')).toBeVisible();
+    await expect(page.getByTestId('crm-page-users-&-access')).toBeVisible();
     await page.getByTestId('create-user').click();
     await page.getByTestId('user-first_name').fill('Jordan');
     await page.getByTestId('user-last_name').fill('Processor');
@@ -229,7 +229,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     const salesPage = await page.context().newPage();
     await mockCrmApis(salesPage, 'sales_rep');
     await salesPage.goto('/crm/users');
-    await expect(salesPage.getByTestId('crm-page-user-management')).toBeVisible();
+    await expect(salesPage.getByTestId('crm-page-users-&-access')).toBeVisible();
     await expect(salesPage.getByTestId('create-user')).toHaveCount(0);
     await salesPage.close();
   });

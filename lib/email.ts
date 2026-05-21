@@ -157,27 +157,34 @@ export const emailTemplates = {
     </div>
   `,
 
-  userInvite: (firstName: string, inviteUrl: string, role: string) => `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); padding: 40px 20px; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited</h1>
-        <p style="color: #bfdbfe; margin: 10px 0 0 0; font-size: 16px;">Elite Funding Solutions CRM</p>
+  userInvite: (firstName: string, inviteUrl: string, role: string, companyName?: string) => `
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden;">
+      <div style="background: #061326; padding: 34px 24px; text-align: center;">
+        <img src="https://elitefundingsolution.com/elite-funding-logo.png" alt="Elite Funding Solutions" width="64" height="64" style="display: block; margin: 0 auto 14px auto; border-radius: 12px;" />
+        <h1 style="color: white; margin: 0; font-size: 28px;">You're invited to Elite Funding Solutions</h1>
+        <p style="color: #e7c579; margin: 10px 0 0 0; font-size: 16px;">Secure CRM access</p>
       </div>
-      <div style="padding: 40px 20px; background: #ffffff;">
+      <div style="padding: 36px 24px; background: #ffffff;">
         <p style="font-size: 16px; color: #374151; line-height: 1.6;">Hi ${firstName || 'there'},</p>
         <p style="font-size: 16px; color: #374151; line-height: 1.6;">
-          You've been added to the <strong>Elite Funding Solutions</strong> platform as a <strong>${role.replace(/_/g, ' ')}</strong>.
-          Click the button below to create your password and access your account.
+          You've been invited to access the <strong>Elite Funding Solutions CRM</strong>. Click below to create your account and securely access your dashboard.
         </p>
+        <div style="margin: 24px 0; padding: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <p style="margin: 0; font-size: 14px; color: #475569; line-height: 1.6;"><strong style="color: #0f172a;">Access type:</strong> ${role.replace(/_/g, ' ')}</p>
+          ${companyName ? `<p style="margin: 6px 0 0 0; font-size: 14px; color: #475569; line-height: 1.6;"><strong style="color: #0f172a;">Organization:</strong> ${companyName}</p>` : ''}
+        </div>
         <div style="text-align: center; margin: 36px 0;">
-          <a href="${inviteUrl}" style="display: inline-block; padding: 16px 36px; background: #2563eb; color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;">
-            Create My Password &rarr;
+          <a href="${inviteUrl}" style="display: inline-block; padding: 16px 36px; background: #0f2b5b; color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 16px; letter-spacing: 0.01em;">
+            Securely Accept Invite &rarr;
           </a>
         </div>
-        <p style="font-size: 13px; color: #9ca3af; line-height: 1.6;">
-          This link expires in <strong>24 hours</strong>. If you didn't expect this invitation, you can safely ignore this email.
+        <p style="font-size: 14px; color: #374151; line-height: 1.6;">
+          This secure invite link expires in <strong>24 hours</strong>. If it expires, an Elite Funding Solutions admin can resend it from Users &amp; Access.
         </p>
         <p style="font-size: 16px; color: #374151; line-height: 1.6;">
+          Need help? Contact Elite Funding Solutions support at <a href="mailto:info@elitefundingsolution.com" style="color: #0f2b5b; font-weight: 700;">info@elitefundingsolution.com</a>.
+        </p>
+        <p style="font-size: 16px; color: #374151; line-height: 1.6; margin-bottom: 0;">
           Best regards,<br/>
           <strong>Elite Funding Solutions Team</strong>
         </p>

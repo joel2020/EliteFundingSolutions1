@@ -183,8 +183,14 @@ export async function POST(request: Request) {
         first_name: firstName,
         last_name: lastName,
         role: 'iso_broker',
+        company_name: form.company_name,
+        access_entity_type: 'iso_broker',
+        access_entity_id: result.data.id,
         permissions: [],
         is_active: true,
+        invite_status: 'sent',
+        invited_at: new Date().toISOString(),
+        invite_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         created_by: profile.id,
         updated_by: profile.id,
       }, { onConflict: 'user_id,organization_id' });
@@ -208,6 +214,23 @@ export async function POST(request: Request) {
       if (!emailResult.success) {
         console.error('Broker invite email failed:', emailResult.error);
       }
+      await supabase.from('crm_access_invites').insert({
+        organization_id: profile.organization_id,
+        email: form.email,
+        first_name: firstName,
+        last_name: lastName,
+        company_name: form.company_name,
+        role: 'iso_broker',
+        permissions: [],
+        access_entity_type: 'iso_broker',
+        access_entity_id: result.data.id,
+        status: emailResult.success ? 'sent' : 'failed',
+        auth_user_id: invitedUser.id,
+        invited_by: profile.id,
+        invite_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        last_error: emailResult.success ? null : String(emailResult.error || 'Email delivery failed.'),
+        metadata: { source: 'iso_broker_create' },
+      });
       }
     }
   }

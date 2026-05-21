@@ -2,17 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-
-export const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
-
-export type InternalCrmRole = (typeof INTERNAL_CRM_ROLES)[number];
+import { CRM_ACCESS_ROLES, type InternalCrmRole } from '@/lib/access-control';
 
 export type CrmProfile = {
   id: string;
@@ -22,12 +12,11 @@ export type CrmProfile = {
   first_name: string;
   last_name: string;
   role: string;
+  permissions?: string[];
+  access_entity_type?: string | null;
+  access_entity_id?: string | null;
   is_active: boolean;
 };
-
-export function isInternalCrmRole(role?: string | null): role is InternalCrmRole {
-  return !!role && INTERNAL_CRM_ROLES.includes(role as InternalCrmRole);
-}
 
 export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; error: string | null }> {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -37,7 +26,7 @@ export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; err
 
   const { data: profile, error } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,access_entity_type,access_entity_id,is_active')
     .eq('user_id', user.id)
     .is('deleted_at', null)
     .maybeSingle();
@@ -45,12 +34,12 @@ export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; err
   if (error) return { profile: null, error: error.message };
   if (!profile) return { profile: null, error: 'No CRM profile is linked to this user. Contact an administrator.' };
   if (!profile.is_active) return { profile: null, error: 'Your CRM profile is inactive. Contact an administrator.' };
-  if (!isInternalCrmRole(profile.role)) return { profile: null, error: 'Your role is not allowed to access the CRM.' };
+  if (!CRM_ACCESS_ROLES.includes(profile.role as any)) return { profile: null, error: 'Your role is not allowed to access the CRM.' };
 
   return { profile: profile as CrmProfile, error: null };
 }
 
-export async function requireInternalCrmRole(roles: readonly string[] = INTERNAL_CRM_ROLES) {
+export async function requireInternalCrmRole(roles: readonly string[] = CRM_ACCESS_ROLES) {
   const result = await getCrmProfile();
 
   if (!result.profile) return result;
