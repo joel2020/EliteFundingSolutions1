@@ -348,6 +348,10 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByRole('tab', { name: 'Documents' }).click();
     await expect(page.getByText('Missing required documents')).toBeVisible();
     await expect(page.getByText('Bank Statement').first()).toBeVisible();
+    await page.getByTestId('deal-request-missing-items').click();
+    await expect.poll(() => state.deals.find((deal) => deal.id === DEAL_ID)?.application_link_token).toBe('deal_mock_missing_items_token');
+    expect(calls.some((call) => call.table === 'missing_docs_api')).toBe(true);
+    await page.getByRole('tab', { name: 'Documents' }).click();
 
     await page.getByTestId('deal-upload-document').click();
     await page.getByTestId('deal-document-file').setInputFiles({ name: 'voided-check.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 voided check') });
@@ -364,6 +368,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
     await page.getByTestId('deal-submit-lender').click();
+    await expect(page.getByTestId('lender-preset-summary')).toContainText('Lender package preset');
     await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with this lender');
     await page.getByTestId('deal-submission-notes').fill('Strong deposits, explain two negative days from tax payment timing.');
     await page.getByTestId('deal-save-submission').click();

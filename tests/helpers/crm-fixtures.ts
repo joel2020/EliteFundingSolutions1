@@ -511,6 +511,24 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationUrl: `http://localhost:3000/apply?deal=${token}`, emailStatus: payload.email ? 'sent' : 'created' }) });
   });
 
+  await page.route('**/api/crm/deals/*/missing-docs', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const token = 'deal_mock_missing_items_token';
+    for (const item of payload.items || []) {
+      const existing = state.document_requests.find((request) => request.deal_id === id && request.document_type === item.document_type);
+      if (existing) {
+        Object.assign(existing, { ...item, status: 'requested', required: true, updated_at: now });
+      } else {
+        state.document_requests.unshift({ id: `request-${state.document_requests.length + 1}`, organization_id: ORG_ID, deal_id: id, application_id: 'application-1', ...item, status: 'requested', required: true, created_at: now, updated_at: now });
+      }
+    }
+    state.deals = state.deals.map((deal) => deal.id === id ? { ...deal, application_link_token: token, application_link_sent_at: now } : deal);
+    state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'document_event', title: 'Missing items requested', body: (payload.items || []).map((item: any) => item.label).join(', '), created_at: now });
+    calls.push({ method: route.request().method(), table: 'missing_docs_api', body: payload });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationUrl: `http://localhost:3000/apply?deal=${token}`, emailStatus: payload.email ? 'sent' : 'created', requestedItems: payload.items || [] }) });
+  });
+
   await page.route('**/api/crm/applications/*/sensitive', async (route) => {
     calls.push({ method: route.request().method(), table: 'application_sensitive_api', body: null });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { business: { ein: '12-3456789' }, owners: [{ id: 'owner-1', name: 'Jordan Lee', ssn: '123-45-6789', dob: '1985-04-10' }] } }) });

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
-import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
+import { buildPartnerApplicationPayload, parsePartnerApplicationCsv } from '@/lib/partner-application-fields';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -110,6 +110,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const sourcePartnerName = text(formData.get('source_partner_name'));
   const notes = text(formData.get('notes'));
+  const csvPayload = extension === 'csv' ? parsePartnerApplicationCsv(await file.text()) : {};
   const originalPath = `${profile.organization_id}/${deal.id}/partner-applications/${Date.now()}-${safeName(file.name)}`;
   const { error: uploadError } = await supabase.storage
     .from('application-documents')
@@ -149,8 +150,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     business_email: (deal as any).businesses?.email || '',
     start_date: (deal as any).businesses?.start_date || '',
     requested_amount: deal.requested_amount || '',
+    ...csvPayload,
     source_partner_name: sourcePartnerName,
-    extraction_note: extension === 'csv' ? 'CSV uploaded. Elite PDF generated from current CRM fields; review rows and regenerate if needed.' : 'Elite PDF generated from current CRM fields. Review and edit fields if the partner file has newer data.',
+    extraction_note: extension === 'csv' ? 'CSV uploaded and mapped from the first data row. Review/edit fields before sending if the partner file has multiple merchants or unusual headers.' : 'Elite PDF generated from current CRM fields. Review and edit fields if the partner file has newer data.',
   });
 
   const { data: upload, error: uploadRecordError } = await supabase

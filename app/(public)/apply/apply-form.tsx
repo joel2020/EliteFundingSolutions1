@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { APPLICATION_CHECKBOX_CONSENT, APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
@@ -235,6 +235,27 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   const [submitting, setSubmitting] = useState(false);
   const progressPct = useMemo(() => ((currentStep - 1) / 3) * 100, [currentStep]);
 
+  const trackApplicationEvent = (event: string, extra: Record<string, unknown> = {}) => {
+    const payload = JSON.stringify({
+      event,
+      step: currentStep < 4 ? currentStep : 'confirmation',
+      referral_code: referral?.code || form.referral_code || '',
+      referral_path: referral?.path || form.referral_path || '',
+      ...extra,
+    });
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/analytics/application-event', new Blob([payload], { type: 'application/json' }));
+      return;
+    }
+    fetch('/api/analytics/application-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+  };
+
+  useEffect(() => {
+    trackApplicationEvent(currentStep === 4 ? 'application_submit_success' : 'application_step_started');
+    // Tracking must avoid sensitive form values, so only step/referral metadata is sent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
   const updateField = <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => setForm((prev) => ({ ...prev, [key]: value }));
   const next = () => setCurrentStep((step) => Math.min(step + 1, 4) as Step);
   const back = () => setCurrentStep((step) => Math.max(step - 1, 1) as Step);
@@ -260,20 +281,24 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   const continueStep = () => {
     const error = validateCurrentStep();
     if (error) {
+      trackApplicationEvent('application_validation_error', { field: error });
       toast.error(error);
       return;
     }
+    trackApplicationEvent('application_step_completed');
     next();
   };
 
   const handleSubmit = async () => {
     const error = validateCurrentStep();
     if (error) {
+      trackApplicationEvent('application_validation_error', { field: error });
       toast.error(error);
       return;
     }
 
     setSubmitting(true);
+    trackApplicationEvent('application_submit_started');
     try {
       const response = await fetch('/api/applications/submit', {
         method: 'POST',
@@ -289,6 +314,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       if (!response.ok || !result.success) throw new Error(result.error || 'Application submission failed.');
       setCurrentStep(4);
     } catch (err) {
+      trackApplicationEvent('application_submit_failed');
       toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again or contact support.');
     } finally {
       setSubmitting(false);

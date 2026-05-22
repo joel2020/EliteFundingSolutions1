@@ -32,6 +32,56 @@ function splitName(name: string) {
   };
 }
 
+function normalizePhone(value?: string | null) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function normalizeName(value?: string | null) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+async function findDuplicateBusiness(supabase: any, organizationId: string, form: z.infer<typeof dealSchema>, businessName: string) {
+  const candidates: any[] = [];
+  const email = String(form.contact_email || '').trim().toLowerCase();
+  const phone = normalizePhone(form.contact_phone);
+
+  if (email) {
+    const { data } = await supabase
+      .from('businesses')
+      .select('id,legal_name,email,phone')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .ilike('email', email)
+      .limit(5);
+    if (data?.length) candidates.push(...data);
+  }
+
+  if (phone) {
+    const { data } = await supabase
+      .from('businesses')
+      .select('id,legal_name,email,phone')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .limit(100);
+    if (data?.length) candidates.push(...data.filter((row: any) => normalizePhone(row.phone) === phone));
+  }
+
+  const normalizedBusinessName = normalizeName(businessName);
+  if (normalizedBusinessName.length >= 3) {
+    const { data } = await supabase
+      .from('businesses')
+      .select('id,legal_name,email,phone')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .ilike('legal_name', businessName)
+      .limit(5);
+    if (data?.length) candidates.push(...data.filter((row: any) => normalizeName(row.legal_name) === normalizedBusinessName));
+  }
+
+  const unique = new Map(candidates.filter((row) => row?.id).map((row) => [row.id, row]));
+  return Array.from(unique.values())[0] || null;
+}
+
 export async function POST(request: Request) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -51,6 +101,17 @@ export async function POST(request: Request) {
   const assignedUserId = form.assigned_user_id || profile.id;
   const requestedAmount = form.requested_amount ?? null;
   const { firstName, lastName } = splitName(form.contact_name);
+  const duplicateBusiness = await findDuplicateBusiness(supabase, profile.organization_id, form, businessName);
+  const duplicateBusinessId = duplicateBusiness?.id || null;
+  let submissionSequence = 1;
+  if (duplicateBusinessId) {
+    const { count } = await supabase
+      .from('deals')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', profile.organization_id)
+      .or(`business_id.eq.${duplicateBusinessId},duplicate_of_business_id.eq.${duplicateBusinessId}`);
+    submissionSequence = Number(count || 0) + 1;
+  }
 
   const { data: business, error: businessError } = await supabase
     .from('businesses')
@@ -108,6 +169,8 @@ export async function POST(request: Request) {
       junior_closer_id: form.junior_closer_id || null,
       senior_closer_id: form.senior_closer_id || null,
       lead_source: form.lead_source,
+      duplicate_of_business_id: duplicateBusinessId,
+      submission_sequence: submissionSequence,
       notes: form.notes || null,
       created_by: profile.id,
       updated_by: profile.id,
@@ -145,9 +208,15 @@ export async function POST(request: Request) {
       action: 'deal_created',
       resource_type: 'deals',
       resource_id: deal.id,
-      new_data: { business_id: business.id, lead_id: lead.id, stage_slug: stage, requested_amount: requestedAmount },
+      new_data: { business_id: business.id, lead_id: lead.id, stage_slug: stage, requested_amount: requestedAmount, duplicate_of_business_id: duplicateBusinessId, submission_sequence: submissionSequence },
     }),
   ]);
 
-  return NextResponse.json({ success: true, dealId: deal.id, businessId: business.id, leadId: lead.id });
+  return NextResponse.json({
+    success: true,
+    dealId: deal.id,
+    businessId: business.id,
+    leadId: lead.id,
+    duplicateWarning: duplicateBusinessId ? `Possible repeat merchant matched to ${duplicateBusiness.legal_name || 'an existing business'}. Submission marked #${submissionSequence}.` : null,
+  });
 }
