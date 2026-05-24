@@ -15,13 +15,13 @@ type UserProfile = {
   deleted_at: string | null;
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = useMemo(
-    () => createBrowserClient(supabaseUrl, supabaseAnonKey),
+    () => (supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null),
     []
   );
   const [email, setEmail] = useState('');
@@ -33,6 +33,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
+      if (!supabase) throw new Error('Authentication is not configured. Missing Supabase public environment variables.');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -56,6 +57,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
+      if (!supabase) throw new Error('Authentication is not configured. Missing Supabase public environment variables.');
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error('Login failed');

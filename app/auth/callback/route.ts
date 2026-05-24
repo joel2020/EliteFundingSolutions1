@@ -4,8 +4,8 @@ import { DEFAULT_ORG_ID, createServiceSupabaseClient } from '@/lib/server-supaba
 
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 function safeRedirectPath(path: string | null) {
   if (!path || !path.startsWith('/') || path.startsWith('//')) return '/crm';
@@ -21,6 +21,9 @@ function splitName(name?: string) {
 }
 
 export async function GET(request: NextRequest) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.redirect(new URL('/login?error=missing_supabase_public_env', request.url));
+  }
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const next = safeRedirectPath(requestUrl.searchParams.get('next'));
