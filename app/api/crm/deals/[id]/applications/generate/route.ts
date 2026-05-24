@@ -16,17 +16,18 @@ function safeDealName(value?: string | null) {
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const csrf = requireSameOrigin(request);
-  if (csrf) return csrf;
+  try {
+    const csrf = requireSameOrigin(request);
+    if (csrf) return csrf;
 
-  const auth = await requireCrmProfile(WRITE_ROLES);
-  if ('response' in auth) return auth.response;
-  const { user, profile, supabase } = auth;
+    const auth = await requireCrmProfile(WRITE_ROLES);
+    if ('response' in auth) return auth.response;
+    const { user, profile, supabase } = auth;
 
-  const body = await request.json().catch(() => ({}));
-  const partnerApplicationId = String(body.partner_application_id || '').trim() || null;
+    const body = await request.json().catch(() => ({}));
+    const partnerApplicationId = String(body.partner_application_id || '').trim() || null;
 
-  const { data: deal } = await supabase
+    const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount')
     .eq('id', params.id)
@@ -34,7 +35,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .is('deleted_at', null)
     .single();
 
-  if (!deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+    if (!deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+    if (!deal.application_id && !partnerApplicationId) {
+      return NextResponse.json({ success: false, error: 'No application data is linked to this deal yet. Upload/review a partner application or complete the deal application first.' }, { status: 400 });
+    }
 
   const [{ data: application }, { data: business }, { data: partnerApplication }] = await Promise.all([
     deal.application_id
@@ -86,7 +90,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     ? { ...application, application_payload: { ...(application.application_payload || {}), ...editedPayload } }
     : { application_payload: editedPayload, requested_amount: deal.requested_amount };
 
-  const pdf = await generateLenderApplicationPdf({
+    const pdf = await generateLenderApplicationPdf({
     deal,
     application: applicationForPdf,
     business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
@@ -94,15 +98,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
     ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
   });
 
-  const fileBase = safeDealName((business as any)?.legal_name || deal.title);
-  const storagePath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-elite-application.pdf`;
-  const { error: uploadError } = await supabase.storage
+    const fileBase = safeDealName((business as any)?.legal_name || deal.title);
+    const storagePath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-elite-application.pdf`;
+    const { error: uploadError } = await supabase.storage
     .from('application-documents')
     .upload(storagePath, pdf, { contentType: 'application/pdf', upsert: false });
 
-  if (uploadError) return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+    if (uploadError) return NextResponse.json({ success: false, error: `Unable to upload generated PDF: ${uploadError.message}` }, { status: 500 });
 
-  const { data: document, error: documentError } = await supabase
+    const { data: document, error: documentError } = await supabase
     .from('documents')
     .insert({
       organization_id: profile.organization_id,
@@ -124,9 +128,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('*')
     .single();
 
-  if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
+    if (documentError) return NextResponse.json({ success: false, error: `Unable to save generated PDF record: ${documentError.message}` }, { status: 500 });
 
-  await Promise.allSettled([
+    await Promise.allSettled([
     partnerApplication
       ? supabase
         .from('partner_application_uploads')
@@ -162,5 +166,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }),
   ]);
 
-  return NextResponse.json({ success: true, document });
+    return NextResponse.json({ success: true, document });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error?.message || 'Unexpected error while generating application PDF.' }, { status: 500 });
+  }
 }

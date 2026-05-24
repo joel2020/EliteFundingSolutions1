@@ -4,6 +4,7 @@ import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
+import { evaluateDealReadinessForLenderSubmission } from '@/lib/deal-readiness';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,8 @@ const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
   custom_message: z.string().trim().min(1, 'A lender message is required.'),
   attachment_document_ids: z.array(z.string().uuid()).default([]),
+  override_readiness_gate: z.boolean().optional().default(false),
+  override_reason: z.string().trim().optional().default(''),
 });
 
 function escapeHtml(value: string) {
@@ -43,7 +46,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: 'Invalid lender submission.', issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { data: deal } = await supabase
+const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount,approved_amount')
     .eq('id', params.id)
@@ -51,6 +54,29 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .single();
 
   if (!deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+
+  const allowAdminOverride = parsed.data.override_readiness_gate && ['super_admin', 'admin'].includes(profile.role);
+  const readiness = await evaluateDealReadinessForLenderSubmission({
+    supabase,
+    organizationId: profile.organization_id,
+    dealId: deal.id,
+    applicationId: deal.application_id,
+    businessId: deal.business_id,
+    allowAdminOverride,
+  });
+  if (!readiness.canSubmitToLender) {
+    return NextResponse.json({
+      success: false,
+      error: 'Deal is blocked by the underwriting readiness gate. Complete checklist/review items before lender submission.',
+      readiness: readiness.checks,
+    }, { status: 409 });
+  }
+  if (parsed.data.override_readiness_gate && !allowAdminOverride) {
+    return NextResponse.json({ success: false, error: 'Only admins can override the lender readiness gate.' }, { status: 403 });
+  }
+  if (allowAdminOverride && !parsed.data.override_reason.trim()) {
+    return NextResponse.json({ success: false, error: 'Admin override reason is required when bypassing lender readiness gate.' }, { status: 400 });
+  }
 
   const { data: partner } = await supabase
     .from('funding_partners')
@@ -234,6 +260,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const selectedAttachmentLine = (documents || []).map((doc: any) => doc.file_name).join(', ') || 'None selected';
   const generatedEmailBody = [
     parsed.data.custom_message,
+    allowAdminOverride ? `Admin override: ${parsed.data.override_reason.trim()}` : '',
     '',
     `Requested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}`,
     `Selected attachments: ${selectedAttachmentLine}`,
@@ -395,6 +422,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
         email_provider_data: emailProviderData,
         email_provider_error: emailProviderError,
         attachment_warnings: attachmentWarnings,
+        readiness_gate_checks: readiness.checks,
+        readiness_gate_overridden: allowAdminOverride,
+        readiness_gate_override_reason: allowAdminOverride ? parsed.data.override_reason.trim() : null,
       },
     }),
     emailDeliveryStatus === 'sent'

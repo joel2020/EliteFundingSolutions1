@@ -59,3 +59,42 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
+  const auth = await requireCrmProfile(WRITE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+
+  const { data: existing } = await supabase
+    .from('leads')
+    .select('id,organization_id,status')
+    .eq('id', params.id)
+    .eq('organization_id', profile.organization_id)
+    .single();
+
+  if (!existing) return NextResponse.json({ success: false, error: 'Lead not found.' }, { status: 404 });
+
+  const deletedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('leads')
+    .update({ deleted_at: deletedAt, deleted_by: profile.id, updated_by: profile.id })
+    .eq('id', existing.id)
+    .eq('organization_id', profile.organization_id);
+
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  await supabase.from('audit_logs').insert({
+    organization_id: profile.organization_id,
+    user_id: user.id,
+    action: 'lead_deleted',
+    resource_type: 'leads',
+    resource_id: existing.id,
+    old_data: existing,
+    new_data: { deleted_at: deletedAt },
+  });
+
+  return NextResponse.json({ success: true });
+}

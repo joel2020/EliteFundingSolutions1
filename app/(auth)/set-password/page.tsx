@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export default function SetPasswordPage() {
   const router = useRouter()
-  const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  const supabase = supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null
 
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -20,6 +20,26 @@ export default function SetPasswordPage() {
   // On mount, exchange the token in the URL hash for a session
   useEffect(() => {
     const handleTokenFromHash = async () => {
+      if (!supabase) {
+        setErrorMsg('Authentication is not configured. Missing Supabase public environment variables.')
+        setStatus('error')
+        return
+      }
+      const searchParams = new URLSearchParams(window.location.search)
+      const authCode = searchParams.get('code')
+      if (authCode) {
+        const { error } = await supabase.auth.exchangeCodeForSession(authCode)
+        if (error) {
+          setErrorMsg('This invite link is invalid or has expired. Please ask your admin to resend the invite.')
+          setStatus('error')
+          return
+        }
+        window.history.replaceState(null, '', window.location.pathname)
+        setSessionReady(true)
+        setStatus('ready')
+        return
+      }
+
       // Supabase puts the token in the URL hash: #access_token=...&type=invite
       const hash = window.location.hash
       const params = new URLSearchParams(hash.replace('#', ''))
@@ -76,6 +96,12 @@ export default function SetPasswordPage() {
 
     setStatus('submitting')
     setErrorMsg('')
+
+    if (!supabase) {
+      setErrorMsg('Authentication is not configured. Missing Supabase public environment variables.')
+      setStatus('error')
+      return
+    }
 
     const { error } = await supabase.auth.updateUser({ password })
 

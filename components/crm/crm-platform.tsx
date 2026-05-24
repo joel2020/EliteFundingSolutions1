@@ -972,6 +972,12 @@ export function CrmLeadsExperience() {
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openLead(lead)}>Edit</Button>
                       <Button data-testid={`convert-lead-${lead.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => convertLead(lead)}>Convert</Button>
+                      <DeleteConfirmButton
+                        itemLabel={`lead ${lead.business_name || [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.id}`}
+                        endpoint={`/api/crm/leads/${lead.id}`}
+                        onDeleted={reload}
+                        buttonClassName="h-8 rounded-[7px]"
+                      />
                     </div>
                   </td>
                 </tr>
