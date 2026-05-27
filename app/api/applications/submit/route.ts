@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
 import { CONSENT_VERSION } from '@/lib/company';
 import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
 import { analyzeBankStatementText, enrichBankStatementAnalysisWithAzureAI, extractStatementText } from '@/lib/bank-statement-analysis';
+import { generateEliteApplicationDocument } from '@/lib/elite-application-document';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -139,6 +141,23 @@ function sanitizePayloadForCrm(form: z.infer<typeof applicationSchema>, uploaded
     referral_code: form.referral_code || null,
     referral_path: form.referral_path || null,
   };
+}
+
+function disclosureAcceptanceFor(form: z.infer<typeof applicationSchema>) {
+  return {
+    certification_accepted: form.certification_accepted,
+    credit_authorization_accepted: form.credit_authorization_accepted,
+    esign_consent_accepted: form.esign_consent_accepted,
+    sms_consent_accepted: form.sms_consent_accepted,
+    terms_accepted: form.terms_accepted,
+    privacy_policy_accepted: form.privacy_policy_accepted,
+    authorization_consent: form.authorization_consent,
+    consent_version: form.consent_version,
+  };
+}
+
+function signatureHashFor(input: unknown) {
+  return createHash('sha256').update(JSON.stringify(input)).digest('hex');
 }
 
 type ReferralProfile = {
@@ -551,6 +570,8 @@ export async function POST(request: Request) {
     await createOwner(form.owner2, false);
 
     const payloadForCrm = sanitizePayloadForCrm(form, parsedBody.files.map((item) => item.key));
+    const disclosureAcceptance = disclosureAcceptanceFor(form);
+    const signedAt = new Date().toISOString();
 
     const { data: app, error: appErr } = await supabase
       .from('applications')
@@ -585,13 +606,17 @@ export async function POST(request: Request) {
         e_signature: form.signature,
         signed_name: form.signature,
         signature_date: form.signature_date,
-        signed_at: new Date().toISOString(),
+        signed_at: signedAt,
         signer_ip: clientIp,
         signer_user_agent: userAgent,
         consent_version: form.consent_version,
+        signature_status: 'signed',
+        signature_type: 'typed',
+        disclosure_acceptance: disclosureAcceptance,
+        application_version: 1,
         ip_address: clientIp,
         user_agent: userAgent,
-        submitted_at: new Date().toISOString(),
+        submitted_at: signedAt,
       })
       .select('id')
       .single();
@@ -625,6 +650,66 @@ export async function POST(request: Request) {
       return { type: key, name: file.name, path: storagePath, documentId: document.id, file };
     }));
 
+    const generatedSignedApplication = await generateEliteApplicationDocument({
+      supabase,
+      organizationId: DEFAULT_ORG_ID,
+      dealId: deal.id,
+      userId: null,
+      profileId: null,
+      reason: 'Generated automatically from signed website funding application submission.',
+    });
+
+    if (generatedSignedApplication.generated) {
+      await supabase
+        .from('applications')
+        .update({
+          signed_application_document_id: generatedSignedApplication.document.id,
+          signature_data_storage_path: generatedSignedApplication.document.storage_path,
+        })
+        .eq('id', app.id)
+        .eq('organization_id', DEFAULT_ORG_ID);
+    }
+
+    const signatureEvidence = {
+      application_id: app.id,
+      deal_id: deal.id,
+      business_id: biz.id,
+      lead_id: lead.id,
+      signature_name: form.signature,
+      signature_date: form.signature_date,
+      signed_at: signedAt,
+      signature_ip: clientIp,
+      signature_user_agent: userAgent,
+      consent_version: form.consent_version,
+      application_version: 1,
+      disclosure_acceptance: disclosureAcceptance,
+      application_payload_snapshot: payloadForCrm,
+      document_id: generatedSignedApplication.generated ? generatedSignedApplication.document.id : null,
+    };
+
+    const { error: signatureError } = await supabase.from('application_signatures').insert({
+      organization_id: DEFAULT_ORG_ID,
+      application_id: app.id,
+      deal_id: deal.id,
+      business_id: biz.id,
+      lead_id: lead.id,
+      document_id: generatedSignedApplication.generated ? generatedSignedApplication.document.id : null,
+      signature_status: 'signed',
+      signature_type: 'typed',
+      signature_name: form.signature,
+      signature_date: form.signature_date,
+      signed_at: signedAt,
+      signature_ip: clientIp,
+      signature_user_agent: userAgent,
+      consent_version: form.consent_version,
+      application_version: 1,
+      disclosure_acceptance: disclosureAcceptance,
+      application_payload_snapshot: payloadForCrm,
+      signature_hash: signatureHashFor(signatureEvidence),
+    });
+
+    if (signatureError) throw signatureError;
+
     const automaticAnalysis = await runAutomaticBankStatementAnalysis({
       supabase,
       deal,
@@ -637,9 +722,9 @@ export async function POST(request: Request) {
       return { analyzed: false, reason: error?.message || 'Automatic bank statement analysis failed.' };
     });
 
-    await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
-    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
-    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name, id: doc.documentId })), consent_version: form.consent_version, automatic_bank_statement_analysis: automaticAnalysis } });
+    await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint with captured E-SIGN evidence.' });
+    await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Signed application submitted', body: `Digital funding application signed by ${form.signature} and submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
+    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_signed_and_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name, id: doc.documentId })), signed_application_document_id: generatedSignedApplication.generated ? generatedSignedApplication.document.id : null, signature_status: 'signed', signature_type: 'typed', consent_version: form.consent_version, application_version: 1, automatic_bank_statement_analysis: automaticAnalysis } });
 
     if (form.existing_advances.length > 0) {
       await supabase.from('existing_advances').insert(form.existing_advances.map((advance) => ({ organization_id: DEFAULT_ORG_ID, application_id: app.id, funder_name: emptyToNull(advance.funder_name), original_funded_amount: toNumber(advance.original_amount), current_balance: toNumber(advance.current_balance), daily_payment: toNumber(advance.daily_payment), payment_frequency: emptyToNull(advance.payment_frequency), notes: emptyToNull(advance.notes) })));

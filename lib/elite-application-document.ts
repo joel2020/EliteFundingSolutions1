@@ -8,8 +8,8 @@ type GenerateEliteApplicationDocumentInput = {
   supabase: ServiceSupabase;
   organizationId: string;
   dealId: string;
-  userId: string;
-  profileId: string;
+  userId?: string | null;
+  profileId?: string | null;
   sourceDocumentId?: string | null;
   reason?: string;
 };
@@ -98,7 +98,7 @@ export async function generateEliteApplicationDocument(input: GenerateEliteAppli
       organization_id: organizationId,
       deal_id: deal.id,
       application_id: deal.application_id,
-      uploaded_by_user_id: userId,
+      uploaded_by_user_id: userId || null,
       document_type: 'completed_application',
       label: 'Elite Funding PDF Application',
       file_name: `${safeDealName}-elite-application.pdf`,
@@ -125,7 +125,7 @@ export async function generateEliteApplicationDocument(input: GenerateEliteAppli
       activity_type: 'document_event',
       title: 'Elite Funding application generated',
       body: 'Generated from CRM application data and captured signature.',
-      performed_by: profileId,
+      performed_by: profileId || null,
       resource_type: 'documents',
       resource_id: generatedDocument.id,
     }),

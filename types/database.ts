@@ -216,6 +216,12 @@ export interface Database {
           submitted_at: string | null;
           ip_address: string | null;
           user_agent: string | null;
+          signature_status: string;
+          signature_type: string | null;
+          signature_data_storage_path: string | null;
+          disclosure_acceptance: Record<string, unknown>;
+          application_version: number;
+          signed_application_document_id: string | null;
           assigned_user_id: string | null;
           iso_broker_id: string | null;
           lead_source: string | null;
@@ -230,6 +236,32 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['applications']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['applications']['Insert']>;
+      };
+      application_signatures: {
+        Row: {
+          id: string;
+          organization_id: string;
+          application_id: string;
+          deal_id: string | null;
+          business_id: string | null;
+          lead_id: string | null;
+          document_id: string | null;
+          signature_status: string;
+          signature_type: string;
+          signature_name: string;
+          signature_date: string | null;
+          signed_at: string;
+          signature_ip: string | null;
+          signature_user_agent: string | null;
+          consent_version: string | null;
+          application_version: number;
+          disclosure_acceptance: Record<string, unknown>;
+          application_payload_snapshot: Record<string, unknown>;
+          signature_hash: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['application_signatures']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['application_signatures']['Insert']>;
       };
       offers: {
         Row: {
