@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
+import { generateEliteApplicationDocument } from '@/lib/elite-application-document';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
 const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif']);
 const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const ELITE_APPLICATION_SOURCE_TYPES = new Set(['signed_application', 'completed_application', 'contract']);
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -36,7 +39,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 
@@ -91,6 +94,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .eq('organization_id', profile.organization_id);
   }
 
+  const generatedEliteApplication = ELITE_APPLICATION_SOURCE_TYPES.has(documentType)
+    ? await generateEliteApplicationDocument({
+      supabase,
+      organizationId: profile.organization_id,
+      dealId: deal.id,
+      userId: user.id,
+      profileId: profile.id,
+      sourceDocumentId: document.id,
+      reason: `Generated automatically after ${label} was uploaded.`,
+    }).catch((error) => ({ generated: false as const, reason: error?.message || 'Elite application PDF generation failed.' }))
+    : null;
+
   await Promise.allSettled([
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
@@ -109,9 +124,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
       action: 'deal_document_uploaded',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: documentRequestId },
+      new_data: {
+        deal_id: deal.id,
+        document_type: documentType,
+        file_name: file.name,
+        document_request_id: documentRequestId,
+        generated_elite_application_document_id: generatedEliteApplication?.generated ? generatedEliteApplication.document.id : null,
+        elite_application_generation_reason: generatedEliteApplication && !generatedEliteApplication.generated ? generatedEliteApplication.reason : null,
+      },
     }),
   ]);
 
-  return NextResponse.json({ success: true, document });
+  return NextResponse.json({ success: true, document, generatedEliteApplication });
 }

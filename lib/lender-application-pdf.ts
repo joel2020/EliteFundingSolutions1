@@ -154,6 +154,8 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   draw(money(deal.requested_amount || application.requested_amount || payload.requested_amount), 975, 520, 14, 18);
   draw(money(payload.average_monthly_sales || business.monthly_gross_revenue), 305, 470, 14, 18);
   draw(money(payload.average_visa_mc_sales), 1040, 470, 14, 18);
+  draw(`Purpose: ${text(application.use_of_funds || payload.use_of_funds || payload.funding_purpose || 'Working capital')}`, 70, 435, 11, 78);
+  draw(`Term preference: ${text(application.desired_timeline || application.desired_payment_frequency || payload.term_preference || payload.desired_timeline || 'Best available lender terms')}`, 70, 405, 11, 78);
 
   const signer = text(application.signed_name || payload.signature || ownerName(owner1));
   draw(signer, 105, 251, 13, 28);

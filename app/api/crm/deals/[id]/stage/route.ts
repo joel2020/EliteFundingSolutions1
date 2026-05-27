@@ -11,7 +11,7 @@ const stageSchema = z.object({
   notes: z.string().optional().default('CRM stage update.'),
 });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: deal, error: loadError } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id,stage_slug,funded_amount')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

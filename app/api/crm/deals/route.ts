@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep'];
 
 const dealSchema = z.object({
+  business_id: z.string().uuid().optional().nullable(),
   title: z.string().optional().default(''),
   business_name: z.string().optional().default(''),
   contact_name: z.string().optional().default(''),
@@ -52,23 +53,32 @@ export async function POST(request: Request) {
   const requestedAmount = form.requested_amount ?? null;
   const { firstName, lastName } = splitName(form.contact_name);
 
-  const { data: business, error: businessError } = await supabase
-    .from('businesses')
-    .insert({
-      organization_id: profile.organization_id,
-      legal_name: businessName,
-      email: form.contact_email || null,
-      phone: form.contact_phone || null,
-      notes: form.notes || null,
-      created_by: profile.id,
-      updated_by: profile.id,
-    })
-    .select('id')
-    .single();
+  const businessQuery = form.business_id
+    ? supabase.from('businesses').select('id,legal_name,dba,email,phone').eq('id', form.business_id).eq('organization_id', profile.organization_id).maybeSingle()
+    : supabase
+      .from('businesses')
+      .insert({
+        organization_id: profile.organization_id,
+        legal_name: businessName,
+        email: form.contact_email || null,
+        phone: form.contact_phone || null,
+        notes: form.notes || null,
+        created_by: profile.id,
+        updated_by: profile.id,
+      })
+      .select('id,legal_name,dba,email,phone')
+      .single();
+
+  const { data: business, error: businessError } = await businessQuery;
 
   if (businessError) {
     return NextResponse.json({ success: false, error: businessError.message }, { status: 500 });
   }
+  if (!business) {
+    return NextResponse.json({ success: false, error: 'Selected business was not found.' }, { status: 404 });
+  }
+
+  const linkedBusinessName = business.legal_name || business.dba || businessName;
 
   const { data: lead, error: leadError } = await supabase
     .from('leads')
@@ -79,7 +89,7 @@ export async function POST(request: Request) {
       last_name: lastName,
       email: form.contact_email || null,
       phone: form.contact_phone || null,
-      business_name: businessName,
+      business_name: linkedBusinessName,
       status: 'converted',
       assigned_user_id: assignedUserId,
       notes: form.notes || null,
@@ -99,7 +109,7 @@ export async function POST(request: Request) {
       organization_id: profile.organization_id,
       business_id: business.id,
       lead_id: lead.id,
-      title: form.title || `${businessName} funding request`,
+      title: form.title || `${linkedBusinessName} funding request`,
       requested_amount: requestedAmount,
       approved_amount: form.approved_amount ?? null,
       funded_amount: form.funded_amount ?? null,
@@ -135,7 +145,7 @@ export async function POST(request: Request) {
       lead_id: lead.id,
       activity_type: 'system',
       title: 'Deal created',
-      body: `${businessName} was added to the pipeline.`,
+      body: `${linkedBusinessName} was added to the pipeline.`,
       direction: 'internal',
       performed_by: profile.id,
     }),

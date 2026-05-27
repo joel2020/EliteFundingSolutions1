@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { getCrmInviteRedirectUrl } from '@/lib/auth-routing';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ const createUserSchema = z.object({
   first_name: z.string().optional().default(''),
   last_name: z.string().optional().default(''),
   email: z.string().email(),
-  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'client', 'viewer']).default('sales_rep'),
+  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'funder', 'iso_broker', 'broker', 'referral_partner', 'client', 'viewer']).default('sales_rep'),
   permissions: z.array(z.string()).optional().default([]),
   is_active: z.boolean().default(true),
 });
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Only a super admin can grant super admin.' }, { status: 403 });
   }
 
-  const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login`;
+  const redirectTo = getCrmInviteRedirectUrl();
   const invited = await supabase.auth.admin.inviteUserByEmail(form.email, {
     redirectTo,
     data: {

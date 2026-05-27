@@ -9,7 +9,7 @@ const updateBrokerSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data: existing } = await supabase
     .from('iso_brokers')
     .select('id,organization_id,is_active,company_name')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

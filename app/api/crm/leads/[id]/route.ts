@@ -18,7 +18,7 @@ const updateLeadSchema = z.object({
   assigned_user_id: z.string().uuid().optional().nullable(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -32,7 +32,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data: existing } = await supabase
     .from('leads')
     .select('id,organization_id,status,assigned_user_id')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

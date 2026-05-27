@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, DEFAULT_ORG_ID } from '@/lib/supabase';
-import { FileText, Upload, MessageSquare, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { FileText, Upload, MessageSquare, CheckCircle, Clock, AlertCircle, FileSignature, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,12 +27,17 @@ export default function ClientPortalPage() {
   const [applications, setApplications] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [offers, setOffers] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [signingContract, setSigningContract] = useState<any | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [message, setMessage] = useState('');
+  const [signatureName, setSignatureName] = useState('');
+  const [esignAccepted, setEsignAccepted] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [signing, setSigning] = useState(false);
 
   const loadPortalData = useCallback(async () => {
     try {
@@ -54,14 +59,16 @@ export default function ClientPortalPage() {
       if (appsError) throw appsError;
 
       const applicationIds = (apps || []).map((app) => app.id);
-      const [{ data: docs }, { data: offerData }] = applicationIds.length > 0 ? await Promise.all([
+      const [{ data: docs }, { data: offerData }, contractsResponse] = applicationIds.length > 0 ? await Promise.all([
         supabase.from('documents').select('id,application_id,label,file_name,status,created_at').eq('organization_id', DEFAULT_ORG_ID).in('application_id', applicationIds).order('created_at', { ascending: false }).limit(25),
         supabase.from('offers').select('id,deal_id,approved_amount,payback_amount,payment_frequency,daily_payment,weekly_payment,term_days,status,created_at,deals!inner(application_id,title,businesses(legal_name,dba))').eq('organization_id', DEFAULT_ORG_ID).in('deals.application_id', applicationIds).order('created_at', { ascending: false }).limit(10),
-      ]) : [{ data: [] }, { data: [] }];
+        fetch('/api/portal/contracts').then((response) => response.json()),
+      ]) : [{ data: [] }, { data: [] }, { success: true, contracts: [] }];
 
       setApplications(apps || []);
       setDocuments(docs || []);
       setOffers(offerData || []);
+      setContracts(contractsResponse?.contracts || []);
     } catch (error) {
       console.error('Error loading portal data:', error);
       toast.error('Unable to load portal data.');
@@ -150,6 +157,57 @@ export default function ClientPortalPage() {
     loadPortalData();
   };
 
+  const openSigningDialog = (contract: any) => {
+    setSigningContract(contract);
+    setSignatureName('');
+    setEsignAccepted(false);
+  };
+
+  const signContract = async () => {
+    if (!signingContract) return;
+    if (!signatureName.trim()) {
+      toast.error('Enter your full legal name.');
+      return;
+    }
+    if (!esignAccepted) {
+      toast.error('You must accept the E-SIGN consent before signing.');
+      return;
+    }
+
+    setSigning(true);
+    try {
+      const response = await fetch(`/api/portal/contracts/${signingContract.id}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signature_name: signatureName,
+          esign_consent_accepted: esignAccepted,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to sign contract');
+
+      toast.success('Contract signed successfully.');
+      setSigningContract(null);
+      setSignatureName('');
+      setEsignAccepted(false);
+      loadPortalData();
+    } catch (error: any) {
+      toast.error(error.message || 'Unable to sign contract');
+    }
+    setSigning(false);
+  };
+
+  const openContractFile = async (contractId: string) => {
+    const response = await fetch(`/api/portal/contracts/${contractId}/signed-url`, { method: 'POST' });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success || !result.url) {
+      toast.error(result.error || 'Unable to open contract');
+      return;
+    }
+    window.open(result.url, '_blank', 'noopener,noreferrer');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
@@ -187,6 +245,7 @@ export default function ClientPortalPage() {
           <TabsList className="mb-6">
             <TabsTrigger value="applications">Applications</TabsTrigger>
             <TabsTrigger value="offers">Offers</TabsTrigger>
+            <TabsTrigger value="contracts">Contracts</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
 
@@ -290,6 +349,66 @@ export default function ClientPortalPage() {
             </div>
           </TabsContent>
 
+          {/* Contracts Tab */}
+          <TabsContent value="contracts">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {contracts.length === 0 ? (
+                <Card className="col-span-full">
+                  <CardContent className="py-12 text-center">
+                    <FileSignature className="w-12 h-12 mx-auto mb-4 text-[#A1A1AA]" />
+                    <p className="text-[#71717A]">No contracts ready for signature</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                contracts.map((contract) => (
+                  <Card key={contract.id}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{contract.business_name || 'Funding contract'}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-[#71717A]">Contract Type</span>
+                          <span className="font-semibold text-[#09090B]">{String(contract.contract_type || 'contract').replaceAll('_', ' ')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#71717A]">Status</span>
+                          <Badge className={contract.status === 'signed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}>
+                            {contract.status === 'signed' ? 'Signed' : 'Ready to Sign'}
+                          </Badge>
+                        </div>
+                        {contract.funded_amount && (
+                          <div className="flex justify-between">
+                            <span className="text-[#71717A]">Funding Amount</span>
+                            <span className="font-semibold text-[#09090B]">${Number(contract.funded_amount).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {contract.signed_date && (
+                          <div className="flex justify-between">
+                            <span className="text-[#71717A]">Signed</span>
+                            <span className="font-semibold text-[#09090B]">{new Date(contract.signed_date).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        <div className="flex gap-2 pt-2">
+                          <Button variant="outline" className="flex-1" onClick={() => openContractFile(contract.id)} disabled={!contract.has_signed_file && contract.status === 'signed'}>
+                            <Download className="w-4 h-4 mr-2" />
+                            {contract.status === 'signed' ? 'Download' : 'View'}
+                          </Button>
+                          {contract.status !== 'signed' && (
+                            <Button className="flex-1" onClick={() => openSigningDialog(contract)}>
+                              <FileSignature className="w-4 h-4 mr-2" />
+                              Sign
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
           {/* Documents Tab */}
           <TabsContent value="documents">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -350,6 +469,47 @@ export default function ClientPortalPage() {
             <Button variant="outline" onClick={() => setShowUploadDialog(false)}>Cancel</Button>
             <Button onClick={handleFileUpload} disabled={uploading || !uploadFile}>
               {uploading ? 'Uploading...' : 'Upload'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signing Dialog */}
+      <Dialog open={Boolean(signingContract)} onOpenChange={(open) => !open && setSigningContract(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sign Contract</DialogTitle>
+            <DialogDescription>Your typed name will be applied as your electronic signature.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="rounded-[8px] border border-[#E4E4E7] bg-[#FAFAFA] p-4">
+              <p className="font-medium text-[#09090B]">{signingContract?.business_name || 'Funding contract'}</p>
+              <p className="text-sm text-[#71717A]">{String(signingContract?.contract_type || 'contract').replaceAll('_', ' ')}</p>
+            </div>
+            <div>
+              <Label htmlFor="signature-name">Full Legal Name</Label>
+              <Input
+                id="signature-name"
+                value={signatureName}
+                onChange={(event) => setSignatureName(event.target.value)}
+                placeholder="Type your full legal name"
+                className="mt-2"
+              />
+            </div>
+            <label className="flex items-start gap-3 rounded-[8px] border border-[#E4E4E7] p-4 text-sm text-[#3F3F46]">
+              <input
+                type="checkbox"
+                checked={esignAccepted}
+                onChange={(event) => setEsignAccepted(event.target.checked)}
+                className="mt-1"
+              />
+              <span>I consent to use electronic records and electronic signatures for this funding contract. I agree that my typed name, timestamp, IP address, browser details, authenticated portal account, and related audit records may be used as evidence of my electronic signature and intent to sign.</span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSigningContract(null)} disabled={signing}>Cancel</Button>
+            <Button onClick={signContract} disabled={signing || !signatureName.trim() || !esignAccepted}>
+              {signing ? 'Signing...' : 'Sign Contract'}
             </Button>
           </DialogFooter>
         </DialogContent>

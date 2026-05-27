@@ -686,7 +686,7 @@ export interface Database {
 }
 
 // Type aliases
-export type UserRole = 'super_admin' | 'admin' | 'manager' | 'sales_rep' | 'underwriter' | 'processor' | 'iso_broker' | 'client' | 'viewer';
+export type UserRole = 'super_admin' | 'admin' | 'manager' | 'sales_rep' | 'underwriter' | 'processor' | 'funder' | 'iso_broker' | 'broker' | 'referral_partner' | 'client' | 'viewer';
 export type LeadSource = 'website' | 'referral' | 'broker' | 'iso' | 'paid_ads' | 'organic_search' | 'cold_email' | 'partner' | 'manual_entry';
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'application_started' | 'converted' | 'lost' | 'unresponsive';
 export type EntityType = 'sole_proprietor' | 'llc' | 's_corp' | 'c_corp' | 'partnership' | 'non_profit' | 'other';

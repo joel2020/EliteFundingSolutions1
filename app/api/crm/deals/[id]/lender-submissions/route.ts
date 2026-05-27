@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
-import { decryptSensitiveField } from '@/lib/security';
+import { decryptGmailToken, decryptSensitiveField } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +30,7 @@ function textToHtml(value: string) {
   return escapeHtml(value).replace(/\n/g, '<br/>');
 }
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount,approved_amount')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 
@@ -98,7 +98,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     deal.application_id
       ? supabase
         .from('applications')
-        .select('id,organization_id,business_id,requested_amount,has_existing_advances,bank_name,account_type,submitted_at,signed_name,signature_date,application_payload')
+        .select('id,organization_id,business_id,requested_amount,use_of_funds,desired_timeline,desired_payment_frequency,has_existing_advances,bank_name,account_type,submitted_at,signed_name,signature_date,application_payload')
         .eq('id', deal.application_id)
         .eq('organization_id', profile.organization_id)
         .maybeSingle()
@@ -293,8 +293,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   try {
     const emailResult = await sendGmailEmail({
-      accessToken: senderTokens.access_token,
-      refreshToken: senderTokens.refresh_token || undefined,
+      accessToken: decryptGmailToken(senderTokens.access_token) || '',
+      refreshToken: decryptGmailToken(senderTokens.refresh_token) || undefined,
       to: recipientEmail,
       subject: emailSubject,
       body: emailText,

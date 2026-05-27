@@ -3,7 +3,7 @@ import { INTERNAL_CRM_ROLES, requireCrmProfile, requireSameOrigin } from '@/lib/
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: doc, error } = await supabase
     .from('documents')
     .select('id, organization_id, storage_path, file_name')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .single();
 
   if (error || !doc || doc.organization_id !== profile.organization_id) {

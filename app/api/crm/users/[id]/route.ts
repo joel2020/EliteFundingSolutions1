@@ -9,7 +9,7 @@ const updateUserSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   email: z.string().email().optional(),
-  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'client', 'viewer']).optional(),
+  role: z.enum(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'funder', 'iso_broker', 'broker', 'referral_partner', 'client', 'viewer']).optional(),
   permissions: z.array(z.string()).optional(),
   is_active: z.boolean().optional(),
   referral_slug: z.preprocess(
@@ -18,7 +18,7 @@ const updateUserSchema = z.object({
   ),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data: existing } = await supabase
     .from('user_profiles')
     .select('id,organization_id,role,email,is_active,referral_slug,permissions')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 
@@ -53,7 +53,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data: updatedProfile, error } = await supabase
     .from('user_profiles')
     .update({ ...parsed.data, updated_by: profile.id })
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active,last_login_at,referral_slug')
     .single();
@@ -67,7 +67,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     user_id: user.id,
     action: 'crm_user_updated',
     resource_type: 'user_profiles',
-    resource_id: params.id,
+    resource_id: (await params).id,
     old_data: existing,
     new_data: parsed.data,
   });

@@ -9,7 +9,7 @@ const statusSchema = z.object({
   review_notes: z.string().optional().nullable(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data: doc } = await supabase
     .from('documents')
     .select('id,organization_id,deal_id,application_id,file_name,label,status,review_notes')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

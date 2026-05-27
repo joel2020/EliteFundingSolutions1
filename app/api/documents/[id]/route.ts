@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 const DELETE_ROLES = ['super_admin', 'admin', 'manager', 'processor'];
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -16,7 +16,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   const { data: doc, error } = await supabase
     .from('documents')
     .select('id, organization_id, storage_path, file_name, document_type, application_id, deal_id')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .single();
 
   if (error || !doc || doc.organization_id !== profile.organization_id) {

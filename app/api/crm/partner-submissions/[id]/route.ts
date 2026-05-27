@@ -11,7 +11,7 @@ const updateSchema = z.object({
   conditions: z.string().optional().nullable(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -25,7 +25,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data: submission } = await supabase
     .from('partner_submissions')
     .select('id,organization_id,deal_id,application_id,status,notes,decline_reason,funding_partners(name)')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

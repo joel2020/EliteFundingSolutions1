@@ -3,7 +3,7 @@ import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -14,7 +14,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: task } = await supabase
     .from('tasks')
     .select('id,organization_id,deal_id,application_id,business_id,title,status')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

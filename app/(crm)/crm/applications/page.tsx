@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
-import { Search, MoreVertical, FileText, Edit, ExternalLink, X } from 'lucide-react';
+import { Search, MoreVertical, FileText, Edit, ExternalLink, X, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 
 const sensitiveKeyPattern = /(ssn|social|dob|birth|ein|tax|routing|account|bank|processor|statement|license|document|financial)/i;
@@ -48,6 +50,9 @@ export default function ApplicationsPage() {
   const [selectedHistory, setSelectedHistory] = useState<any[]>([]);
   const [currentProfile, setCurrentProfile] = useState<any>(null);
   const [revealSensitive, setRevealSensitive] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const loadCurrentProfile = useCallback(async () => {
     if (!organizationId) return;
@@ -117,6 +122,30 @@ export default function ApplicationsPage() {
 
   const canRevealSensitive = ['super_admin', 'admin'].includes(currentProfile?.role);
 
+  const importPartnerPdf = async () => {
+    if (!importFile) {
+      toast.error('Select a partner PDF application.');
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', importFile);
+      const response = await fetch('/api/crm/applications/import-partner-pdf', { method: 'POST', body: formData });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to import partner PDF.');
+
+      toast.success(`Imported ${result.extracted?.business_name || 'partner application'} and generated Elite PDF.`);
+      setImportDialogOpen(false);
+      setImportFile(null);
+      loadApplications();
+    } catch (error: any) {
+      toast.error(error.message || 'Unable to import partner PDF.');
+    }
+    setImporting(false);
+  };
+
   const revealSensitiveFields = async () => {
     if (!selectedApplication || !canRevealSensitive) {
       toast.error('Only Super Admin/Admin can reveal sensitive fields.');
@@ -155,12 +184,18 @@ export default function ApplicationsPage() {
         title="Applications"
         subtitle={`${applications.length} applications`}
         actions={
-          <Link href="/apply" target="_blank">
-            <Button>
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Application Form
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import Partner PDF
             </Button>
-          </Link>
+            <Link href="/apply" target="_blank">
+              <Button>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Application Form
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -300,6 +335,32 @@ export default function ApplicationsPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Partner PDF Application</DialogTitle>
+            <DialogDescription>Upload a text-based partner application PDF. The CRM will create the record and generate an Elite Funding PDF application.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="partner-pdf">Partner PDF</Label>
+            <Input
+              id="partner-pdf"
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+              className="mt-2"
+            />
+            {importFile && <p className="mt-2 text-sm text-[#71717A]">{importFile.name}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Cancel</Button>
+            <Button onClick={importPartnerPdf} disabled={importing || !importFile}>
+              {importing ? 'Importing...' : 'Import PDF'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

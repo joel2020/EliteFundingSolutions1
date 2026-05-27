@@ -33,6 +33,7 @@ const stages = [
 ];
 
 interface DealFormData {
+  business_id?: string;
   business_name: string;
   contact_name: string;
   requested_amount: string;
@@ -40,6 +41,7 @@ interface DealFormData {
 }
 
 const emptyForm: DealFormData = {
+  business_id: '',
   business_name: '',
   contact_name: '',
   requested_amount: '',
@@ -51,6 +53,10 @@ export default function PipelinePage() {
   const { profile: crmProfile, organizationId, loading: crmUserLoading, error: crmUserError } = useCrmUser();
 
   const [deals, setDeals] = useState<any[]>([]);
+  const [businesses, setBusinesses] = useState<any[]>([]);
+  const [clientSearch, setClientSearch] = useState('');
+  const [newClientMode, setNewClientMode] = useState(true);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [formData, setFormData] = useState<DealFormData>(emptyForm);
@@ -58,9 +64,10 @@ export default function PipelinePage() {
 
   const loadDeals = useCallback(async () => {
     if (!organizationId) return;
+    setLoading(true);
     const { data, error } = await supabase
       .from('deals')
-      .select('id,title,stage_slug,requested_amount,funded_amount,created_at,businesses(legal_name,dba)')
+      .select('id,title,business_id,stage_slug,requested_amount,funded_amount,created_at')
       .eq('organization_id', organizationId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
@@ -69,24 +76,52 @@ export default function PipelinePage() {
       toast.error('Failed to load deals');
       console.error(error);
     } else if (data) {
-      setDeals(data as any[]);
+      const businessIds = Array.from(new Set(data.map((deal) => deal.business_id).filter(Boolean)));
+      const { data: linkedBusinesses, error: businessError } = businessIds.length
+        ? await supabase
+            .from('businesses')
+            .select('id,legal_name,dba')
+            .eq('organization_id', organizationId)
+            .in('id', businessIds)
+        : { data: [], error: null };
+
+      if (businessError) console.warn('Unable to load linked businesses for pipeline deals.', businessError);
+
+      const businessesById = Object.fromEntries((linkedBusinesses || []).map((business) => [business.id, business]));
+      setDeals(data.map((deal) => ({ ...deal, businesses: businessesById[deal.business_id] })) as any[]);
     }
     setLoading(false);
+  }, [organizationId]);
+
+  const loadBusinesses = useCallback(async () => {
+    if (!organizationId) return;
+    const { data } = await supabase
+      .from('businesses')
+      .select('id,legal_name,dba,email,phone,created_at')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    setBusinesses((data || []) as any[]);
   }, [organizationId]);
 
   useEffect(() => {
     if (crmUserLoading) return;
     if (!organizationId) { setLoading(false); return; }
     loadDeals();
-  }, [crmUserLoading, organizationId, loadDeals]);
+    loadBusinesses();
+  }, [crmUserLoading, organizationId, loadDeals, loadBusinesses]);
 
   const handleAdd = () => {
     setFormData(emptyForm);
+    setClientSearch('');
+    setNewClientMode(true);
+    setDocumentFiles([]);
     setShowDialog(true);
   };
 
   const saveDeal = async () => {
-    if (!formData.business_name || !formData.requested_amount) {
+    if ((!formData.business_id && !formData.business_name) || !formData.requested_amount) {
       toast.error('Business name and amount are required');
       return;
     }
@@ -97,6 +132,7 @@ export default function PipelinePage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        business_id: formData.business_id || null,
         business_name: formData.business_name,
         contact_name: formData.contact_name,
         requested_amount: parseFloat(formData.requested_amount),
@@ -108,9 +144,17 @@ export default function PipelinePage() {
     if (!response.ok || !result.success) {
       toast.error(result.error || 'Failed to create deal');
     } else {
+      for (const file of documentFiles) {
+        const uploadData = new FormData();
+        uploadData.set('file', file);
+        uploadData.set('document_type', file.name.toLowerCase().includes('bank') ? 'bank_statement' : 'other');
+        uploadData.set('label', file.name);
+        await fetch(`/api/crm/deals/${result.dealId}/documents`, { method: 'POST', body: uploadData }).catch(() => null);
+      }
       toast.success('Deal created successfully');
       setShowDialog(false);
       setFormData(emptyForm);
+      setDocumentFiles([]);
       loadDeals();
     }
     
@@ -139,6 +183,9 @@ export default function PipelinePage() {
   }, {} as Record<string, any[]>);
 
   const totalValue = deals.reduce((sum, d) => sum + (d.requested_amount || 0), 0);
+  const clientMatches = businesses
+    .filter((business) => [business.legal_name, business.dba, business.email, business.phone].join(' ').toLowerCase().includes(clientSearch.toLowerCase()))
+    .slice(0, 8);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -256,12 +303,39 @@ export default function PipelinePage() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            <div className="rounded-[8px] border border-[#E4E4E7] bg-[#FAFAFA] p-3">
+              <div className="mb-2 flex gap-2">
+                <Button type="button" size="sm" variant={newClientMode ? 'outline' : 'default'} onClick={() => setNewClientMode(false)}>Link existing client</Button>
+                <Button type="button" size="sm" variant={newClientMode ? 'default' : 'outline'} onClick={() => { setNewClientMode(true); setFormData({ ...formData, business_id: '' }); }}>Create new client</Button>
+              </div>
+              {!newClientMode && (
+                <div>
+                  <Label htmlFor="client_search">Search client</Label>
+                  <Input id="client_search" value={clientSearch} onChange={(event) => setClientSearch(event.target.value)} placeholder="Business, email, or phone" />
+                  <div className="mt-2 max-h-[180px] overflow-y-auto rounded-[7px] border border-[#E4E4E7] bg-white">
+                    {clientMatches.map((business) => (
+                      <button
+                        key={business.id}
+                        type="button"
+                        className={`block w-full border-b border-[#E4E4E7] px-3 py-2 text-left text-sm last:border-b-0 ${formData.business_id === business.id ? 'bg-[#EAF1FF]' : 'hover:bg-[#FAFAFA]'}`}
+                        onClick={() => setFormData({ ...formData, business_id: business.id, business_name: business.legal_name || business.dba || '' })}
+                      >
+                        <b>{business.legal_name || business.dba || 'Unnamed business'}</b>
+                        <span className="block text-xs text-[#71717A]">{business.email || business.phone || 'No contact saved'}</span>
+                      </button>
+                    ))}
+                    {!clientMatches.length && <p className="p-3 text-sm text-[#71717A]">No matching clients.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
             <div>
-              <Label htmlFor="business_name">Business Name *</Label>
+              <Label htmlFor="business_name">{newClientMode ? 'Business Name *' : 'Selected Business'}</Label>
               <Input
                 id="business_name"
                 value={formData.business_name}
                 onChange={(e) => setFormData({ ...formData, business_name: e.target.value })}
+                disabled={!newClientMode && !!formData.business_id}
               />
             </div>
             <div>
@@ -293,6 +367,17 @@ export default function PipelinePage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="deal_documents">Upload required documents</Label>
+              <Input
+                id="deal_documents"
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
+                onChange={(event) => setDocumentFiles(Array.from(event.target.files || []))}
+              />
+              {documentFiles.length > 0 && <p className="mt-1 text-xs text-[#71717A]">{documentFiles.length} file(s) will be attached after the deal is created.</p>}
             </div>
           </div>
 

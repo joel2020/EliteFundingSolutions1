@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep'];
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: lead } = await supabase
     .from('leads')
     .select('id,organization_id,business_name,first_name,last_name,email,phone,requested_amount,assigned_user_id,iso_broker_id,lead_source,status,notes')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

@@ -15,7 +15,7 @@ const taskSchema = z.object({
   completed_at: z.string().datetime().nullable().optional(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -31,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data, error } = await supabase
     .from('tasks')
     .update(parsed.data)
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .select('*')
     .single();
@@ -43,14 +43,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     user_id: user.id,
     action: 'task_updated',
     resource_type: 'tasks',
-    resource_id: params.id,
+    resource_id: (await params).id,
     new_data: { status: data.status, title: data.title },
   });
 
   return NextResponse.json({ success: true, data });
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -61,7 +61,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   const { error } = await supabase
     .from('tasks')
     .delete()
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id);
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -71,7 +71,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     user_id: user.id,
     action: 'task_deleted',
     resource_type: 'tasks',
-    resource_id: params.id,
+    resource_id: (await params).id,
   });
 
   return NextResponse.json({ success: true });

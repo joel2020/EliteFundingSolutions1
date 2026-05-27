@@ -25,7 +25,7 @@ const businessSchema = z.object({
   notes: z.string().trim().optional().nullable(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const { data, error } = await supabase
     .from('businesses')
     .update({ ...parsed.data, email: parsed.data.email || null, updated_by: profile.id })
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .select('*')
     .single();
@@ -53,14 +53,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     user_id: user.id,
     action: 'business_updated',
     resource_type: 'businesses',
-    resource_id: params.id,
+    resource_id: (await params).id,
     new_data: { legal_name: data.legal_name },
   });
 
   return NextResponse.json({ success: true, data });
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -71,7 +71,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
   const { error } = await supabase
     .from('businesses')
     .update({ deleted_at: new Date().toISOString(), updated_by: profile.id })
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id);
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -81,7 +81,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     user_id: user.id,
     action: 'business_deleted',
     resource_type: 'businesses',
-    resource_id: params.id,
+    resource_id: (await params).id,
   });
 
   return NextResponse.json({ success: true });

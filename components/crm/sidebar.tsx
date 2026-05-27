@@ -5,9 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   ChartBar as BarChart3,
+  Archive,
+  BookOpen,
+  Briefcase,
   Building2,
   DollarSign,
   FileText,
+  GitBranch,
   LayoutDashboard,
   LogOut,
   RefreshCw,
@@ -23,11 +27,16 @@ import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 
 const navItems = [
   { href: '/crm', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/crm/prospects', label: 'Prospects', icon: Tag },
+  { href: '/crm/pipeline', label: 'Pipeline', icon: GitBranch },
   { href: '/crm/leads', label: 'Leads', icon: Tag },
   { href: '/crm/deals', label: 'Deals', icon: Search },
   { href: '/crm/underwriting', label: 'Underwriting', icon: FileText },
   { href: '/crm/partners', label: 'Funders', icon: Building2 },
   { href: '/crm/iso-brokers', label: 'ISO', icon: Users },
+  { href: '/crm/portfolio', label: 'Portfolio', icon: Briefcase },
+  { href: '/crm/vault', label: 'The Vault', icon: Archive },
+  { href: '/crm/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
   { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },
   { href: '/crm/earnings', label: 'Earnings', icon: DollarSign },
   { href: '/crm/reports', label: 'Reports', icon: BarChart3 },

@@ -19,7 +19,7 @@ const checklistSchema = z.object({
   assigned_user_id: z.string().uuid().optional().nullable(),
 });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id,assigned_user_id')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

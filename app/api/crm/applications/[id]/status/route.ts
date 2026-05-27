@@ -10,7 +10,7 @@ const statusSchema = z.object({
   notes: z.string().optional().default('CRM application status update.'),
 });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: application, error: loadError } = await supabase
     .from('applications')
     .select('id,organization_id,business_id,lead_id,status')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

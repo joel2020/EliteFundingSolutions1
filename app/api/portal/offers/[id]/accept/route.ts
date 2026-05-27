@@ -3,7 +3,7 @@ import { getPortalApplicationIds, requirePortalProfile, requireSameOrigin } from
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: offer, error: offerError } = await supabase
     .from('offers')
     .select('id,organization_id,deal_id,status,deals!inner(id,application_id,business_id,lead_id,stage_slug)')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

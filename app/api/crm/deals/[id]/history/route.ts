@@ -3,7 +3,7 @@ import { requireCrmProfile } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireCrmProfile();
   if ('response' in auth) return auth.response;
   const { profile, supabase } = auth;
@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,duplicate_of_business_id,title')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 

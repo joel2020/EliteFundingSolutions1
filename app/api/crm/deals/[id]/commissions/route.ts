@@ -16,7 +16,7 @@ const commissionSchema = z.object({
   payout_status: z.enum(['pending', 'approved', 'paid', 'held', 'clawed_back', 'cancelled']).optional().default('pending'),
 });
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireCrmProfile();
   if ('response' in auth) return auth.response;
   const { profile, supabase } = auth;
@@ -25,14 +25,14 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     .from('commission_recipients')
     .select('*')
     .eq('organization_id', profile.organization_id)
-    .eq('deal_id', params.id)
+    .eq('deal_id', (await params).id)
     .order('created_at', { ascending: true });
 
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   return NextResponse.json({ success: true, commissions: data || [] });
 }
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
 
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id')
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
 
