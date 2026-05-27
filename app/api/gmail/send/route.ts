@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/gmail';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+import { decryptGmailToken } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 const SEND_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor'];
@@ -41,8 +42,8 @@ export async function POST(request: NextRequest) {
 
     // Send email via Gmail
     const result = await sendEmail({
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      accessToken: decryptGmailToken(tokens.access_token) || '',
+      refreshToken: decryptGmailToken(tokens.refresh_token) || undefined,
       to,
       subject,
       body,

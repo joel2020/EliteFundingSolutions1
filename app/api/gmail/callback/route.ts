@@ -4,6 +4,7 @@ import { getOAuth2Client } from '@/lib/gmail';
 import { google } from 'googleapis';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 import { INTERNAL_CRM_ROLES } from '@/lib/server-auth';
+import { encryptGmailToken } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,8 +65,8 @@ export async function GET(request: NextRequest) {
       .upsert({
         user_id: user.id,
         email: userInfo.email,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token: encryptGmailToken(tokens.access_token),
+        refresh_token: encryptGmailToken(tokens.refresh_token),
         expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
         scope: tokens.scope,
       });

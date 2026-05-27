@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const isDev = process.env.NODE_ENV !== 'production';
 const scriptSrc = ["'self'", "'unsafe-inline'", ...(isDev ? ["'unsafe-eval'"] : [])].join(' ');
 
@@ -12,12 +14,24 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
-  eslint: { ignoreDuringBuilds: true },
   images: { unoptimized: true },
+  outputFileTracingRoot: path.join(__dirname),
+  webpack(config, { isServer }) {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      canvas: false,
+    };
+    if (isServer) {
+      config.externals = [
+        ...(config.externals || []),
+        '@napi-rs/canvas',
+      ];
+    }
+    return config;
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },
-      { source: '/_next/static/:path*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
       { source: '/:all*(png|jpg|jpeg|gif|svg|webp|ico)', headers: [{ key: 'Cache-Control', value: 'public, max-age=2592000, stale-while-revalidate=86400' }] },
     ];
   },

@@ -12,6 +12,7 @@ export function GmailConnection() {
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [configurationError, setConfigurationError] = useState<string | null>(null);
 
   useEffect(() => {
     checkConnection();
@@ -37,9 +38,10 @@ export function GmailConnection() {
     setConnecting(true);
     try {
       const response = await fetch('/api/gmail/auth');
-      const { authUrl, error } = await response.json();
+      const { authUrl, error, configured } = await response.json();
 
       if (error) {
+        if (configured === false) setConfigurationError(error);
         toast.error(error);
         setConnecting(false);
         return;
@@ -147,6 +149,11 @@ export function GmailConnection() {
                 Sync with your Gmail sent folder
               </li>
             </ul>
+            {configurationError && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {configurationError}
+              </div>
+            )}
             <Button 
               onClick={handleConnect} 
               disabled={connecting}

@@ -14,6 +14,10 @@ export function getRequiredFieldEncryptionKey() {
   return createHash('sha256').update(secret).digest();
 }
 
+function deriveEncryptionKey(secret: string) {
+  return createHash('sha256').update(secret).digest();
+}
+
 export function encryptSensitiveField(value?: string | null) {
   if (!value) return null;
   const iv = randomBytes(12);
@@ -28,6 +32,39 @@ export function decryptSensitiveField(value?: string | null) {
   const [version, iv, authTag, ciphertext] = value.split(':');
   if (version !== 'v1' || !iv || !authTag || !ciphertext) return null;
   const decipher = createDecipheriv('aes-256-gcm', getRequiredFieldEncryptionKey(), Buffer.from(iv, 'base64'));
+  decipher.setAuthTag(Buffer.from(authTag, 'base64'));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertext, 'base64')),
+    decipher.final(),
+  ]).toString('utf8');
+}
+
+export function encryptGmailToken(value?: string | null) {
+  if (!value) return null;
+  const secret = process.env.GMAIL_ENCRYPTION_KEY;
+  if (!secret) {
+    throw new Error('GMAIL_ENCRYPTION_KEY is not configured. Refusing to store Google Workspace OAuth tokens.');
+  }
+
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', deriveEncryptionKey(secret), iv);
+  const ciphertext = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `v1:${iv.toString('base64')}:${authTag.toString('base64')}:${ciphertext.toString('base64')}`;
+}
+
+export function decryptGmailToken(value?: string | null) {
+  if (!value) return null;
+  if (!value.startsWith('v1:')) return value;
+
+  const secret = process.env.GMAIL_ENCRYPTION_KEY;
+  if (!secret) {
+    throw new Error('GMAIL_ENCRYPTION_KEY is not configured. Unable to read encrypted Google Workspace OAuth tokens.');
+  }
+
+  const [version, iv, authTag, ciphertext] = value.split(':');
+  if (version !== 'v1' || !iv || !authTag || !ciphertext) return null;
+  const decipher = createDecipheriv('aes-256-gcm', deriveEncryptionKey(secret), Buffer.from(iv, 'base64'));
   decipher.setAuthTag(Buffer.from(authTag, 'base64'));
   return Buffer.concat([
     decipher.update(Buffer.from(ciphertext, 'base64')),

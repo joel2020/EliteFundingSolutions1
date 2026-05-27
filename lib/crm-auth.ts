@@ -2,17 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-
-export const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
-
-export type InternalCrmRole = (typeof INTERNAL_CRM_ROLES)[number];
+import { INTERNAL_CRM_ROLES, type InternalCrmRole, isInternalCrmRole } from '@/lib/auth-routing';
 
 export type CrmProfile = {
   id: string;
@@ -24,10 +14,6 @@ export type CrmProfile = {
   role: string;
   is_active: boolean;
 };
-
-export function isInternalCrmRole(role?: string | null): role is InternalCrmRole {
-  return !!role && INTERNAL_CRM_ROLES.includes(role as InternalCrmRole);
-}
 
 export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; error: string | null }> {
   const { data: { user }, error: userError } = await supabase.auth.getUser();

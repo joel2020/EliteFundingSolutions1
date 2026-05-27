@@ -3,18 +3,11 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
+import { INTERNAL_CRM_ROLES } from '@/lib/auth-routing';
+export { INTERNAL_CRM_ROLES } from '@/lib/auth-routing';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
-
-export const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
 
 export type ServerCrmProfile = {
   id: string;
@@ -50,7 +43,7 @@ export function requireSameOrigin(request: Request) {
 }
 
 export async function getAuthenticatedUser(): Promise<{ user: User | null; error: string | null }> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const authClient = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {

@@ -1,21 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
-
-const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
+import { isInternalCrmRole, safeRedirectPath } from '@/lib/auth-routing';
 
 type UserProfile = {
   role: string;
@@ -25,12 +17,9 @@ type UserProfile = {
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
-function isInternalCrmRole(role: string) {
-  return INTERNAL_CRM_ROLES.includes(role as (typeof INTERNAL_CRM_ROLES)[number]);
-}
-
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = useMemo(
     () => createBrowserClient(supabaseUrl, supabaseAnonKey),
     []
@@ -40,14 +29,91 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+
+  const routeAuthenticatedUser = useCallback(async (userId: string) => {
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('role,is_active')
+      .eq('user_id', userId)
+      .maybeSingle() as { data: UserProfile | null; error: Error | null };
+
+    if (profileError) throw profileError;
+
+    if (!profile) {
+      router.replace('/access-denied?reason=access_not_configured');
+      return;
+    }
+
+    if (!profile.is_active) {
+      router.replace('/access-denied?reason=account_inactive');
+      return;
+    }
+
+    if (profile.role === 'client') {
+      router.replace('/portal');
+      return;
+    }
+
+    if (isInternalCrmRole(profile.role)) {
+      router.replace(safeRedirectPath(searchParams.get('next') || searchParams.get('redirectTo'), '/crm'));
+      return;
+    }
+
+    router.replace('/access-denied?reason=crm_access_denied');
+  }, [router, searchParams, supabase]);
+
+  useEffect(() => {
+    const errorFromUrl = searchParams.get('error') || searchParams.get('error_description');
+    if (errorFromUrl) {
+      setPageError(errorFromUrl);
+      toast.error(errorFromUrl);
+    }
+
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const hashError = hashParams.get('error_description') || hashParams.get('error');
+    const accessToken = hashParams.get('access_token');
+    const refreshToken = hashParams.get('refresh_token');
+
+    const finishPendingSession = async () => {
+      try {
+        if (hashError) {
+          setPageError(hashError);
+          toast.error(hashError);
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          return;
+        }
+
+        if (accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setSessionError) throw setSessionError;
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (session?.user) await routeAuthenticatedUser(session.user.id);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Unable to complete sign in';
+        setPageError(msg);
+        toast.error(msg);
+      }
+    };
+
+    finishPendingSession();
+  }, [routeAuthenticatedUser, searchParams, supabase]);
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
+      const next = safeRedirectPath(searchParams.get('next') || searchParams.get('redirectTo'), '/crm');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/crm`,
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
@@ -70,38 +136,10 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error('Login failed');
-
-      // Check profile and route accordingly
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('role,is_active')
-        .eq('user_id', data.user.id)
-        .maybeSingle() as { data: UserProfile | null; error: Error | null };
-
-      if (profileError) throw profileError;
-
-      if (!profile) {
-        await supabase.auth.signOut();
-        toast.error('No CRM profile found. Contact admin.');
-        return;
-      }
-
-      if (!profile.is_active) {
-        await supabase.auth.signOut();
-        toast.error('This account is inactive.');
-        return;
-      }
-
-      if (profile.role === 'client') {
-        router.replace('/portal');
-      } else if (isInternalCrmRole(profile.role)) {
-        router.replace('/crm');
-      } else {
-        await supabase.auth.signOut();
-        toast.error('This account is not authorized for CRM access.');
-      }
+      await routeAuthenticatedUser(data.user.id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
+      setPageError(msg);
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -138,6 +176,11 @@ export default function LoginPage() {
           <p className="text-[14px] mb-7" style={{ color: '#5A6A85' }}>
             Access your CRM or client portal.
           </p>
+          {pageError && (
+            <div className="mb-5 rounded-[10px] border border-red-400/30 bg-red-500/10 px-4 py-3 text-[13px] text-red-100" role="alert">
+              {pageError}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div>
@@ -196,7 +239,7 @@ export default function LoginPage() {
               className="inline-flex items-center justify-center gap-2 rounded-[10px] font-semibold text-[15px] h-11 px-6 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: '#C9A84C', color: '#0A1628', boxShadow: '0 4px 16px rgba(201,168,76,0.25)' }}
             >
-              {loading ? 'Signing in…' : 'Sign In'}
+              {loading ? 'Signing in...' : 'Sign In'}
               {!loading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
@@ -235,5 +278,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#061326]" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

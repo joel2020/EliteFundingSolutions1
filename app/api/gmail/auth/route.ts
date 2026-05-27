@@ -12,9 +12,8 @@ export async function GET() {
     const authUrl = getAuthUrl();
     return NextResponse.json({ authUrl });
   } catch (error: any) {
-    console.error('Gmail auth error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to generate auth URL' },
+      { error: error.message || 'Google Workspace is not configured yet.', configured: false },
       { status: 500 }
     );
   }

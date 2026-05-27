@@ -1,15 +1,7 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-
-const INTERNAL_CRM_ROLES = [
-  'super_admin',
-  'admin',
-  'manager',
-  'sales_rep',
-  'processor',
-  'underwriter',
-] as const;
+import { isInternalCrmRole } from '@/lib/auth-routing';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
@@ -19,10 +11,6 @@ type UserProfile = {
   is_active: boolean;
 };
 
-function isInternalCrmRole(role: string) {
-  return INTERNAL_CRM_ROLES.includes(role as (typeof INTERNAL_CRM_ROLES)[number]);
-}
-
 function redirect(req: NextRequest, pathname: string) {
   const redirectUrl = req.nextUrl.clone();
   redirectUrl.pathname = pathname;
@@ -30,14 +18,23 @@ function redirect(req: NextRequest, pathname: string) {
   return NextResponse.redirect(redirectUrl);
 }
 
-function redirectToLogin(req: NextRequest) {
+function redirectToAccessDenied(req: NextRequest, reason: string) {
   const redirectUrl = req.nextUrl.clone();
-  redirectUrl.pathname = '/login';
+  redirectUrl.pathname = '/access-denied';
+  redirectUrl.search = '';
+  redirectUrl.searchParams.set('reason', reason);
   redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname);
   return NextResponse.redirect(redirectUrl);
 }
 
-export async function middleware(req: NextRequest) {
+function redirectToLogin(req: NextRequest, redirectPath = req.nextUrl.pathname) {
+  const redirectUrl = req.nextUrl.clone();
+  redirectUrl.pathname = '/login';
+  redirectUrl.searchParams.set('redirectTo', redirectPath);
+  return NextResponse.redirect(redirectUrl);
+}
+
+export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: req });
   const pathname = req.nextUrl.pathname;
   const host = req.headers.get('host')?.split(':')[0].toLowerCase() ?? '';
@@ -47,19 +44,13 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // CRM subdomains should open the CRM login experience by default.
-  if (isCrmHost && pathname === '/') {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = '/login';
-    return NextResponse.redirect(redirectUrl);
-  }
-
   // Protected routes that require authentication
   const protectedRoutes = ['/crm', '/portal'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
   const isLoginRoute = pathname === '/login';
+  const isCrmHostRoot = isCrmHost && pathname === '/';
 
-  if (!isProtectedRoute && !isLoginRoute) {
+  if (!isProtectedRoute && !isLoginRoute && !isCrmHostRoot) {
     return res;
   }
 
@@ -83,11 +74,12 @@ export async function middleware(req: NextRequest) {
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
   // Redirect to login if accessing protected route without session
-  if (isProtectedRoute && !user) {
-    return redirectToLogin(req);
+  if ((isProtectedRoute || isCrmHostRoot) && !user) {
+    return redirectToLogin(req, isCrmHostRoot ? '/crm' : pathname);
   }
 
   if (!user) {
@@ -100,9 +92,17 @@ export async function middleware(req: NextRequest) {
     .eq('user_id', user.id)
     .maybeSingle() as { data: UserProfile | null };
 
-  if (!profile || !profile.is_active) {
-    if (isProtectedRoute) {
-      return redirectToLogin(req);
+  if (!profile) {
+    if (isProtectedRoute || isLoginRoute || isCrmHostRoot) {
+      return redirectToAccessDenied(req, 'access_not_configured');
+    }
+
+    return res;
+  }
+
+  if (!profile.is_active) {
+    if (isProtectedRoute || isLoginRoute || isCrmHostRoot) {
+      return redirectToAccessDenied(req, 'account_inactive');
     }
 
     return res;
@@ -110,6 +110,12 @@ export async function middleware(req: NextRequest) {
 
   const isClientRole = profile.role === 'client';
   const isInternalRole = isInternalCrmRole(profile.role);
+
+  if (isCrmHostRoot) {
+    if (isInternalRole) return redirect(req, '/crm');
+    if (isClientRole) return redirect(req, '/portal');
+    return redirectToAccessDenied(req, 'crm_access_denied');
+  }
 
   // Redirect logged-in users away from login based on their profile role.
   if (isLoginRoute) {
@@ -121,15 +127,11 @@ export async function middleware(req: NextRequest) {
       return redirect(req, '/crm');
     }
 
-    return res;
+    return redirectToAccessDenied(req, 'crm_access_denied');
   }
 
   if (pathname.startsWith('/crm') && !isInternalRole) {
-    if (isClientRole) {
-      return redirect(req, '/portal');
-    }
-
-    return redirectToLogin(req);
+    return redirectToAccessDenied(req, isClientRole ? 'client_portal_only' : 'crm_access_denied');
   }
 
   if (pathname.startsWith('/portal') && !isClientRole) {
@@ -137,7 +139,7 @@ export async function middleware(req: NextRequest) {
       return redirect(req, '/crm');
     }
 
-    return redirectToLogin(req);
+    return redirectToAccessDenied(req, 'portal_access_denied');
   }
 
   return res;
