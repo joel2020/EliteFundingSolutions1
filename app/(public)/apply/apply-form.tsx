@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, Shield, UploadCloud, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { COMPANY, CONSENT_VERSION } from '@/lib/company';
@@ -158,7 +159,7 @@ function SelectField({ label, value, onChange, options, required = false }: { la
 
 function CheckboxField({ checked, onChange, label, help, required = false }: { checked: boolean; onChange: (checked: boolean) => void; label: ReactNode; help?: ReactNode; required?: boolean }) {
   return (
-    <label className="flex items-start gap-3 rounded-[12px] border border-[#E4E4E7] bg-white p-4 cursor-pointer">
+    <label className="application-choice flex items-start gap-3 rounded-[12px] border border-[#E4E4E7] bg-white p-4 cursor-pointer">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} required={required} className="mt-1 h-4 w-4 rounded border-[#D4D4D8]" />
       <span>
         <span className="block text-[14px] font-medium text-[#09090B]">{label}</span>
@@ -321,7 +322,7 @@ function StepReview({ data, files, update }: { data: ApplicationFormData; files:
   return (
     <div className="space-y-6">
       <SectionIntro title="Authorization & Final Review" text="Review the application and complete the required certification, authorization, e-signature, and consent fields before submission." />
-      <div className="rounded-[16px] bg-[#F8F9FB] border border-[#E4E4E7] p-5 space-y-3 text-[14px] text-[#52525B] leading-relaxed">
+      <div className="application-review-panel rounded-[16px] bg-[#F8F9FB] border border-[#E4E4E7] p-5 space-y-3 text-[14px] text-[#52525B] leading-relaxed">
         <p><strong className="text-[#09090B]">Application certification.</strong> I certify that all information and documents submitted are accurate, true, correct, and complete, including business information, owner/principal information, financial records, uploaded bank statements, and other submitted materials.</p>
         <p><strong className="text-[#09090B]">Credit and background authorization.</strong> I authorize Elite Funding Solutions and its recipients, partners, successors, assigns, agents, affiliates, service providers, lenders, funding partners, banks, processors, credit bureaus, and underwriting partners to obtain consumer, personal, business, investigative, credit, processor, bank statement, bank, and financial reports for underwriting, funding, renewal, servicing, verification, fraud-prevention, and compliance purposes.</p>
         <p><strong className="text-[#09090B]">Sharing authorization.</strong> I authorize Elite Funding Solutions to share application information, owner/principal information, authorization data, bank reference information, financial records, and uploaded bank statements with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.</p>
@@ -329,7 +330,7 @@ function StepReview({ data, files, update }: { data: ApplicationFormData; files:
         <p><strong className="text-[#09090B]">SMS/text consent.</strong> By checking the SMS consent box, I consent to receive text messages from Elite Funding Solutions. Message and data rates may apply. Reply STOP to opt out and HELP for help. Consent is not a condition of purchase where legally required.</p>
         <p className="text-[12px] text-[#71717A]">Consent version: {CONSENT_VERSION}</p>
       </div>
-      <div className="rounded-[14px] border border-[#E4E4E7] p-4 text-[13px] text-[#71717A] space-y-1"><p className="font-semibold text-[#09090B]">Required uploads</p>{uploaded.map((item) => <p key={item}>{item}</p>)}</div>
+      <div className="application-review-panel rounded-[14px] border border-[#E4E4E7] bg-white p-4 text-[13px] text-[#71717A] space-y-1"><p className="font-semibold text-[#09090B]">Required uploads</p>{uploaded.map((item) => <p key={item}>{item}</p>)}</div>
       <div className="space-y-3">
         <CheckboxField required checked={data.certification_accepted} onChange={(v) => update('certification_accepted', v)} label="I certify that all information and documents submitted are accurate, true, correct, and complete." />
         <CheckboxField required checked={data.credit_authorization_accepted} onChange={(v) => { update('credit_authorization_accepted', v); update('authorization_consent', v); }} label="I authorize Elite Funding Solutions and its funding partners, affiliates, service providers, and recipients to obtain consumer, personal, business, investigative, credit, bank, processor, and financial reports for underwriting and funding purposes." />
@@ -349,7 +350,7 @@ function StepConfirmation({ data }: { data: ApplicationFormData }) {
       <div className="w-16 h-16 rounded-full bg-[#F0FDF4] border border-[#DCFCE7] flex items-center justify-center mx-auto mb-6"><CheckCircle2 className="w-8 h-8 text-[#10B981]" /></div>
       <h2 className="text-[26px] font-bold text-[#09090B] mb-3">Application Submitted</h2>
       <p className="text-[16px] text-[#71717A] max-w-[460px] mx-auto leading-relaxed mb-8">Thank you, {data.owner1.first_name || 'there'}. Your secure funding application and bank statements have been received. A funding advisor will review the complete file and contact you with next steps.</p>
-      <a href="/" className="btn-gold">Return Home <ArrowRight className="w-4 h-4" /></a>
+      <Link href="/" className="btn-gold">Return Home <ArrowRight className="w-4 h-4" /></Link>
     </div>
   );
 }

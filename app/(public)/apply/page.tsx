@@ -7,9 +7,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/apply' },
 };
 
-export default function ApplyPage({ searchParams }: { searchParams?: { rep?: string; iso?: string } }) {
-  const repCode = searchParams?.rep?.trim() || '';
-  const isoCode = searchParams?.iso?.trim() || '';
+export default async function ApplyPage({ searchParams }: { searchParams?: Promise<{ rep?: string; iso?: string }> }) {
+  const resolvedSearchParams = await searchParams;
+  const repCode = resolvedSearchParams?.rep?.trim() || '';
+  const isoCode = resolvedSearchParams?.iso?.trim() || '';
   const code = repCode || isoCode;
   const source = isoCode ? 'iso' : 'rep';
   return <ApplyForm referral={code ? { code, path: `/apply?${source}=${encodeURIComponent(code)}` } : undefined} />;

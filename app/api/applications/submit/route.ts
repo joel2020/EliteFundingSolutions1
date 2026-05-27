@@ -4,8 +4,10 @@ import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supaba
 import { emailTemplates, sendEmail } from '@/lib/email';
 import { CONSENT_VERSION } from '@/lib/company';
 import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
+import { analyzeBankStatementText, enrichBankStatementAnalysisWithAzureAI, extractStatementText } from '@/lib/bank-statement-analysis';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const toNumber = (value?: string) => value ? Number(String(value).replace(/[$,]/g, '')) : null;
 const emptyToNull = (value?: string) => value && value.trim() ? value.trim() : null;
@@ -220,7 +222,7 @@ async function resolveRohanEmail(supabase: ReturnType<typeof createServiceSupaba
     .limit(1)
     .maybeSingle();
 
-  return data?.email || process.env.ADMIN_EMAIL || 'admin@elitefundingsolution.com';
+  return data?.email || process.env.ADMIN_EMAIL || 'rbedi@elitefundingsol.com';
 }
 
 function uniqueEmails(emails: Array<string | null | undefined>) {
@@ -259,6 +261,146 @@ function internalApplicationNotification({
     <p><strong>Deal ID:</strong> ${escapeHtml(dealId)}</p>
     <p><strong>Documents uploaded:</strong> ${escapeHtml(uploadedDocuments.map((doc) => doc.name).join(', '))}</p>
   `;
+}
+
+type UploadedApplicationDocument = {
+  type: (typeof documentKeys)[number];
+  name: string;
+  path: string;
+  documentId: string;
+  file: File;
+};
+
+async function runAutomaticBankStatementAnalysis({
+  supabase,
+  deal,
+  appId,
+  businessId,
+  leadId,
+  uploadedDocuments,
+}: {
+  supabase: ReturnType<typeof createServiceSupabaseClient>;
+  deal: { id: string };
+  appId: string;
+  businessId: string;
+  leadId: string;
+  uploadedDocuments: UploadedApplicationDocument[];
+}) {
+  const bankDocuments = uploadedDocuments.filter((doc) => doc.type === 'bank_statements');
+  if (!bankDocuments.length) return { analyzed: false, reason: 'No bank statements were uploaded.' };
+
+  const texts: string[] = [];
+  const extractionModes: string[] = [];
+
+  for (const doc of bankDocuments) {
+    const bytes = Buffer.from(await doc.file.arrayBuffer());
+    const extracted = await extractStatementText(bytes, doc.file.type, doc.name);
+    texts.push(extracted.text);
+    extractionModes.push(`${doc.name}: ${extracted.mode}`);
+  }
+
+  const analysis = await enrichBankStatementAnalysisWithAzureAI(texts, analyzeBankStatementText(texts));
+
+  const { data: financial, error: financialError } = await supabase
+    .from('deal_financials')
+    .upsert({
+      organization_id: DEFAULT_ORG_ID,
+      deal_id: deal.id,
+      total_deposits: analysis.total_deposits,
+      total_withdrawals: analysis.total_withdrawals,
+      net_cash_flow: analysis.net_cash_flow,
+      average_daily_ledger_balance: analysis.average_daily_ledger_balance,
+      negative_balance_days_per_month: analysis.negative_balance_days_per_month,
+      nsf_count: analysis.nsf_count,
+      analysis_status: 'completed',
+      analysis_confidence: analysis.confidence,
+      analysis_summary: analysis.ai_summary || analysis.extraction_notes,
+      analyzed_at: new Date().toISOString(),
+      analyzed_by: null,
+    }, { onConflict: 'organization_id,deal_id' })
+    .select('id')
+    .single();
+
+  if (financialError) throw financialError;
+
+  await supabase
+    .from('current_positions')
+    .delete()
+    .eq('organization_id', DEFAULT_ORG_ID)
+    .eq('deal_id', deal.id)
+    .eq('source', 'ai_bank_analysis');
+
+  if (analysis.detected_positions.length) {
+    const { error: positionError } = await supabase.from('current_positions').insert(analysis.detected_positions.map((position) => ({
+      organization_id: DEFAULT_ORG_ID,
+      deal_id: deal.id,
+      business_id: businessId,
+      funder_name: position.funder_name,
+      current_balance: null,
+      daily_payment: position.payment_frequency === 'daily' ? position.payment_amount : null,
+      weekly_payment: position.payment_frequency === 'weekly' ? position.payment_amount : null,
+      payment_frequency: position.payment_frequency,
+      status: 'active',
+      source: 'ai_bank_analysis',
+      recurrence_pattern: position.payment_frequency,
+      occurrences: position.occurrences,
+      confidence: position.confidence,
+      first_seen: position.first_seen,
+      last_seen: position.last_seen,
+      notes: 'Auto-detected from public application bank statement upload.',
+    })));
+    if (positionError) throw positionError;
+  }
+
+  const { data: analysisRow, error: analysisError } = await supabase
+    .from('bank_statement_analyses')
+    .insert({
+      organization_id: DEFAULT_ORG_ID,
+      deal_id: deal.id,
+      business_id: businessId,
+      application_id: appId,
+      status: 'completed',
+      total_deposits: analysis.total_deposits,
+      total_withdrawals: analysis.total_withdrawals,
+      net_cash_flow: analysis.net_cash_flow,
+      average_daily_ledger_balance: analysis.average_daily_ledger_balance,
+      negative_balance_days_per_month: analysis.negative_balance_days_per_month,
+      nsf_count: analysis.nsf_count,
+      position_count: analysis.position_count,
+      detected_positions: analysis.detected_positions,
+      source_document_ids: bankDocuments.map((doc) => doc.documentId),
+      extraction_notes: `${analysis.extraction_notes} Extraction modes: ${extractionModes.join('; ')}`,
+      confidence: analysis.confidence,
+      raw_metrics: {
+        transactionsParsed: analysis.transactions.length,
+        financial_id: financial.id,
+        trigger: 'application_submit',
+        ai_provider: analysis.ai_provider || null,
+        ai_summary: analysis.ai_summary || null,
+        ai_risk_flags: analysis.ai_risk_flags || [],
+        ai_underwriting_notes: analysis.ai_underwriting_notes || [],
+        ai_lender_match_notes: analysis.ai_lender_match_notes || [],
+      },
+      created_by: null,
+    })
+    .select('id')
+    .single();
+
+  if (analysisError) throw analysisError;
+
+  await supabase.from('activities').insert({
+    organization_id: DEFAULT_ORG_ID,
+    deal_id: deal.id,
+    application_id: appId,
+    business_id: businessId,
+    lead_id: leadId,
+    activity_type: 'ai_analysis',
+    title: 'AI bank statement analysis completed',
+    body: `${analysis.position_count} position(s), ${analysis.nsf_count} NSF item(s), net cash flow $${analysis.net_cash_flow.toLocaleString()}.`,
+    performed_by: null,
+  });
+
+  return { analyzed: true, analysisId: analysisRow.id, positionCount: analysis.position_count };
 }
 
 async function readPayloadAndFiles(request: Request) {
@@ -468,7 +610,7 @@ export async function POST(request: Request) {
       const storagePath = `${DEFAULT_ORG_ID}/${app.id}/${key}/${Date.now()}-${safeName}`;
       const { error: uploadError } = await supabase.storage.from('application-documents').upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
       if (uploadError) throw uploadError;
-      const { error: docError } = await supabase.from('documents').insert({
+      const { data: document, error: docError } = await supabase.from('documents').insert({
         organization_id: DEFAULT_ORG_ID,
         deal_id: deal.id,
         application_id: app.id,
@@ -478,14 +620,26 @@ export async function POST(request: Request) {
         file_size: file.size,
         mime_type: file.type || null,
         storage_path: storagePath,
-      });
+      }).select('id').single();
       if (docError) throw docError;
-      return { type: key, name: file.name, path: storagePath };
+      return { type: key, name: file.name, path: storagePath, documentId: document.id, file };
     }));
+
+    const automaticAnalysis = await runAutomaticBankStatementAnalysis({
+      supabase,
+      deal,
+      appId: app.id,
+      businessId: biz.id,
+      leadId: lead.id,
+      uploadedDocuments,
+    }).catch((error) => {
+      console.warn('Automatic bank statement analysis failed.', error?.message || error);
+      return { analyzed: false, reason: error?.message || 'Automatic bank statement analysis failed.' };
+    });
 
     await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
     await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.map((doc) => doc.name).join(', ')}` });
-    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
+    await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name, id: doc.documentId })), consent_version: form.consent_version, automatic_bank_statement_analysis: automaticAnalysis } });
 
     if (form.existing_advances.length > 0) {
       await supabase.from('existing_advances').insert(form.existing_advances.map((advance) => ({ organization_id: DEFAULT_ORG_ID, application_id: app.id, funder_name: emptyToNull(advance.funder_name), original_funded_amount: toNumber(advance.original_amount), current_balance: toNumber(advance.current_balance), daily_payment: toNumber(advance.daily_payment), payment_frequency: emptyToNull(advance.payment_frequency), notes: emptyToNull(advance.notes) })));

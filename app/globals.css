@@ -314,6 +314,33 @@
     background: #ffffff !important;
     color: #0a1628 !important;
   }
+  .premium-card select option {
+    background: #ffffff !important;
+    color: #0a1628 !important;
+  }
+  .premium-card .application-choice,
+  .premium-card .application-review-panel {
+    color: #52525b !important;
+  }
+  .premium-card .application-choice span,
+  .premium-card .application-review-panel p,
+  .premium-card .application-review-panel span {
+    color: #52525b !important;
+  }
+  .premium-card .application-choice [class*="text-[#09090B]"],
+  .premium-card .application-choice strong,
+  .premium-card .application-review-panel [class*="text-[#09090B]"],
+  .premium-card .application-review-panel strong {
+    color: #09090b !important;
+  }
+  .premium-card .application-choice [class*="text-[#71717A]"],
+  .premium-card .application-review-panel [class*="text-[#71717A]"] {
+    color: #71717a !important;
+  }
+  .premium-card .application-choice a,
+  .premium-card .application-review-panel a {
+    color: #0f2b5b !important;
+  }
   .page-hero-dark,
   .page-hero-light {
     background: radial-gradient(circle at 70% 24%, rgba(62,114,174,0.28), transparent 28%), linear-gradient(90deg,#030812 0%,#06101f 44%,#030812 100%) !important;

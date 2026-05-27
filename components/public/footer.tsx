@@ -99,7 +99,7 @@ export function PublicFooter() {
             <Link href="/privacy-policy" className="hover:text-[#e7c579]">Privacy Policy</Link>
             <Link href="/terms-of-use" className="hover:text-[#e7c579]">Terms of Use</Link>
             <Link href="/sitemap" className="hover:text-[#e7c579]">Sitemap</Link>
-            <Link href="https://crm.elitefundingsolution.com/login" className="hover:text-[#e7c579]">CRM Login</Link>
+            <Link href="/crm" className="hover:text-[#e7c579]">CRM Login</Link>
           </div>
           <p>Commercial funding marketplace; not a bank.</p>
         </div>

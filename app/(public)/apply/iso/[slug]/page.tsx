@@ -15,7 +15,8 @@ function labelFromSlug(slug: string) {
     .join(' ');
 }
 
-export default function IsoApplyPage({ params }: { params: { slug: string } }) {
-  const code = decodeURIComponent(params.slug).trim().toLowerCase();
+export default async function IsoApplyPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const code = decodeURIComponent(slug).trim().toLowerCase();
   return <ApplyForm referral={{ code, path: `/apply/iso/${encodeURIComponent(code)}`, repName: labelFromSlug(code) }} />;
 }

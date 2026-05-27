@@ -15,7 +15,8 @@ function labelFromSlug(slug: string) {
     .join(' ');
 }
 
-export default function RepApplyPage({ params }: { params: { slug: string } }) {
-  const code = decodeURIComponent(params.slug).trim().toLowerCase();
+export default async function RepApplyPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const code = decodeURIComponent(slug).trim().toLowerCase();
   return <ApplyForm referral={{ code, path: `/apply/rep/${encodeURIComponent(code)}`, repName: labelFromSlug(code) }} />;
 }

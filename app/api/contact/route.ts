@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   const emailResult = await sendEmail({
-    to: process.env.ADMIN_EMAIL || 'admin@elitefundingsolution.com',
+    to: process.env.ADMIN_EMAIL || 'rbedi@elitefundingsol.com',
     subject: `Website inquiry from ${escapeHtml(name)}`,
     html: `<p><strong>Name:</strong> ${escapeHtml(name)}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Phone:</strong> ${escapeHtml(phone || 'Not provided')}</p><p><strong>Type:</strong> ${escapeHtml(type)}</p><p>${escapeHtml(message).replace(/\n/g, '<br />')}</p>`,
   });

@@ -124,7 +124,7 @@ export function PublicNavbar() {
             <Phone className="h-3.5 w-3.5 text-[#e7c579]" />
             {COMPANY.phone}
           </a>
-          <Link href="https://crm.elitefundingsolution.com/login" className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-200 transition hover:text-[#e7c579]">CRM Login</Link>
+          <Link href="/crm" className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-200 transition hover:text-[#e7c579]">CRM Login</Link>
           <Link
             href="/funding-fit-check"
             className="inline-flex h-11 items-center justify-center rounded-sm border border-[#d6af62] px-7 text-[11px] font-bold uppercase tracking-[0.14em] text-[#f1d08a] transition hover:bg-[#d6af62] hover:text-[#050912]"
@@ -201,7 +201,7 @@ export function PublicNavbar() {
               {COMPANY.phone}
             </a>
             <Link
-              href="https://crm.elitefundingsolution.com/login"
+              href="/crm"
               className="inline-flex h-12 items-center justify-center rounded-sm border border-[#d6af62]/45 px-6 text-[12px] font-bold uppercase tracking-[0.15em] text-white"
               onClick={() => setMenuOpen(false)}
             >
