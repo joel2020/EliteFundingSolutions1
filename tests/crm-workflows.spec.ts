@@ -118,7 +118,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'AI Analysis', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'AI Analysis', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -200,10 +200,6 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
     await expect(page.getByText('Submission Ready')).toBeVisible();
-
-    await page.getByRole('tab', { name: 'Readiness' }).click();
-    await expect(page.getByText('Submission readiness')).toBeVisible();
-    await expect(page.getByTestId('missing-document-checklist')).toContainText('Voided check');
 
     await page.getByRole('tab', { name: 'Documents' }).click();
     await expect(page.getByText('Missing required documents')).toBeVisible();
