@@ -21,6 +21,7 @@ const dealSchema = z.object({
   assigned_user_id: z.string().uuid().optional().nullable(),
   junior_closer_id: z.string().uuid().optional().nullable(),
   senior_closer_id: z.string().uuid().optional().nullable(),
+  iso_broker_id: z.string().uuid().optional().nullable(),
   lead_source: z.enum(['website', 'referral', 'broker', 'iso', 'paid_ads', 'organic_search', 'cold_email', 'partner', 'manual_entry']).optional().default('manual_entry'),
   notes: z.string().optional().nullable(),
 });
@@ -92,6 +93,7 @@ export async function POST(request: Request) {
       business_name: linkedBusinessName,
       status: 'converted',
       assigned_user_id: assignedUserId,
+      iso_broker_id: form.iso_broker_id || null,
       notes: form.notes || null,
       created_by: profile.id,
       updated_by: profile.id,
@@ -117,6 +119,7 @@ export async function POST(request: Request) {
       assigned_user_id: assignedUserId,
       junior_closer_id: form.junior_closer_id || null,
       senior_closer_id: form.senior_closer_id || null,
+      iso_broker_id: form.iso_broker_id || null,
       lead_source: form.lead_source,
       notes: form.notes || null,
       created_by: profile.id,

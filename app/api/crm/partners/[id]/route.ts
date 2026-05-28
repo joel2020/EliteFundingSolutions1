@@ -1,0 +1,144 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
+
+export const dynamic = 'force-dynamic';
+
+const WRITE_ROLES = ['super_admin', 'admin', 'manager'];
+const csv = (value?: string) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+
+const partnerUpdateSchema = z.object({
+  name: z.string().trim().optional().default(''),
+  company_name: z.string().trim().optional().default(''),
+  contact_name: z.string().trim().optional().default(''),
+  email: z.string().trim().email('Enter a valid contact email.').optional().or(z.literal('')).default(''),
+  phone: z.string().trim().optional().default(''),
+  submission_email: z.string().trim().email('Enter a valid submission email.').optional().or(z.literal('')).default(''),
+  portal_url: z.string().trim().url('Enter a valid portal URL.').optional().or(z.literal('')).default(''),
+  product_types: z.string().trim().optional().default(''),
+  min_funding_amount: z.coerce.number().nonnegative().optional().nullable(),
+  max_funding_amount: z.coerce.number().nonnegative().optional().nullable(),
+  min_monthly_revenue: z.coerce.number().nonnegative().optional().nullable(),
+  min_time_in_business_months: z.coerce.number().int().nonnegative().optional().nullable(),
+  states_served: z.string().trim().optional().default(''),
+  restricted_industries: z.string().trim().optional().default(''),
+  avg_approval_days: z.coerce.number().int().nonnegative().optional().nullable(),
+  notes: z.string().trim().optional().default(''),
+}).transform((value) => ({ ...value, name: value.name || value.company_name }));
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
+  const auth = await requireCrmProfile(WRITE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+  const { id } = await params;
+
+  const parsed = partnerUpdateSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ success: false, error: 'Invalid funding partner payload.', issues: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const form = parsed.data;
+  if (!form.name) return NextResponse.json({ success: false, error: 'Company name is required.' }, { status: 400 });
+  if (form.max_funding_amount != null && form.min_funding_amount != null && form.max_funding_amount < form.min_funding_amount) {
+    return NextResponse.json({ success: false, error: 'Max funding must be greater than min funding.' }, { status: 400 });
+  }
+
+  const { data: partner, error } = await supabase
+    .from('funding_partners')
+    .update({
+      name: form.name,
+      contact_name: form.contact_name || null,
+      email: form.email || null,
+      phone: form.phone || null,
+      submission_email: form.submission_email || null,
+      portal_url: form.portal_url || null,
+      product_types: csv(form.product_types),
+      min_funding_amount: form.min_funding_amount ?? null,
+      max_funding_amount: form.max_funding_amount ?? null,
+      min_monthly_revenue: form.min_monthly_revenue ?? null,
+      min_time_in_business_months: form.min_time_in_business_months ?? null,
+      states_served: csv(form.states_served.toUpperCase()),
+      restricted_industries: csv(form.restricted_industries),
+      avg_approval_days: form.avg_approval_days ?? null,
+      notes: form.notes || null,
+      is_active: true,
+    })
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('*')
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
+
+  await Promise.allSettled([
+    supabase.from('audit_logs').insert({
+      organization_id: profile.organization_id,
+      user_id: user.id,
+      action: 'funding_partner_updated',
+      resource_type: 'funding_partners',
+      resource_id: partner.id,
+      new_data: { name: form.name, submission_email: form.submission_email || null, product_types: csv(form.product_types) },
+    }),
+    supabase.from('activities').insert({
+      organization_id: profile.organization_id,
+      activity_type: 'system',
+      title: 'Funding partner updated',
+      body: `${form.name} lender contact or guideline information was updated.`,
+      direction: 'internal',
+      performed_by: profile.id,
+      resource_type: 'funding_partners',
+      resource_id: partner.id,
+    }),
+  ]);
+
+  return NextResponse.json({ success: true, partner });
+}
+
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
+  const auth = await requireCrmProfile(WRITE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+  const { id } = await params;
+
+  const { data: partner, error } = await supabase
+    .from('funding_partners')
+    .update({ is_active: false })
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id,name')
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
+
+  await Promise.allSettled([
+    supabase.from('audit_logs').insert({
+      organization_id: profile.organization_id,
+      user_id: user.id,
+      action: 'funding_partner_deleted',
+      resource_type: 'funding_partners',
+      resource_id: partner.id,
+      old_data: partner,
+      new_data: { is_active: false },
+    }),
+    supabase.from('activities').insert({
+      organization_id: profile.organization_id,
+      activity_type: 'system',
+      title: 'Funding partner removed',
+      body: `${partner.name} was removed from the active funder list.`,
+      direction: 'internal',
+      performed_by: profile.id,
+      resource_type: 'funding_partners',
+      resource_id: partner.id,
+    }),
+  ]);
+
+  return NextResponse.json({ success: true });
+}
