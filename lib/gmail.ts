@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 
-const SCOPES = [
+export const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.modify',
@@ -9,12 +9,27 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
-export function getOAuth2Client() {
+type GmailOAuthOptions = {
+  redirectUri?: string;
+};
+
+function getConfiguredRedirectUri() {
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    throw new Error(
+      'Missing OAuth redirect URL. Set NEXT_PUBLIC_APP_URL or GOOGLE_REDIRECT_URI to your production CRM URL.'
+    );
+  }
+
+  return `${appUrl.replace(/\/$/, '')}/api/gmail/callback`;
+}
+
+export function getOAuth2Client(options: GmailOAuthOptions = {}) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri =
-    process.env.GOOGLE_REDIRECT_URI ||
-    `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/gmail/callback`;
+  const redirectUri = options.redirectUri || getConfiguredRedirectUri();
 
   if (!clientId || !clientSecret) {
     throw new Error(
@@ -25,12 +40,13 @@ export function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl() {
-  const oauth2Client = getOAuth2Client();
+export function getAuthUrl(options: GmailOAuthOptions = {}) {
+  const oauth2Client = getOAuth2Client(options);
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: SCOPES,
+    scope: GMAIL_SCOPES,
     prompt: 'consent',
+    include_granted_scopes: true,
   });
 }
 
@@ -64,6 +80,7 @@ export async function getGmailClient(
               ...(tokens.expiry_date && {
                 expires_at: new Date(tokens.expiry_date).toISOString(),
               }),
+              ...(tokens.scope && { scope: tokens.scope }),
             })
             .eq('user_id', userId);
         } catch (err) {
