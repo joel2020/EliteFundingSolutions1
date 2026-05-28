@@ -89,7 +89,7 @@ export function GmailConnection() {
               <CardTitle>Gmail Integration</CardTitle>
               <CardDescription>
                 {isConnected 
-                  ? 'Send and receive emails from your Gmail account'
+                  ? 'Send lender emails from your Google Workspace account'
                   : 'Connect your Google Workspace email'}
               </CardDescription>
             </div>
@@ -115,10 +115,9 @@ export function GmailConnection() {
               <div className="font-medium text-[#09090B]">{connectedEmail}</div>
             </div>
             <div className="text-sm text-[#71717A]">
-              Send emails from your Gmail account<br />
-              Track all email communications<br />
-              Link emails to deals and applications<br />
-              View email history in CRM
+              Send lender submissions from your connected account<br />
+              Keep lender replies routed to the same inbox<br />
+              CRM logs sends that you initiate
             </div>
             <Button variant="outline" onClick={handleDisconnect}>
               Disconnect Gmail
@@ -132,19 +131,15 @@ export function GmailConnection() {
             <ul className="text-sm text-[#71717A] space-y-2">
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                Send emails directly from your work email
+                Send lender submissions directly from your work email
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                Read and respond to client emails
+                Route lender replies back to the same inbox
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                Track all email conversations in CRM
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                Sync with your Gmail sent folder
+                Store a CRM record of emails sent from the app
               </li>
             </ul>
             <Button 
