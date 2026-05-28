@@ -1403,11 +1403,15 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const currentBalance = dealRenewals[0]?.current_balance || financial.current_balance || Math.max(Number(offer.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
   const percentPaid = dealRenewals[0]?.percent_paid_down || financial.percent_paid_down || (deal.stage_slug === 'funded' ? 55 : 0);
   const dealNotes = notes.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id);
+  const internalNotes = dealNotes.filter((row: RecordMap) => row.is_internal !== false).slice(0, 6);
   const dealSubmissions = partnerSubmissions.filter((row: RecordMap) => row.deal_id === deal.id);
   const historyDeals = [deal, ...repeatDeals].sort((a: RecordMap, b: RecordMap) => Number(a.submission_sequence || 0) - Number(b.submission_sequence || 0) || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
   const selectedSubmissionPartner = partners.find((row: RecordMap) => row.id === submissionPartnerId);
   const selectedPartnerDefaultEvents = riskEvents.filter((row: RecordMap) => row.business_id === deal.business_id && row.funding_partner_id === submissionPartnerId && row.event_type === 'defaulted');
   const canSendToLenders = ['super_admin', 'admin', 'sales_rep'].includes(profile?.role || '');
+  const canAssignDeal = ['super_admin', 'admin'].includes(profile?.role || '');
+  const assignableUsers = users.filter((row: RecordMap) => row.is_active !== false && !row.deleted_at && row.role !== 'client');
+  const repNameById = (id?: string | null) => repName({ user_profiles: users.find((row: RecordMap) => row.id === id) });
   const checklist = buildDealChecklist(deal, dealDocs, dealRequests, dealOffers, positions, dealStips, app, businessOwners);
   const submissionReadiness = calculateReadiness(checklist, 'submission');
   const fundingReadiness = calculateReadiness(checklist, 'funding');
@@ -1642,6 +1646,25 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     reload();
   };
 
+  const updateDealAssignment = async (field: 'assigned_user_id' | 'junior_closer_id' | 'senior_closer_id', value: string) => {
+    if (!canAssignDeal) {
+      toast.error('Only admins can change deal rep assignments.');
+      return;
+    }
+    const response = await fetch(`/api/crm/deals/${deal.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: value === 'unassigned' ? null : value }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Unable to update deal assignment');
+      return;
+    }
+    toast.success('Deal assignment updated');
+    reload();
+  };
+
   const requestUpdatedSignature = async () => {
     if (!app?.id) { toast.error('No application is linked to this deal.'); return; }
     const response = await fetch(`/api/crm/applications/${app.id}/signature`, {
@@ -1698,14 +1721,22 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       </div>
       <div className="mb-4 grid gap-3 lg:grid-cols-[1.3fr_0.7fr]">
         <CrmCard className="p-4"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Next best action</p><h2 className="mt-2 text-xl font-semibold text-[#0F172A]">{nextAction}</h2><p className="mt-2 text-sm text-[#64748B]">Critical missing items: {missingDocItems.slice(0, 4).map((item) => item.name).join(', ') || 'None'}.</p></CrmCard>
-        <CrmCard className="p-4"><InfoGrid rows={[["Current stage", stageLabel(deal.stage_slug)], ["Assigned owner", repName(deal)], ["Broker / ISO", isoBrokerName(deal.iso_brokers)], ["Recent activity", date(dealActivity[0]?.created_at)], ["Open tasks", openTasks.length]]} /></CrmCard>
+        <CrmCard className="p-4"><InfoGrid rows={[["Current stage", stageLabel(deal.stage_slug)], ["Primary rep", repNameById(deal.assigned_user_id)], ["Junior rep", repNameById(deal.junior_closer_id)], ["Senior rep", repNameById(deal.senior_closer_id)], ["Broker / ISO", isoBrokerName(deal.iso_brokers)], ["Recent activity", date(dealActivity[0]?.created_at)], ["Open tasks", openTasks.length]]} /></CrmCard>
       </div>
+      <CrmCard className="mb-4 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Internal Notes</p><h2 className="mt-1 text-lg font-semibold text-[#0F172A]">Latest team context</h2></div>
+          <Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => { setNoteInternal(true); setNoteDialogOpen(true); }}><Plus className="mr-1 h-3 w-3" />Add note</Button>
+        </div>
+        <SimpleRows rows={internalNotes} empty="No internal notes yet." render={(row) => <div><b>Internal note</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} />
+      </CrmCard>
       <CrmCard className="p-4">
-        <div className="mb-4 grid gap-3 border-b border-[#E2E8F0] pb-4 md:grid-cols-2">
-          <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Current stage</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p></div>
-          <div className="grid gap-2 md:grid-cols-2">
-            <Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select>
-            <Select value={deal.iso_broker_id || 'none'} onValueChange={updateDealBroker}><SelectTrigger data-testid="deal-detail-iso-broker" className="h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign broker" /></SelectTrigger><SelectContent><SelectItem value="none">No broker</SelectItem>{isoBrokers.map((broker: RecordMap) => <SelectItem key={broker.id} value={broker.id}>{isoBrokerName(broker)}</SelectItem>)}</SelectContent></Select>
+        <div className="mb-4 grid gap-3 border-b border-[#E2E8F0] pb-4 xl:grid-cols-[0.7fr_1.3fr]">
+          <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Deal controls</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p><p className="mt-1 text-xs text-[#64748B]">Rep assignment is admin-only.</p></div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            <div><Label className="text-[11px] text-[#64748B]">Stage</Label><Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label className="text-[11px] text-[#64748B]">Broker / ISO</Label><Select value={deal.iso_broker_id || 'none'} onValueChange={updateDealBroker}><SelectTrigger data-testid="deal-detail-iso-broker" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign broker" /></SelectTrigger><SelectContent><SelectItem value="none">No broker</SelectItem>{isoBrokers.map((broker: RecordMap) => <SelectItem key={broker.id} value={broker.id}>{isoBrokerName(broker)}</SelectItem>)}</SelectContent></Select></div>
+            {canAssignDeal ? <><div><Label className="text-[11px] text-[#64748B]">Primary rep</Label><Select value={deal.assigned_user_id || 'unassigned'} onValueChange={(value) => updateDealAssignment('assigned_user_id', value)}><SelectTrigger data-testid="deal-detail-primary-rep" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign rep" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{assignableUsers.map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-[11px] text-[#64748B]">Junior rep</Label><Select value={deal.junior_closer_id || 'unassigned'} onValueChange={(value) => updateDealAssignment('junior_closer_id', value)}><SelectTrigger data-testid="deal-detail-junior-rep" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign junior rep" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{assignableUsers.map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-[11px] text-[#64748B]">Senior rep</Label><Select value={deal.senior_closer_id || 'unassigned'} onValueChange={(value) => updateDealAssignment('senior_closer_id', value)}><SelectTrigger data-testid="deal-detail-senior-rep" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign senior rep" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{assignableUsers.map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}</SelectContent></Select></div></> : <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs text-[#64748B] md:col-span-2 xl:col-span-3">Primary rep: {repNameById(deal.assigned_user_id)}. Junior rep: {repNameById(deal.junior_closer_id)}. Senior rep: {repNameById(deal.senior_closer_id)}.</div>}
           </div>
         </div>
         <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
