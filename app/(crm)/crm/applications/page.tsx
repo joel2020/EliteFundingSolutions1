@@ -52,6 +52,8 @@ export default function ApplicationsPage() {
   const [revealSensitive, setRevealSensitive] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any>(null);
+  const [signatureAuthorized, setSignatureAuthorized] = useState(false);
   const [importing, setImporting] = useState(false);
 
   const loadCurrentProfile = useCallback(async () => {
@@ -122,7 +124,7 @@ export default function ApplicationsPage() {
 
   const canRevealSensitive = ['super_admin', 'admin'].includes(currentProfile?.role);
 
-  const importPartnerPdf = async () => {
+  const importPartnerPdf = async (commit = false) => {
     if (!importFile) {
       toast.error('Select a partner PDF application.');
       return;
@@ -132,13 +134,24 @@ export default function ApplicationsPage() {
     try {
       const formData = new FormData();
       formData.set('file', importFile);
+      if (commit) {
+        formData.set('review_confirmed', 'true');
+        formData.set('signature_authorized', signatureAuthorized ? 'true' : 'false');
+      }
       const response = await fetch('/api/crm/applications/import-partner-pdf', { method: 'POST', body: formData });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to import partner PDF.');
+      if (result.preview) {
+        setImportPreview(result.extracted);
+        toast.success('Partner PDF analyzed. Review the extracted data before creating CRM records.');
+        return;
+      }
 
       toast.success(`Imported ${result.extracted?.business_name || 'partner application'} and generated Elite PDF.`);
       setImportDialogOpen(false);
       setImportFile(null);
+      setImportPreview(null);
+      setSignatureAuthorized(false);
       loadApplications();
     } catch (error: any) {
       toast.error(error.message || 'Unable to import partner PDF.');
@@ -336,28 +349,57 @@ export default function ApplicationsPage() {
         )}
       </div>
 
-      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent>
+      <Dialog open={importDialogOpen} onOpenChange={(open) => { setImportDialogOpen(open); if (!open) { setImportPreview(null); setImportFile(null); setSignatureAuthorized(false); } }}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Import Partner PDF Application</DialogTitle>
-            <DialogDescription>Upload a text-based partner application PDF. The CRM will create the record and generate an Elite Funding PDF application.</DialogDescription>
+            <DialogDescription>Upload a text-based partner application PDF. Review extracted fields before the CRM creates records or generates the Elite Funding PDF application.</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="grid gap-4 py-4">
             <Label htmlFor="partner-pdf">Partner PDF</Label>
             <Input
               id="partner-pdf"
               type="file"
               accept=".pdf,application/pdf"
-              onChange={(event) => setImportFile(event.target.files?.[0] || null)}
-              className="mt-2"
+              onChange={(event) => { setImportFile(event.target.files?.[0] || null); setImportPreview(null); setSignatureAuthorized(false); }}
             />
             {importFile && <p className="mt-2 text-sm text-[#71717A]">{importFile.name}</p>}
+            {importPreview && (
+              <div className="rounded-[12px] border border-[#E4E4E7] bg-[#FAFAFA] p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[#09090B]">Review extracted application data</h3>
+                    <p className="text-xs text-[#71717A]">No CRM records are created until you confirm this review.</p>
+                  </div>
+                  <Badge variant="secondary">{importPreview.extraction_confidence || 0}% confidence</Badge>
+                </div>
+                <div className="grid gap-2 text-sm md:grid-cols-2">
+                  <div><b>Business:</b> {importPreview.business_name || 'Missing'}</div>
+                  <div><b>Owner:</b> {importPreview.owner_name || 'Missing'}</div>
+                  <div><b>Email:</b> {importPreview.owner_email || 'Missing'}</div>
+                  <div><b>Requested:</b> {importPreview.requested_amount ? `$${Number(importPreview.requested_amount).toLocaleString()}` : 'Missing'}</div>
+                  <div><b>EIN last 4:</b> {importPreview.ein_last4 || 'Missing'}</div>
+                  <div><b>SSN last 4:</b> {importPreview.ssn_last4 || 'Missing'}</div>
+                  <div><b>Signature:</b> {importPreview.signature_present ? 'Present' : 'Missing'}</div>
+                  <div><b>Signature date:</b> {importPreview.signature_date || 'Missing'}</div>
+                </div>
+                {importPreview.missing_fields?.length > 0 && <div className="mt-3 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Missing or uncertain fields: {importPreview.missing_fields.join(', ')}</div>}
+                {importPreview.signature_present && (
+                  <label className="mt-4 flex items-start gap-2 text-sm text-[#27272A]">
+                    <input type="checkbox" checked={signatureAuthorized} onChange={(event) => setSignatureAuthorized(event.target.checked)} className="mt-1" />
+                    <span>I reviewed the partner application and confirm its authorization allows Elite Funding Solutions to use the imported customer signature to generate the Elite application.</span>
+                  </label>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setImportDialogOpen(false)} disabled={importing}>Cancel</Button>
-            <Button onClick={importPartnerPdf} disabled={importing || !importFile}>
-              {importing ? 'Importing...' : 'Import PDF'}
-            </Button>
+            {!importPreview ? (
+              <Button onClick={() => importPartnerPdf(false)} disabled={importing || !importFile}>{importing ? 'Analyzing...' : 'Analyze PDF'}</Button>
+            ) : (
+              <Button onClick={() => importPartnerPdf(true)} disabled={importing || !importFile || (importPreview.signature_present && !signatureAuthorized)}>{importing ? 'Creating...' : 'Create Elite Application'}</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

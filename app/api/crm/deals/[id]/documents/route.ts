@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateEliteApplicationDocument } from '@/lib/elite-application-document';
+import { screenUploadedFile } from '@/lib/file-security';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
@@ -31,9 +32,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ success: false, error: 'Document file is required.' }, { status: 400 });
   }
 
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  if (file.size > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(file.type) && !allowedExtensions.has(extension))) {
-    return NextResponse.json({ success: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
+  const fileScreen = await screenUploadedFile(file, {
+    allowedExtensions,
+    allowedMimeTypes: allowedTypes,
+    maxBytes: MAX_FILE_SIZE_BYTES,
+    rejectActivePdf: true,
+  });
+  if (!fileScreen.ok) {
+    return NextResponse.json({ success: false, error: fileScreen.reason || 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
   }
 
   const { data: deal } = await supabase

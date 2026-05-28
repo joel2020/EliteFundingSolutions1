@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { screenUploadedFile } from '@/lib/file-security';
 import { getPortalApplicationIds, requirePortalProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
@@ -29,9 +30,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
   }
 
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  if (file.size > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(file.type) && !allowedExtensions.has(extension))) {
-    return NextResponse.json({ success: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
+  const fileScreen = await screenUploadedFile(file, {
+    allowedExtensions,
+    allowedMimeTypes: allowedTypes,
+    maxBytes: MAX_FILE_SIZE_BYTES,
+    rejectActivePdf: true,
+  });
+  if (!fileScreen.ok) {
+    return NextResponse.json({ success: false, error: fileScreen.reason || 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
   }
 
   const { data: application } = await supabase

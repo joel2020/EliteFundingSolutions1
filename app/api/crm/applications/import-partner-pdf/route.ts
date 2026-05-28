@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { generateEliteApplicationDocument } from '@/lib/elite-application-document';
+import { screenUploadedFile } from '@/lib/file-security';
 import { extractPartnerApplicationFromPdf } from '@/lib/partner-pdf-import';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { digitsOnly, encryptSensitiveField, hashSensitiveLookup } from '@/lib/security';
@@ -9,6 +11,8 @@ export const runtime = 'nodejs';
 
 const IMPORT_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor'];
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const allowedPdfTypes = new Set(['application/pdf']);
+const allowedPdfExtensions = new Set(['pdf']);
 
 function toNumber(value?: string | null) {
   if (!value) return null;
@@ -28,6 +32,42 @@ function noteFrom(data: Record<string, any>) {
   ].filter(Boolean).join('\n');
 }
 
+function missingFields(extracted: Record<string, any>) {
+  return [
+    ['legal_name', extracted.legal_name],
+    ['owner_first_name', extracted.owner1?.first_name],
+    ['owner_last_name', extracted.owner1?.last_name],
+    ['owner_email', extracted.owner1?.email || extracted.business_email],
+    ['business_phone', extracted.business_phone || extracted.owner1?.phone || extracted.owner1?.mobile],
+    ['requested_amount', extracted.requested_amount],
+    ['signature', extracted.signature],
+    ['signature_date', extracted.signature_date],
+  ].filter(([, value]) => !String(value || '').trim()).map(([key]) => key);
+}
+
+function signatureHashFor(input: unknown) {
+  return createHash('sha256').update(JSON.stringify(input)).digest('hex');
+}
+
+function previewPayload(extracted: Record<string, any>) {
+  const ein = digitsOnly(extracted.ein);
+  const ssn = digitsOnly(extracted.owner1?.ssn);
+  return {
+    business_name: extracted.legal_name || extracted.dba || 'Imported Partner Application',
+    dba: extracted.dba || null,
+    owner_name: [extracted.owner1?.first_name, extracted.owner1?.last_name].filter(Boolean).join(' '),
+    owner_email: extracted.owner1?.email || extracted.business_email || null,
+    requested_amount: toNumber(extracted.requested_amount),
+    monthly_revenue: toNumber(extracted.monthly_gross_revenue || extracted.average_monthly_sales),
+    ein_last4: ein ? ein.slice(-4) : null,
+    ssn_last4: ssn ? ssn.slice(-4) : null,
+    signature_present: Boolean(extracted.signature),
+    signature_date: extracted.signature_date || null,
+    extraction_confidence: extracted.extraction_confidence,
+    missing_fields: missingFields(extracted),
+  };
+}
+
 export async function POST(request: Request) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -44,9 +84,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Partner PDF file is required.' }, { status: 400 });
   }
 
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  if (file.size > MAX_FILE_SIZE_BYTES || (file.type && file.type !== 'application/pdf') || extension !== 'pdf') {
-    return NextResponse.json({ success: false, error: 'Upload a text-based PDF up to 15MB.' }, { status: 400 });
+  const fileScreen = await screenUploadedFile(file, {
+    allowedExtensions: allowedPdfExtensions,
+    allowedMimeTypes: allowedPdfTypes,
+    maxBytes: MAX_FILE_SIZE_BYTES,
+    rejectActivePdf: true,
+  });
+  if (!fileScreen.ok) {
+    return NextResponse.json({ success: false, error: fileScreen.reason || 'Upload a text-based PDF up to 15MB.' }, { status: 400 });
   }
 
   const pdfBuffer = Buffer.from(await file.arrayBuffer());
@@ -58,6 +103,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: extracted.error }, { status: 400 });
   }
 
+  const reviewConfirmed = formData.get('review_confirmed') === 'true';
+  const signatureAuthorized = formData.get('signature_authorized') === 'true';
+  const extractedPreview = previewPayload(extracted);
+
+  if (!reviewConfirmed) {
+    return NextResponse.json({
+      success: true,
+      preview: true,
+      message: 'Review extracted partner application data before creating CRM records.',
+      extracted: extractedPreview,
+    });
+  }
+
+  if (extracted.signature && !signatureAuthorized) {
+    return NextResponse.json({ success: false, error: 'Confirm that the partner authorization permits Elite Funding Solutions to use the imported customer signature.' }, { status: 400 });
+  }
+
   const ein = digitsOnly(extracted.ein);
   const ssn = digitsOnly(extracted.owner1.ssn);
   const requestedAmount = toNumber(extracted.requested_amount);
@@ -67,6 +129,14 @@ export async function POST(request: Request) {
   const leadEmail = emptyToNull(extracted.owner1.email || extracted.business_email);
   const leadPhone = emptyToNull(extracted.owner1.mobile || extracted.owner1.phone || extracted.business_phone);
   const businessName = extracted.legal_name || extracted.dba || 'Imported Partner Application';
+  const partnerSignatureStatus = extracted.signature && signatureAuthorized ? 'signed' : 'requires_resign';
+  const disclosureAcceptance = {
+    import_source: 'partner_pdf',
+    partner_signature_authorized: Boolean(extracted.signature && signatureAuthorized),
+    crm_user_review_confirmed: true,
+    extraction_confidence: extracted.extraction_confidence,
+    missing_fields: extractedPreview.missing_fields,
+  };
 
   try {
     const { data: business, error: businessError } = await supabase
@@ -203,6 +273,10 @@ export async function POST(request: Request) {
         signer_ip: null,
         signer_user_agent: 'Imported from partner PDF by CRM user.',
         consent_version: 'partner_pdf_import',
+        signature_status: partnerSignatureStatus,
+        signature_type: extracted.signature ? 'typed' : null,
+        disclosure_acceptance: disclosureAcceptance,
+        application_version: 1,
         submitted_at: importedAt,
         created_by: profile.id,
         updated_by: profile.id,
@@ -272,6 +346,57 @@ export async function POST(request: Request) {
       reason: 'Generated automatically from imported partner PDF application data and signature.',
     });
 
+    if (generatedEliteApplication.generated) {
+      await supabase
+        .from('applications')
+        .update({
+          signed_application_document_id: generatedEliteApplication.document.id,
+          signature_data_storage_path: generatedEliteApplication.document.storage_path,
+        })
+        .eq('id', application.id)
+        .eq('organization_id', profile.organization_id);
+    }
+
+    if (partnerSignatureStatus === 'signed') {
+      const signatureEvidence = {
+        application_id: application.id,
+        deal_id: deal.id,
+        business_id: business.id,
+        lead_id: lead.id,
+        document_id: generatedEliteApplication.generated ? generatedEliteApplication.document.id : null,
+        signature_name: extracted.signature,
+        signature_date: extracted.signature_date || null,
+        signed_at: importedAt,
+        signature_user_agent: 'Imported from partner PDF by CRM user.',
+        consent_version: 'partner_pdf_import',
+        application_version: 1,
+        disclosure_acceptance: disclosureAcceptance,
+        application_payload_snapshot: applicationPayload,
+      };
+
+      const { error: signatureError } = await supabase.from('application_signatures').insert({
+        organization_id: profile.organization_id,
+        application_id: application.id,
+        deal_id: deal.id,
+        business_id: business.id,
+        lead_id: lead.id,
+        document_id: generatedEliteApplication.generated ? generatedEliteApplication.document.id : null,
+        signature_status: 'signed',
+        signature_type: 'typed',
+        signature_name: extracted.signature,
+        signature_date: emptyToNull(extracted.signature_date),
+        signed_at: importedAt,
+        signature_ip: null,
+        signature_user_agent: 'Imported from partner PDF by CRM user.',
+        consent_version: 'partner_pdf_import',
+        application_version: 1,
+        disclosure_acceptance: disclosureAcceptance,
+        application_payload_snapshot: applicationPayload,
+        signature_hash: signatureHashFor(signatureEvidence),
+      });
+      if (signatureError) throw signatureError;
+    }
+
     await Promise.allSettled([
       supabase.from('deal_status_history').insert({
         organization_id: profile.organization_id,
@@ -279,7 +404,7 @@ export async function POST(request: Request) {
         from_stage: null,
         to_stage: 'application_submitted',
         changed_by: profile.id,
-        notes: 'Deal created from imported partner PDF application.',
+        notes: partnerSignatureStatus === 'signed' ? 'Deal created from reviewed partner PDF application with imported signature authorization.' : 'Deal created from reviewed partner PDF application. Updated signature is required.',
       }),
       supabase.from('activities').insert({
         organization_id: profile.organization_id,
@@ -289,7 +414,7 @@ export async function POST(request: Request) {
         lead_id: lead.id,
         activity_type: 'system',
         title: 'Partner PDF imported',
-        body: `Created CRM records and generated Elite Funding application PDF from ${file.name}.`,
+        body: `Created CRM records and generated Elite Funding application PDF from reviewed partner application ${file.name}. Signature status: ${partnerSignatureStatus}.`,
         direction: 'internal',
         performed_by: profile.id,
       }),
@@ -309,6 +434,9 @@ export async function POST(request: Request) {
           extraction_confidence: extracted.extraction_confidence,
           signature_present: Boolean(extracted.signature),
           signature_date_present: Boolean(extracted.signature_date),
+          signature_status: partnerSignatureStatus,
+          signature_authorized: signatureAuthorized,
+          missing_fields: extractedPreview.missing_fields,
         },
       }),
     ]);
@@ -321,14 +449,7 @@ export async function POST(request: Request) {
       leadId: lead.id,
       sourceDocumentId: sourceDocument.id,
       generatedEliteApplication,
-      extracted: {
-        business_name: businessName,
-        owner_name: ownerName,
-        requested_amount: requestedAmount,
-        signature_present: Boolean(extracted.signature),
-        signature_date: extracted.signature_date,
-        extraction_confidence: extracted.extraction_confidence,
-      },
+      extracted: { ...extractedPreview, business_name: businessName, owner_name: ownerName },
     });
   } catch (error: any) {
     console.error('Partner PDF import failed.', error?.message || error);

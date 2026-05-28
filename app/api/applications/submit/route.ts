@@ -7,6 +7,7 @@ import { CONSENT_VERSION } from '@/lib/company';
 import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
 import { analyzeBankStatementText, enrichBankStatementAnalysisWithAzureAI, extractStatementText } from '@/lib/bank-statement-analysis';
 import { generateEliteApplicationDocument } from '@/lib/elite-application-document';
+import { screenUploadedFile } from '@/lib/file-security';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -477,12 +478,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Please upload your three most recent business bank statements as one combined PDF or separate files.' }, { status: 400 });
   }
 
-  const invalidFile = parsedBody.files.find(({ file }) => {
-    const extension = file.name.split('.').pop()?.toLowerCase() || '';
-    return file.size > MAX_FILE_SIZE_BYTES || (!allowedFileTypes.has(file.type) && !allowedFileExtensions.has(extension));
-  });
-  if (invalidFile) {
-    return NextResponse.json({ success: false, error: 'Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.' }, { status: 400 });
+  for (const { file } of parsedBody.files) {
+    const fileScreen = await screenUploadedFile(file, {
+      allowedExtensions: allowedFileExtensions,
+      allowedMimeTypes: allowedFileTypes,
+      maxBytes: MAX_FILE_SIZE_BYTES,
+      rejectActivePdf: true,
+    });
+    if (!fileScreen.ok) {
+      return NextResponse.json({ success: false, error: fileScreen.reason || 'Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.' }, { status: 400 });
+    }
   }
 
   try {
