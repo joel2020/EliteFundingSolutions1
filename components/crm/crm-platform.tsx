@@ -118,6 +118,8 @@ const STATUS_COLORS = ['#0F2B5B', '#C9A84C', '#2563EB', '#059669', '#D97706', '#
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const NINJA_VIEW_KEY = 'elite_crm_ninja_view_user_id';
+const NINJA_VIEW_ROLES = ['super_admin', 'admin', 'manager'];
 const LEAD_SOURCE_OPTIONS = [
   ['website', 'Website'],
   ['referral', 'Referral'],
@@ -329,6 +331,47 @@ function stageLabel(stage?: string) {
 
 function normalize(text: string) {
   return text.toLowerCase().trim();
+}
+
+function userDisplayName(user?: RecordMap | null) {
+  if (!user) return 'Unassigned';
+  return [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'Unnamed user';
+}
+
+function getStoredNinjaViewUserId(profile?: RecordMap | null) {
+  if (typeof window === 'undefined' || !profile || !NINJA_VIEW_ROLES.includes(profile.role)) return '';
+  return window.localStorage.getItem(NINJA_VIEW_KEY) || '';
+}
+
+function applyNinjaView(data: CrmDataset, viewedUserId: string): CrmDataset {
+  if (!viewedUserId) return data;
+  const deals = data.deals.filter((deal) => [deal.assigned_user_id, deal.junior_closer_id, deal.senior_closer_id].includes(viewedUserId));
+  const leads = data.leads.filter((lead) => lead.assigned_user_id === viewedUserId);
+  const dealIds = new Set(deals.map((deal) => deal.id));
+  const applicationIds = new Set(deals.map((deal) => deal.application_id).filter(Boolean));
+  const businessIds = new Set(deals.map((deal) => deal.business_id).filter(Boolean));
+  const offerIds = new Set(data.offers.filter((offer) => dealIds.has(offer.deal_id)).map((offer) => offer.id));
+  const leadIds = new Set(leads.map((lead) => lead.id));
+  return {
+    ...data,
+    leads,
+    deals,
+    offers: data.offers.filter((offer) => dealIds.has(offer.deal_id)),
+    renewals: data.renewals.filter((renewal) => dealIds.has(renewal.original_deal_id) || renewal.assigned_user_id === viewedUserId),
+    commissions: data.commissions.filter((commission) => dealIds.has(commission.deal_id) || commission.rep_id === viewedUserId),
+    commissionRecipients: data.commissionRecipients.filter((row) => dealIds.has(row.deal_id) || row.recipient_user_profile_id === viewedUserId),
+    riskEvents: data.riskEvents.filter((row) => dealIds.has(row.deal_id) || businessIds.has(row.business_id)),
+    activities: data.activities.filter((row) => dealIds.has(row.deal_id) || applicationIds.has(row.application_id) || leadIds.has(row.lead_id)),
+    documents: data.documents.filter((doc) => dealIds.has(doc.deal_id) || applicationIds.has(doc.application_id)),
+    notes: data.notes.filter((note) => dealIds.has(note.deal_id) || applicationIds.has(note.application_id)),
+    partnerSubmissions: data.partnerSubmissions.filter((submission) => dealIds.has(submission.deal_id)),
+    currentPositions: data.currentPositions.filter((position) => dealIds.has(position.deal_id) || businessIds.has(position.business_id)),
+    dealFinancials: data.dealFinancials.filter((financial) => dealIds.has(financial.deal_id)),
+    documentRequests: data.documentRequests.filter((request) => dealIds.has(request.deal_id) || applicationIds.has(request.application_id) || request.assigned_user_id === viewedUserId),
+    tasks: data.tasks.filter((task) => dealIds.has(task.deal_id) || applicationIds.has(task.application_id) || task.assigned_user_id === viewedUserId),
+    stipulations: data.stipulations.filter((stip) => dealIds.has(stip.deal_id) || offerIds.has(stip.offer_id) || stip.assigned_user_id === viewedUserId),
+    applications: data.applications.filter((app) => applicationIds.has(app.id) || app.assigned_user_id === viewedUserId),
+  };
 }
 
 function StatusBadge({ value }: { value?: string | null }) {
@@ -583,7 +626,7 @@ export function useCrmDataset() {
     }));
     const leads = rawLeads.map((lead: RecordMap) => ({ ...lead, user_profiles: usersById[lead.assigned_user_id] }));
 
-    setData({
+    const nextData = {
       leads,
       deals,
       offers,
@@ -605,21 +648,23 @@ export function useCrmDataset() {
       owners: unwrap(18),
       commissionRecipients: unwrap(19).map((row: RecordMap) => ({ ...row, user_profiles: usersById[row.recipient_user_profile_id] })),
       riskEvents: unwrap(20).map((row: RecordMap) => ({ ...row, funding_partners: partnersById[row.funding_partner_id] })),
-    });
+    };
+    setData(applyNinjaView(nextData, getStoredNinjaViewUserId(profile as RecordMap | null)));
     setLoading(false);
-  }, [browserSupabase, organizationId]);
+  }, [browserSupabase, organizationId, profile]);
 
   useEffect(() => {
     if (profileLoading) return;
     load();
   }, [profileLoading, load]);
 
-  return { ...data, profile, organizationId: organizationId || ORG_ID, loading: loading || profileLoading, error: error || profileError, reload: load } as CrmDataset & {
+  return { ...data, profile, organizationId: organizationId || ORG_ID, loading: loading || profileLoading, error: error || profileError, reload: load, ninjaViewUserId: getStoredNinjaViewUserId(profile as RecordMap | null) } as CrmDataset & {
     profile: typeof profile;
     organizationId: string;
     loading: boolean;
     error: string | null;
     reload: () => Promise<void>;
+    ninjaViewUserId: string;
   };
 }
 
@@ -634,10 +679,57 @@ function LoadingScreen({ title }: { title: string }) {
   );
 }
 
+function NinjaViewControl() {
+  const { profile, organizationId } = useCrmUser();
+  const [users, setUsers] = useState<RecordMap[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const canUseNinjaView = profile && NINJA_VIEW_ROLES.includes(profile.role);
+
+  useEffect(() => {
+    if (!canUseNinjaView) return;
+    setSelectedUserId(getStoredNinjaViewUserId(profile as RecordMap));
+    supabase
+      .from('user_profiles')
+      .select('id,first_name,last_name,email,role,is_active')
+      .eq('organization_id', organizationId || ORG_ID)
+      .eq('is_active', true)
+      .neq('role', 'client')
+      .order('first_name')
+      .then(({ data }) => setUsers(data || []));
+  }, [canUseNinjaView, organizationId, profile]);
+
+  if (!canUseNinjaView) return null;
+
+  const viewedUser = users.find((user) => user.id === selectedUserId);
+  const setView = (userId: string) => {
+    const nextUserId = userId === 'all' ? '' : userId;
+    setSelectedUserId(nextUserId);
+    if (nextUserId) window.localStorage.setItem(NINJA_VIEW_KEY, nextUserId);
+    else window.localStorage.removeItem(NINJA_VIEW_KEY);
+    window.location.reload();
+  };
+
+  return (
+    <div className="flex shrink-0 items-center gap-2 rounded-[8px] border border-[#D8E1EC] bg-[#F8FAFC] px-2 py-1">
+      <Eye className="h-4 w-4 text-[#0F2B5B]" />
+      <Select value={selectedUserId || 'all'} onValueChange={setView}>
+        <SelectTrigger data-testid="ninja-view-select" className="h-8 w-[190px] border-0 bg-transparent px-1 text-xs font-bold text-[#0F172A] shadow-none focus:ring-0">
+          <SelectValue placeholder="Ninja View" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All CRM</SelectItem>
+          {users.map((user) => <SelectItem key={user.id} value={user.id}>{userDisplayName(user)} ({String(user.role || '').replaceAll('_', ' ')})</SelectItem>)}
+        </SelectContent>
+      </Select>
+      {viewedUser && <span className="hidden rounded-full bg-[#0F2B5B] px-2 py-1 text-[11px] font-bold text-white xl:inline">Viewing {userDisplayName(viewedUser)}</span>}
+    </div>
+  );
+}
+
 function PageFrame({ title, subtitle, actions, children }: { title: string; subtitle: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex h-full flex-col overflow-hidden" data-testid={`crm-page-${normalize(title).replaceAll(' ', '-')}`}>
-      <CrmTopbar title={title} subtitle={subtitle} actions={actions} />
+      <CrmTopbar title={title} subtitle={subtitle} actions={<><NinjaViewControl />{actions}</>} />
       <div className="crm-shell-bg flex-1 overflow-y-auto p-4 md:p-6">
         {children}
       </div>
@@ -1738,8 +1830,9 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
             {canAssignDeal ? <><div><Label className="text-[11px] text-[#64748B]">Primary rep</Label><Select value={deal.assigned_user_id || 'unassigned'} onValueChange={(value) => updateDealAssignment('assigned_user_id', value)}><SelectTrigger data-testid="deal-detail-primary-rep" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign rep" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{assignableUsers.map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-[11px] text-[#64748B]">Junior rep</Label><Select value={deal.junior_closer_id || 'unassigned'} onValueChange={(value) => updateDealAssignment('junior_closer_id', value)}><SelectTrigger data-testid="deal-detail-junior-rep" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign junior rep" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{assignableUsers.map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-[11px] text-[#64748B]">Senior rep</Label><Select value={deal.senior_closer_id || 'unassigned'} onValueChange={(value) => updateDealAssignment('senior_closer_id', value)}><SelectTrigger data-testid="deal-detail-senior-rep" className="mt-1 h-10 w-full rounded-[7px]"><SelectValue placeholder="Assign senior rep" /></SelectTrigger><SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{assignableUsers.map((user: RecordMap) => <SelectItem key={user.id} value={user.id}>{[user.first_name, user.last_name].filter(Boolean).join(' ') || user.email}</SelectItem>)}</SelectContent></Select></div></> : <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs text-[#64748B] md:col-span-2 xl:col-span-3">Primary rep: {repNameById(deal.assigned_user_id)}. Junior rep: {repNameById(deal.junior_closer_id)}. Senior rep: {repNameById(deal.senior_closer_id)}.</div>}
           </div>
         </div>
-        <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'], ...(canViewFinance ? [['finance','Finance']] : []), ['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
+        <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['ai','AI Analysis'],['readiness','Readiness'],['documents','Documents'],['notes','Notes'],['lenders','Lenders Sent To'],['offers','Offers'], ...(canViewFinance ? [['finance','Finance']] : []), ['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
           <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2">{repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. Current version: #{deal.submission_sequence || repeatDeals.length + 1}. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}<CrmCard className="lg:col-span-2 p-4"><div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Signed Application</p><h2 className="mt-1 text-lg font-semibold text-[#0F172A]">{app?.signature_status === 'signed' ? 'Website application signed' : app?.signature_status === 'requires_resign' ? 'Updated signature required' : 'Application not signed'}</h2><p className="mt-1 text-sm text-[#64748B]">Version {app?.application_version || 1} · {app?.consent_version || 'No consent version recorded'}</p></div><StatusBadge value={app?.signature_status || 'unsigned'} /></div><InfoGrid rows={[["Signed applicant name", app?.signed_name || app?.application_payload?.signature || 'Not signed'], ["Signed date/time", date(app?.signed_at || app?.submitted_at)], ["Signature type", app?.signature_type || (app?.signed_name ? 'typed' : 'N/A')], ["Disclosure acceptance", app?.esign_consent_accepted && app?.credit_authorization_accepted && app?.terms_accepted ? 'Accepted' : 'Incomplete'], ["Signer IP", app?.signer_ip || app?.ip_address || 'Not captured'], ["Browser", app?.signer_user_agent || app?.user_agent ? 'Captured' : 'Not captured']]} /><div className="mt-4 flex flex-wrap gap-2">{signedApplicationDoc ? <><Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => openDealDocument(signedApplicationDoc, 'preview')}><Eye className="mr-1 h-3 w-3" />View signed PDF</Button><Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => openDealDocument(signedApplicationDoc, 'download')}><Download className="mr-1 h-3 w-3" />Download PDF</Button></> : <span className="rounded-[7px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Signed PDF has not been generated yet.</span>}<Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={requestUpdatedSignature} disabled={!app?.id || app?.signature_status !== 'signed'}>Request updated signature</Button></div></CrmCard><CrmCard className="p-4"><div className="mb-3 flex items-start justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Full details</p><h2 className="mt-1 text-lg font-semibold text-[#0F172A]">{businessName(deal)}</h2></div><StatusBadge value={deal.stage_slug} /></div><InfoGrid rows={[["Requested funding amount", currency(deal.requested_amount || app?.requested_amount)], ["Application start date", date(app?.created_at || deal.created_at)], ["Time in business", formatTimeInBusiness(deal.businesses?.start_date || app?.business_start_date)], ["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]} /><div className="mt-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Client summary</p><p className="mt-2 text-sm leading-6 text-[#334155]">{dealSummary(deal, app, businessOwners)}</p></div></CrmCard><CrmCard className="p-4"><div className="mb-3 flex items-start justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Public Record & Court Check</p><h2 className="mt-1 text-lg font-semibold text-[#0F172A]">{publicRecords.label}</h2></div><span className={`rounded-full px-2 py-1 text-xs font-semibold ${publicRecords.tone === 'red' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>{publicRecords.label}</span></div>{publicRecords.events.length ? <SimpleRows rows={publicRecords.events} empty="No public record events." render={(row) => <div><b>{String(row.event_type || 'record').replaceAll('_', ' ')}</b><p className="text-[#334155]">{row.notes || row.description || 'Review needed'}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}{row.amount ? ` - ${currency(row.amount)}` : ''}</p></div>} /> : <p className="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">No outstanding judgments, liens, court records, or defaults are on file.</p>}<div className="mt-4 grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div></CrmCard><CrmCard className="lg:col-span-2 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">AI Submissions Analysis</p><h2 className="mt-1 text-lg font-semibold text-[#0F172A]">Bank statement and position readout</h2></div><div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => runBankStatementAnalysis(true)} disabled={analyzingStatements}>{analyzingStatements ? 'Analyzing...' : 'Run AI Analysis'}</Button><span className="rounded-full bg-[#0F2B5B] px-3 py-1 text-sm font-semibold text-white">{positionCount} Positions</span></div></div><InfoGrid rows={analysisRows} />{activePositions.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{activePositions.map((position: RecordMap) => <div key={position.id} className="rounded-[8px] border border-[#E2E8F0] bg-white p-3 text-sm"><b>{position.funder_name || position.lender_name || position.funding_partner_name || position.name || 'Active position'}</b><p className="mt-1 text-[#334155]">{currency(position.payment_amount || position.daily_payment || position.weekly_payment)} {position.payment_frequency || position.frequency || 'payment'}</p><p className="text-xs text-[#64748B]">{position.status || 'active'}{position.balance ? ` - balance ${currency(position.balance)}` : ''}</p></div>)}</div> : <p className="mt-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#64748B]">No recurring daily or weekly debit positions are currently on file for this deal.</p>}</CrmCard><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
+          <TabsContent value="ai"><CrmCard className="p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">AI Analysis</p><h2 className="mt-1 text-lg font-semibold text-[#0F172A]">Bank statement and position readout</h2></div><div className="flex flex-wrap items-center gap-2"><Button data-testid="deal-run-ai-analysis" size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => runBankStatementAnalysis(true)} disabled={analyzingStatements}>{analyzingStatements ? 'Analyzing...' : 'Run AI Analysis'}</Button><span className="rounded-full bg-[#0F2B5B] px-3 py-1 text-sm font-semibold text-white">{positionCount} Positions</span></div></div><InfoGrid rows={analysisRows} />{activePositions.length ? <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{activePositions.map((position: RecordMap) => <div key={position.id} className="rounded-[8px] border border-[#E2E8F0] bg-white p-3 text-sm"><b>{position.funder_name || position.lender_name || position.funding_partner_name || position.name || 'Active position'}</b><p className="mt-1 text-[#334155]">{currency(position.payment_amount || position.daily_payment || position.weekly_payment)} {position.payment_frequency || position.frequency || 'payment'}</p><p className="text-xs text-[#64748B]">{position.status || 'active'}{position.balance ? ` - balance ${currency(position.balance)}` : ''}</p></div>)}</div> : <p className="mt-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#64748B]">No recurring daily or weekly debit positions are currently on file for this deal.</p>}</CrmCard></TabsContent>
           <TabsContent value="readiness"><div className="mb-4 grid gap-3 md:grid-cols-2"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><ChecklistTable rows={checklist} /></TabsContent>
           <TabsContent value="documents"><div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"><div className="flex gap-2"><Select value={documentFilter} onValueChange={setDocumentFilter}><SelectTrigger className="h-9 w-[180px] rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All docs</SelectItem>{['uploaded','in_review','approved','rejected','needs_replacement','expired'].map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_',' ')}</SelectItem>)}{DETAIL_DOCUMENT_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent></Select></div><Button data-testid="deal-upload-document" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-2 h-4 w-4" />Upload / replace document</Button></div>{missingDocItems.length > 0 && <div className="mb-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3"><p className="text-sm font-semibold text-amber-900">Missing required documents</p><div className="mt-2 flex flex-wrap gap-2">{missingDocItems.map((item) => <button key={item.id} className="rounded-[6px] border border-amber-300 bg-white px-2 py-1 text-xs text-amber-900" onClick={() => updateChecklistItem(item, 'requested')}>{item.name}</button>)}</div></div>}{groupedDocs.length ? <div className="grid gap-3">{groupedDocs.map((group) => <div key={group.type.value} className="rounded-[8px] border border-[#E2E8F0]"><div className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-sm font-semibold">{group.type.label}</div>{group.docs.map((row) => <div key={row.id} className="grid gap-2 border-b border-[#E2E8F0] p-3 text-sm last:border-b-0 md:grid-cols-[24px_1.4fr_1fr_120px_260px]"><span className="text-[#64748B]">{fileIcon(row.file_name)}</span><b>{row.label || row.file_name}<span className="ml-2 text-xs font-normal text-[#64748B]">{formatBytes(row.file_size)}</span></b><StatusBadge value={row.status} /><span>{date(row.updated_at || row.created_at)}</span><span className="flex flex-wrap gap-1"><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'preview')}><Eye className="mr-1 h-3 w-3" />Preview</Button><Button size="sm" variant="outline" className="h-8" onClick={() => openDealDocument(row, 'download')}><Download className="h-3 w-3" /></Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'approved')}>Approve</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'needs_replacement', window.prompt('Replacement reason') || 'Replacement requested')}>Request replacement</Button><Button size="sm" variant="outline" className="h-8" onClick={() => updateDocumentStatus(row, 'rejected', window.prompt('Reject reason') || 'Rejected')}>Reject</Button></span></div>)}</div>)}</div> : <EmptyState title="No documents attached." body="Upload documents here so this deal page remains the source of truth." />}</TabsContent>
           <TabsContent value="notes"><div className="mb-3 flex justify-end"><Button data-testid="deal-add-note" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => setNoteDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Add note</Button></div><SimpleRows rows={dealNotes} empty="No notes yet." render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></TabsContent>

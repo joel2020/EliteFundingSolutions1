@@ -118,7 +118,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'AI Analysis', 'Readiness', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -149,6 +149,18 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Export pack' }).click();
     expect((await downloadPromise).suggestedFilename()).toBe('crm-report-pack.csv');
+  });
+
+  test('manager can ninja view a rep CRM', async ({ page }) => {
+    await mockCrmApis(page, 'manager');
+    await page.goto('/crm/deals');
+    await expect(page.getByTestId('ninja-view-select')).toBeVisible();
+    await expect(page.getByText('Atlas Retail').first()).toBeVisible();
+
+    await page.evaluate(() => window.localStorage.setItem('elite_crm_ninja_view_user_id', '22222222-2222-2222-2222-222222222222'));
+    await page.reload();
+    await expect(page.getByTestId('ninja-view-select')).toBeVisible();
+    await expect(page.getByText('Atlas Retail')).toHaveCount(0);
   });
 
   test('creates users only when the current role has admin permission', async ({ page }) => {
