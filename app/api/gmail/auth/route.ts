@@ -1,15 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUrl } from '@/lib/gmail';
 import { requireCrmProfile } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const auth = await requireCrmProfile(['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter']);
+const GMAIL_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
+
+export async function GET(request: NextRequest) {
+  const auth = await requireCrmProfile(GMAIL_ROLES);
   if ('response' in auth) return auth.response;
 
   try {
-    const authUrl = getAuthUrl();
+    const redirectUri = new URL('/api/gmail/callback', request.nextUrl.origin).toString();
+    const authUrl = getAuthUrl({ redirectUri });
     return NextResponse.json({ authUrl });
   } catch (error: any) {
     console.error('Gmail auth error:', error);
