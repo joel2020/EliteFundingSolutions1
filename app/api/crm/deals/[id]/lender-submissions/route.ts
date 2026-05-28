@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: 'Invalid lender submission.', issues: parsed.error.flatten() }, { status: 400 });
   }
 
-const { data: deal } = await supabase
+  const { data: deal } = await supabase
     .from('deals')
     .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount,approved_amount')
     .eq('id', params.id)
@@ -98,13 +98,6 @@ const { data: deal } = await supabase
     .select('email,access_token,refresh_token')
     .eq('user_id', user.id)
     .maybeSingle();
-
-  if (gmailTokenError) {
-    return NextResponse.json({ success: false, error: 'Unable to check the sender Google Workspace connection.' }, { status: 500 });
-  }
-  if (!gmailTokens?.email || !gmailTokens?.access_token) {
-    return NextResponse.json({ success: false, error: 'Google Workspace is not connected for this CRM user. Connect it from CRM Settings before sending lender emails.' }, { status: 400 });
-  }
 
   const selectedDocumentIds = parsed.data.attachment_document_ids;
   const { data: selectedDocuments, error: docError } = selectedDocumentIds.length
@@ -358,27 +351,39 @@ const { data: deal } = await supabase
     </div>
   `;
 
-  let emailDeliveryStatus = 'failed';
+  const hasGmailConnection = !!gmailTokens?.email && !!gmailTokens?.access_token;
+  let emailDeliveryStatus = hasGmailConnection ? 'failed' : 'manual_send_required';
   let emailProviderData: unknown = null;
-  let emailProviderError: string | null = null;
-  const senderTokens = gmailTokens;
+  let emailProviderError: string | null = gmailTokenError
+    ? 'Unable to check the sender Google Workspace connection. The submission was logged for manual send.'
+    : hasGmailConnection
+      ? null
+      : 'Google Workspace is not connected for this CRM user. The submission was logged and a manual draft was prepared.';
 
-  try {
-    const emailResult = await sendGmailEmail({
-      accessToken: senderTokens.access_token,
-      refreshToken: senderTokens.refresh_token || undefined,
-      to: recipientEmail,
-      subject: emailSubject,
-      body: emailText,
-      html: emailHtml,
-      from: senderTokens.email,
-      attachments: providerAttachments,
-    });
-    emailDeliveryStatus = 'sent';
-    emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: senderTokens.email };
-  } catch (error: any) {
-    emailProviderError = error?.message || 'Unable to send lender email through Google Workspace.';
+  if (hasGmailConnection) {
+    try {
+      const emailResult = await sendGmailEmail({
+        accessToken: gmailTokens.access_token,
+        refreshToken: gmailTokens.refresh_token || undefined,
+        to: recipientEmail,
+        subject: emailSubject,
+        body: emailText,
+        html: emailHtml,
+        from: gmailTokens.email,
+        attachments: providerAttachments,
+      });
+      emailDeliveryStatus = 'sent';
+      emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: gmailTokens.email };
+    } catch (error: any) {
+      emailProviderError = error?.message || 'Unable to send lender email through Google Workspace. The submission was logged and a manual draft was prepared.';
+    }
   }
+
+  const warnings = [
+    ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
+    ...(emailDeliveryStatus === 'sent' ? [] : [emailProviderError || 'Lender submission was logged, but email delivery needs manual follow-up.']),
+    ...attachmentWarnings,
+  ];
 
   await Promise.allSettled([
     supabase.from('activities').insert({
@@ -402,7 +407,7 @@ const { data: deal } = await supabase
       recipient_email: recipientEmail || null,
       subject: emailSubject,
       body: emailText,
-      delivery_status: emailDeliveryStatus === 'sent' ? 'sent' : emailDeliveryStatus === 'failed' ? 'failed' : 'pending',
+      delivery_status: emailDeliveryStatus === 'sent' ? 'sent' : emailDeliveryStatus === 'manual_send_required' ? 'pending' : 'failed',
       sent_at: emailDeliveryStatus === 'sent' ? new Date().toISOString() : null,
     }),
     supabase.from('audit_logs').insert({
@@ -418,7 +423,7 @@ const { data: deal } = await supabase
         prior_default_count: priorDefaults?.length || 0,
         email_delivery_status: emailDeliveryStatus,
         email_provider: 'gmail',
-        email_provider_configured: true,
+        email_provider_configured: hasGmailConnection,
         email_provider_data: emailProviderData,
         email_provider_error: emailProviderError,
         attachment_warnings: attachmentWarnings,
@@ -445,32 +450,16 @@ const { data: deal } = await supabase
       : Promise.resolve(),
   ]);
 
-  if (emailDeliveryStatus !== 'sent') {
-    return NextResponse.json({
-      success: false,
-      submissionId: submission.id,
-      error: emailProviderError || 'Unable to send lender email through Google Workspace.',
-      emailDeliveryStatus,
-      emailProviderConfigured: true,
-      emailProvider: 'gmail',
-      senderEmail: senderTokens.email,
-      warnings: attachmentWarnings,
-    }, { status: 502 });
-  }
-
   return NextResponse.json({
     success: true,
     submissionId: submission.id,
     emailDeliveryStatus,
-    emailProviderConfigured: true,
+    emailProviderConfigured: hasGmailConnection,
     emailProvider: 'gmail',
-    senderEmail: senderTokens.email,
+    senderEmail: gmailTokens?.email || null,
     storageAccessMode: 'server_service_role_private_bucket',
     emailProviderError,
-    warnings: [
-      ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
-      ...attachmentWarnings,
-    ],
+    warnings,
     emailDraft: {
       to: recipientEmail,
       subject: emailSubject,
