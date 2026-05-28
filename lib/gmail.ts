@@ -1,17 +1,25 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import { google } from 'googleapis';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 
 export const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
 type GmailOAuthOptions = {
   redirectUri?: string;
+  userId?: string;
 };
+
+type GmailOAuthState = {
+  userId: string;
+  issuedAt: number;
+  nonce: string;
+};
+
+const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
 
 function getConfiguredRedirectUri() {
   if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
@@ -24,6 +32,48 @@ function getConfiguredRedirectUri() {
   }
 
   return `${appUrl.replace(/\/$/, '')}/api/gmail/callback`;
+}
+
+function getOAuthStateSecret() {
+  const secret = process.env.GOOGLE_CLIENT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    throw new Error('Missing OAuth state secret. Set GOOGLE_CLIENT_SECRET in your environment variables.');
+  }
+  return secret;
+}
+
+function signOAuthState(encodedPayload: string) {
+  return createHmac('sha256', getOAuthStateSecret()).update(encodedPayload).digest('base64url');
+}
+
+export function createOAuthState(userId: string) {
+  const payload: GmailOAuthState = {
+    userId,
+    issuedAt: Date.now(),
+    nonce: Math.random().toString(36).slice(2),
+  };
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  return `${encodedPayload}.${signOAuthState(encodedPayload)}`;
+}
+
+export function verifyOAuthState(state?: string | null) {
+  if (!state) return null;
+  const [encodedPayload, signature] = state.split('.');
+  if (!encodedPayload || !signature) return null;
+
+  const expectedSignature = signOAuthState(encodedPayload);
+  const actual = Buffer.from(signature);
+  const expected = Buffer.from(expectedSignature);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as Partial<GmailOAuthState>;
+    if (!payload.userId || !payload.issuedAt) return null;
+    if (Date.now() - payload.issuedAt > OAUTH_STATE_TTL_MS) return null;
+    return payload.userId;
+  } catch {
+    return null;
+  }
 }
 
 export function getOAuth2Client(options: GmailOAuthOptions = {}) {
@@ -46,7 +96,8 @@ export function getAuthUrl(options: GmailOAuthOptions = {}) {
     access_type: 'offline',
     scope: GMAIL_SCOPES,
     prompt: 'consent',
-    include_granted_scopes: true,
+    include_granted_scopes: false,
+    ...(options.userId && { state: createOAuthState(options.userId) }),
   });
 }
 
@@ -55,7 +106,7 @@ export function getAuthUrl(options: GmailOAuthOptions = {}) {
  *
  * When userId is supplied, a `tokens` listener is attached so that any
  * access_token Google auto-refreshes is immediately persisted back to
- * Supabase — preventing silent 401 failures after the ~1-hour expiry.
+ * Supabase, preventing silent 401 failures after the ~1-hour expiry.
  */
 export async function getGmailClient(
   accessToken: string,
