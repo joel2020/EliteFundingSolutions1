@@ -533,6 +533,7 @@ export interface Database {
           is_active: boolean;
           application_slug: string | null;
           notes: string | null;
+          deleted_at: string | null;
           created_at: string;
           updated_at: string;
         };

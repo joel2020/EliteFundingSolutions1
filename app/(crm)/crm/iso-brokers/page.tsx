@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { useCrmUser } from '@/lib/crm-auth';
-import { Copy, Plus, Users, TrendingUp, DollarSign, Mail, Phone } from 'lucide-react';
+import { Copy, Plus, Users, DollarSign, Mail, Phone, Trash2 } from 'lucide-react';
 import type { IsoBroker } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -134,6 +134,22 @@ export default function IsoBrokersPage() {
       toast.success(`Broker ${!currentStatus ? 'activated' : 'deactivated'}`);
       loadBrokers();
     }
+  };
+
+  const deleteBroker = async (broker: IsoBroker) => {
+    const label = broker.company_name || broker.broker_name || 'this ISO';
+    if (!window.confirm(`Delete ${label}? Historical deals will keep their ISO reference, but this ISO will be removed from the active broker list.`)) return;
+
+    const response = await fetch(`/api/crm/iso-brokers/${broker.id}`, { method: 'DELETE' });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+      toast.error(result.error || 'Failed to delete ISO');
+      return;
+    }
+
+    toast.success('ISO deleted');
+    loadBrokers();
   };
 
   const copyApplicationLink = async (broker: IsoBroker) => {
@@ -272,14 +288,25 @@ export default function IsoBrokersPage() {
                   </div>
                 )}
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => toggleActive(broker.id, broker.is_active)}
-                >
-                  {broker.is_active ? 'Deactivate' : 'Activate'}
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => toggleActive(broker.id, broker.is_active)}
+                  >
+                    {broker.is_active ? 'Deactivate' : 'Activate'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-red-200 text-red-700 hover:bg-red-50"
+                    onClick={() => deleteBroker(broker)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             ); })
           )}
