@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, Shield, UploadCloud, 
 import { toast } from 'sonner';
 import { COMPANY, CONSENT_VERSION } from '@/lib/company';
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 type OwnerKey = 'owner1' | 'owner2';
 type DocumentKey = 'bank_statements' | 'license_verification' | 'other_documents';
 
@@ -114,11 +114,9 @@ const initialForm: ApplicationFormData = {
 
 const steps = [
   'Business Information',
-  'Bank Reference',
   'Owner / Principal Information',
   'Funding Request',
   'Existing Financing',
-  'Document Uploads',
   'Authorization & Review',
   'Confirmation',
 ];
@@ -126,9 +124,7 @@ const steps = [
 const usStates = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
 
 const documentConfig: Array<{ key: DocumentKey; label: string; required: boolean; help: string }> = [
-  { key: 'bank_statements', label: 'Business Bank Statements', required: true, help: 'Upload as many statements as needed. Three months is the minimum, but full 12 month packages are supported.' },
-  { key: 'license_verification', label: 'License Verification', required: false, help: 'Upload up to two owner driver licenses for partnerships or multi-owner files.' },
-  { key: 'other_documents', label: 'Other Documents', required: false, help: 'Use this for flexible additions requested by underwriting or a lender.' },
+  { key: 'bank_statements', label: 'Business Bank Statements', required: false, help: 'Optional. You can submit now and send statements later, or upload them here if ready.' },
 ];
 
 function fieldTestId(label: string) {
@@ -139,7 +135,7 @@ function InputField({ label, value, onChange, type = 'text', required = false, p
   return (
     <div>
       <label className="mb-1.5 block text-[13px] font-bold text-[#334155]">{label} {required && <span className="text-[#DC2626]">*</span>}</label>
-      <input data-testid={fieldTestId(label)} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} className="input-field w-full border-[#CBD5E1] text-[#0F172A] shadow-inner" />
+      <input aria-label={label} data-testid={fieldTestId(label)} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder || label} required={required} className="input-field w-full border-[#CBD5E1] bg-white text-[#0F172A] shadow-inner placeholder:text-[#64748B]" />
       {hint && <p className="mt-1 text-[12px] font-medium leading-5 text-[#64748B]">{hint}</p>}
     </div>
   );
@@ -149,7 +145,7 @@ function SelectField({ label, value, onChange, options, required = false }: { la
   return (
     <div>
       <label className="mb-1.5 block text-[13px] font-bold text-[#334155]">{label} {required && <span className="text-[#DC2626]">*</span>}</label>
-      <select data-testid={fieldTestId(label)} value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field w-full appearance-none border-[#CBD5E1] bg-white text-[#0F172A] shadow-inner">
+      <select aria-label={label} data-testid={fieldTestId(label)} value={value} onChange={(event) => onChange(event.target.value)} required={required} className="input-field w-full appearance-none border-[#CBD5E1] bg-white text-[#0F172A] shadow-inner">
         <option value="">Select...</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
@@ -182,7 +178,6 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         <InputField label="DBA Name" value={data.dba} onChange={(v) => update('dba', v)} />
         <SelectField label="Legal Entity Type" value={data.entity_type} onChange={(v) => update('entity_type', v)} required options={[{ value: 'llc', label: 'LLC' }, { value: 'corporation', label: 'Corporation' }, { value: 'sole_proprietor', label: 'Sole Proprietor' }, { value: 'partnership', label: 'Partnership' }, { value: 'other', label: 'Other' }]} />
         <InputField label="Full Federal Tax ID / EIN" value={data.ein} onChange={(v) => update('ein', v)} required placeholder="12-3456789" />
-        <SelectField label="Merchant Type" value={data.merchant_type} onChange={(v) => update('merchant_type', v)} required options={[{ value: 'retail', label: 'Retail' }, { value: 'restaurant', label: 'Restaurant' }, { value: 'service', label: 'Service' }, { value: 'ecommerce', label: 'E-commerce' }, { value: 'other', label: 'Other' }]} />
         <InputField label="Date Business Started" value={data.start_date} onChange={(v) => update('start_date', v)} type="date" required />
         <SelectField label="Business Location" value={data.business_location} onChange={(v) => update('business_location', v)} required options={[{ value: 'leased', label: 'Leased' }, { value: 'owned', label: 'Owned' }, { value: 'home_based', label: 'Home Based' }, { value: 'online', label: 'No physical location / Online only' }]} />
         <InputField label="Business Phone" value={data.business_phone} onChange={(v) => update('business_phone', v)} required />
@@ -193,13 +188,6 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         <InputField label="City" value={data.city} onChange={(v) => update('city', v)} required />
         <div className="grid grid-cols-2 gap-4"><SelectField label="State" value={data.state} onChange={(v) => update('state', v)} required options={usStates.map((state) => ({ value: state, label: state }))} /><InputField label="Zip" value={data.zip} onChange={(v) => update('zip', v)} required /></div>
         <div className="md:col-span-2"><InputField label="Products / Services Sold" value={data.products_services} onChange={(v) => update('products_services', v)} required /></div>
-        {['retail', 'restaurant', 'ecommerce'].includes(data.merchant_type) && (
-          <>
-            <InputField label="POS Company Contact" value={data.pos_contact_name} onChange={(v) => update('pos_contact_name', v)} />
-            <InputField label="POS Company Phone" value={data.pos_contact_phone} onChange={(v) => update('pos_contact_phone', v)} />
-            <InputField label="Terminal / POS System" value={data.pos_system} onChange={(v) => update('pos_system', v)} hint="Shown for retail, restaurant, and e-commerce merchants when processing information may help evaluate revenue-based options." />
-          </>
-        )}
         <InputField label="Industry" value={data.industry} onChange={(v) => update('industry', v)} required />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -207,20 +195,6 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         <CheckboxField checked={data.has_tax_lien} onChange={(v) => update('has_tax_lien', v)} label="Business has tax liens" />
         <CheckboxField checked={data.has_bankruptcy} onChange={(v) => update('has_bankruptcy', v)} label="Business has bankruptcy history" />
         <CheckboxField checked={data.is_seasonal} onChange={(v) => update('is_seasonal', v)} label="Seasonal business" />
-      </div>
-    </div>
-  );
-}
-
-function StepBanking({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
-  return (
-    <div className="space-y-6">
-      <SectionIntro title="References & Banking" text="Provide your current business bank relationship. We do not request routing numbers or full account numbers in this application." />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="Bank Name" value={data.bank_name} onChange={(v) => update('bank_name', v)} required />
-        <InputField label="Bank Contact" value={data.bank_contact} onChange={(v) => update('bank_contact', v)} />
-        <InputField label="Bank Phone" value={data.bank_phone} onChange={(v) => update('bank_phone', v)} />
-        <SelectField label="Account Type" value={data.account_type} onChange={(v) => update('account_type', v)} options={[{ value: 'checking', label: 'Checking' }, { value: 'savings', label: 'Savings' }]} />
       </div>
     </div>
   );
@@ -303,34 +277,24 @@ function StepExistingAdvances({ data, update }: { data: ApplicationFormData; upd
   );
 }
 
-function StepDocuments({ files, setFiles }: { files: Record<DocumentKey, File[]>; setFiles: (key: DocumentKey, files: File[]) => void }) {
-  return (
-    <div className="space-y-6">
-      <SectionIntro title="Document Uploads" text="Upload the supporting documents required for underwriting. Documents are stored in the private application-documents bucket." />
-      {documentConfig.map((doc) => (
-        <div key={doc.key} className="rounded-[16px] border border-[#E4E4E7] p-5 flex flex-col md:flex-row md:items-center gap-4">
-          <div className="flex-1"><div className="font-semibold text-[#09090B]">{doc.label} {doc.required && <span className="text-[#EF4444]">*</span>}</div><p className="text-[13px] text-[#71717A] mt-1">{doc.help}</p><p className="text-[12px] text-[#A1A1AA] mt-2">{files[doc.key]?.map((file) => file.name).join(', ') || 'No files selected'}</p></div>
-          <label className="inline-flex items-center justify-center gap-2 rounded-[10px] border border-[#DDE3EF] px-4 h-10 text-[14px] font-semibold cursor-pointer hover:bg-[#F8F9FB]"><UploadCloud className="w-4 h-4" />Choose Files<input aria-label={doc.label} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" className="hidden" onChange={(event) => setFiles(doc.key, Array.from(event.target.files || []))} /></label>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StepReview({ data, files, update }: { data: ApplicationFormData; files: Record<DocumentKey, File[]>; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
-  const uploaded = documentConfig.map((doc) => `${doc.label}: ${files[doc.key].length ? files[doc.key].map((file) => file.name).join(', ') : 'Missing'}`);
+function StepReview({ data, files, setFiles, update }: { data: ApplicationFormData; files: Record<DocumentKey, File[]>; setFiles: (key: DocumentKey, files: File[]) => void; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
       <SectionIntro title="Authorization & Final Review" text="Review the application and complete the required certification, authorization, e-signature, and consent fields before submission." />
       <div className="application-review-panel space-y-3 rounded-[16px] border border-[#CBD5E1] bg-[#F8FAFC] p-5 text-[14px] font-medium leading-7 text-[#334155]">
-        <p><strong className="text-[#0F172A]">Application certification.</strong> I certify that all information and documents submitted are accurate, true, correct, and complete, including business information, owner/principal information, financial records, uploaded bank statements, and other submitted materials.</p>
+        <p><strong className="text-[#0F172A]">Application certification.</strong> I certify that all information and documents submitted are accurate, true, correct, and complete, including business information, owner/principal information, financial records, and any uploaded bank statements.</p>
         <p><strong className="text-[#0F172A]">Credit and background authorization.</strong> I authorize Elite Funding Solutions and its recipients, partners, successors, assigns, agents, affiliates, service providers, lenders, funding partners, banks, processors, credit bureaus, and underwriting partners to obtain consumer, personal, business, investigative, credit, processor, bank statement, bank, and financial reports for underwriting, funding, renewal, servicing, verification, fraud-prevention, and compliance purposes.</p>
-        <p><strong className="text-[#0F172A]">Sharing authorization.</strong> I authorize Elite Funding Solutions to share application information, owner/principal information, authorization data, bank reference information, financial records, and uploaded bank statements with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.</p>
+        <p><strong className="text-[#0F172A]">Sharing authorization.</strong> I authorize Elite Funding Solutions to share application information, owner/principal information, authorization data, financial records, and any uploaded bank statements with funding partners and other recipients for underwriting, offer generation, document verification, funding, servicing, renewals, and compliance.</p>
         <p><strong className="text-[#0F172A]">E-signature consent.</strong> I consent to use electronic records and electronic signatures. My typed name, checkbox selections, timestamp, IP address, user agent, and consent version may be stored with this submission.</p>
         <p><strong className="text-[#0F172A]">SMS/text consent.</strong> By checking the SMS consent box, I consent to receive text messages from Elite Funding Solutions. Message and data rates may apply. Reply STOP to opt out and HELP for help. Consent is not a condition of purchase where legally required.</p>
         <p className="text-[12px] font-bold text-[#475569]">Consent version: {CONSENT_VERSION}</p>
       </div>
-      <div className="application-review-panel space-y-1 rounded-[14px] border border-[#CBD5E1] bg-white p-4 text-[13px] font-medium text-[#475569]"><p className="font-bold text-[#0F172A]">Required uploads</p>{uploaded.map((item) => <p key={item}>{item}</p>)}</div>
+      <div className="rounded-[16px] border border-[#CBD5E1] bg-white p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <div className="flex-1"><p className="font-bold text-[#0F172A]">Bank statements optional</p><p className="mt-1 text-[13px] font-medium leading-5 text-[#475569]">Submit the application now even if statements will be emailed later. If ready, upload PDF or image statements here.</p><p className="mt-2 text-[12px] text-[#64748B]">{files.bank_statements.length ? files.bank_statements.map((file) => file.name).join(', ') : 'No bank statements selected'}</p></div>
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-[#DDE3EF] px-4 text-[14px] font-semibold text-[#0F172A] hover:bg-[#F8F9FB]"><UploadCloud className="w-4 h-4" />Choose Files<input aria-label="Business Bank Statements" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" className="hidden" onChange={(event) => setFiles('bank_statements', Array.from(event.target.files || []))} /></label>
+        </div>
+      </div>
       <div className="space-y-3">
         <CheckboxField required checked={data.certification_accepted} onChange={(v) => update('certification_accepted', v)} label="I certify that all information and documents submitted are accurate, true, correct, and complete." />
         <CheckboxField required checked={data.credit_authorization_accepted} onChange={(v) => { update('credit_authorization_accepted', v); update('authorization_consent', v); }} label="I authorize Elite Funding Solutions and its funding partners, affiliates, service providers, and recipients to obtain consumer, personal, business, investigative, credit, bank, processor, and financial reports for underwriting and funding purposes." />
@@ -349,7 +313,7 @@ function StepConfirmation({ data }: { data: ApplicationFormData }) {
     <div className="text-center py-8">
       <div className="w-16 h-16 rounded-full bg-[#F0FDF4] border border-[#DCFCE7] flex items-center justify-center mx-auto mb-6"><CheckCircle2 className="w-8 h-8 text-[#10B981]" /></div>
       <h2 className="text-[26px] font-bold text-[#09090B] mb-3">Application Submitted</h2>
-      <p className="text-[16px] text-[#71717A] max-w-[460px] mx-auto leading-relaxed mb-8">Thank you, {data.owner1.first_name || 'there'}. Your secure funding application and bank statements have been received. A funding advisor will review the complete file and contact you with next steps.</p>
+      <p className="text-[16px] text-[#71717A] max-w-[460px] mx-auto leading-relaxed mb-8">Thank you, {data.owner1.first_name || 'there'}. Your secure funding application has been received. A funding advisor will review the file and contact you with next steps.</p>
       <Link href="/" className="btn-gold">Return Home <ArrowRight className="w-4 h-4" /></Link>
     </div>
   );
@@ -366,7 +330,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   const [submitting, setSubmitting] = useState(false);
 
 
-  const progressPct = useMemo(() => ((currentStep - 1) / 7) * 100, [currentStep]);
+  const progressPct = useMemo(() => ((currentStep - 1) / 5) * 100, [currentStep]);
   const updateField = <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => setForm((prev) => ({ ...prev, [key]: value }));
   const updateOwner = (ownerKey: OwnerKey, key: keyof OwnerFields, value: string) => setForm((prev) => ({ ...prev, [ownerKey]: { ...prev[ownerKey], [key]: value } }));
   const setFiles = (key: DocumentKey, selectedFiles: File[]) => {
@@ -374,7 +338,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     if (key === 'license_verification' && selectedFiles.length > 2) toast.error('Upload no more than two license verification files.');
     setFilesState((prev) => ({ ...prev, [key]: nextFiles }));
   };
-  const next = () => setCurrentStep((step) => Math.min(step + 1, 8) as Step);
+  const next = () => setCurrentStep((step) => Math.min(step + 1, 6) as Step);
   const back = () => setCurrentStep((step) => Math.max(step - 1, 1) as Step);
 
   const digitsOnly = (value: string) => value.replace(/\D/g, '');
@@ -382,8 +346,6 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
     return file.size > 10 * 1024 * 1024 || !['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif'].includes(extension);
   });
-  const missingRequiredDocs = files.bank_statements.length < 1 ? ['Business Bank Statements'] : [];
-
   const handleSubmit = async () => {
     if (digitsOnly(form.ein).length !== 9) return toast.error('EIN must be exactly 9 digits.');
     if (digitsOnly(form.owner1.ssn).length !== 9) return toast.error('Owner SSN must be exactly 9 digits.');
@@ -399,7 +361,6 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     if (!form.sms_consent_accepted) return toast.error('Please accept the SMS consent disclosure.');
     if (!form.terms_accepted || !form.privacy_policy_accepted) return toast.error('Please accept the legal policies and disclosures.');
     if (!form.signature || !form.signature_date) return toast.error('Please complete the e-signature and date fields.');
-    if (missingRequiredDocs.length > 0) return toast.error('Please upload at least one business bank statement file.');
 
     setSubmitting(true);
     try {
@@ -416,7 +377,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Application submission failed.');
 
-      setCurrentStep(8);
+      setCurrentStep(6);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again or contact support.');
     } finally {
@@ -427,21 +388,19 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   return (
     <div className="min-h-screen bg-[#030812] pt-10 pb-20 text-white">
       <div className="mx-auto max-w-[980px] px-5 md:px-8">
-        <div className="mx-auto mb-10 max-w-3xl text-center"><p className="eyebrow mb-3">Secure funding intake</p><h1 className="mb-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">Complete one protected application.</h1><p className="text-[16px] leading-7 text-slate-300">We ask for full EIN, full SSN, owner mobile phone, and the last 3 business bank statements for authorized underwriting. We do not ask for routing numbers, full account numbers, rent/landlord details, average daily balance, or NSF count during initial prequalification. Review our <a href="/disclosures" className="font-semibold text-[#e7c579] underline underline-offset-4">Disclosures</a> before applying.</p></div>
-        {referral?.repName && currentStep < 8 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/30 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#f1d08a]">Your application is connected to {referral.repName}.</div>}
-        {currentStep < 8 && <div className="mb-8" data-testid="application-step"><div className="flex items-center justify-between mb-3"><span className="text-[14px] font-bold text-white">Step {currentStep} of 7: {steps[currentStep - 1]}</span><span className="rounded-full bg-[#061326] px-3 py-1 text-[12px] font-bold text-white">{Math.round(progressPct)}% complete</span></div><div className="h-3 bg-white/15 rounded-full overflow-hidden" aria-label="Application progress"><div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} /></div></div>}
+        <div className="mx-auto mb-10 max-w-3xl text-center"><p className="eyebrow mb-3">Secure funding intake</p><h1 className="mb-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">Complete one protected application.</h1><p className="text-[16px] leading-7 text-slate-300">We ask for full EIN, full SSN, owner mobile phone, and basic business revenue details for authorized underwriting. Bank statements are optional during submission and can be sent later. We do not ask for routing numbers, full account numbers, rent/landlord details, average daily balance, or NSF count during initial prequalification. Review our <a href="/disclosures" className="font-semibold text-[#e7c579] underline underline-offset-4">Disclosures</a> before applying.</p></div>
+        {referral?.repName && currentStep < 6 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/30 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#f1d08a]">Your application is connected to {referral.repName}.</div>}
+        {currentStep < 6 && <div className="mb-8" data-testid="application-step"><div className="flex items-center justify-between mb-3"><span className="text-[14px] font-bold text-white">Step {currentStep} of 5: {steps[currentStep - 1]}</span><span className="rounded-full bg-[#061326] px-3 py-1 text-[12px] font-bold text-white">{Math.round(progressPct)}% complete</span></div><div className="h-3 bg-white/15 rounded-full overflow-hidden" aria-label="Application progress"><div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} /></div></div>}
         <div className="premium-card p-5 md:p-8" >
           {currentStep === 1 && <StepBusiness data={form} update={updateField} />}
-          {currentStep === 2 && <StepBanking data={form} update={updateField} />}
-          {currentStep === 3 && <StepOwners data={form} updateOwner={updateOwner} />}
-          {currentStep === 4 && <StepFunding data={form} update={updateField} />}
-          {currentStep === 5 && <StepExistingAdvances data={form} update={updateField} />}
-          {currentStep === 6 && <StepDocuments files={files} setFiles={setFiles} />}
-          {currentStep === 7 && <StepReview data={form} files={files} update={updateField} />}
-          {currentStep === 8 && <StepConfirmation data={form} />}
-          {currentStep < 8 && <><div className="mt-8 rounded-2xl border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]"><Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" />Secure, encrypted application. Your information is used only to evaluate funding options.</div><div className="flex items-center justify-between mt-6 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex h-11 items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 7).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 7 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#061326] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1730] disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div></>}
+          {currentStep === 2 && <StepOwners data={form} updateOwner={updateOwner} />}
+          {currentStep === 3 && <StepFunding data={form} update={updateField} />}
+          {currentStep === 4 && <StepExistingAdvances data={form} update={updateField} />}
+          {currentStep === 5 && <StepReview data={form} files={files} setFiles={setFiles} update={updateField} />}
+          {currentStep === 6 && <StepConfirmation data={form} />}
+          {currentStep < 6 && <><div className="mt-8 rounded-2xl border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]"><Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" />Secure, encrypted application. Your information is used only to evaluate funding options.</div><div className="flex items-center justify-between mt-6 pt-6 border-t border-[#F4F4F5]"><button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex h-11 items-center gap-2 text-[14px] font-medium px-4 py-2 rounded-[8px] transition-colors disabled:text-[#A1A1AA] disabled:cursor-not-allowed text-[#71717A] hover:text-[#09090B] hover:bg-[#F4F4F5]"><ArrowLeft className="w-4 h-4" />Back</button><div className="hidden sm:flex items-center gap-2">{steps.slice(0, 5).map((_, i) => <div key={i} className={`rounded-full transition-all ${i + 1 === currentStep ? 'w-6 h-2 bg-[#0F2B5B]' : i + 1 < currentStep ? 'w-2 h-2 bg-[#10B981]' : 'w-2 h-2 bg-[#E4E4E7]'}`} />)}</div>{currentStep === 5 ? <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 rounded-[10px] bg-[#061326] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1730] disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Application'} {!submitting && <CheckCircle2 className="w-4 h-4" />}</button> : <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-[10px] bg-[#0F2B5B] text-white font-semibold text-[14px] h-11 px-5 transition-all hover:bg-[#0A1E42]">Continue <ArrowRight className="w-4 h-4" /></button>}</div></>}
         </div>
-        {currentStep < 8 && <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span><a href={`tel:${COMPANY.phoneHref}`} className="flex items-center gap-1.5 font-semibold text-[#e7c579]"><Phone className="w-3.5 h-3.5" />Need help? Call {COMPANY.phone}</a></div>}
+        {currentStep < 6 && <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[12px] text-[#8C9BB5]"><span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Secure</span><span className="flex items-center gap-1.5"><Lock className="w-3.5 h-3.5" />Encrypted uploads</span><span>Server-side secure submission</span><a href={`tel:${COMPANY.phoneHref}`} className="flex items-center gap-1.5 font-semibold text-[#e7c579]"><Phone className="w-3.5 h-3.5" />Need help? Call {COMPANY.phone}</a></div>}
       </div>
     </div>
   );

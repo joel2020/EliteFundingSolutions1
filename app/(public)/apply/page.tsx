@@ -3,7 +3,7 @@ import ApplyForm from './apply-form';
 
 export const metadata: Metadata = {
   title: 'Apply for Funding | Elite Funding Solutions',
-  description: 'Securely apply for business funding with Elite Funding Solutions. Submit business details, owner authorization, and bank statements for prequalification review.',
+  description: 'Securely apply for business funding with Elite Funding Solutions. Submit business details and owner authorization for prequalification review. Bank statements can be sent later.',
   alternates: { canonical: '/apply' },
 };
 

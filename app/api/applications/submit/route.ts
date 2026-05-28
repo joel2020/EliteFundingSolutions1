@@ -60,7 +60,7 @@ const applicationSchema = z.object({
   dba: z.string().optional().default(''),
   entity_type: z.string().min(1),
   ein: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'EIN must be exactly 9 digits.'),
-  merchant_type: z.string().min(1),
+  merchant_type: z.string().optional().default(''),
   industry: z.string().min(1),
   start_date: z.string().min(1),
   business_phone: z.string().refine(isValidPhone, 'Business phone must be a valid U.S. phone number.'),
@@ -81,7 +81,7 @@ const applicationSchema = z.object({
   has_tax_lien: z.boolean().default(false),
   has_bankruptcy: z.boolean().default(false),
   is_seasonal: z.boolean().default(false),
-  bank_name: z.string().min(1),
+  bank_name: z.string().optional().default(''),
   bank_contact: z.string().optional().default(''),
   bank_phone: z.string().optional().default(''),
   account_type: z.string().optional().default('checking'),
@@ -472,11 +472,6 @@ export async function POST(request: Request) {
   const referralCode = referralProfile?.referral_slug || form.referral_code || null;
   const referralPath = form.referral_path || null;
   const leadSource = isoBrokerReferral ? 'iso' : referralProfile ? 'referral' : 'website';
-
-  const bankStatementFiles = parsedBody.files.filter((item) => item.key === 'bank_statements');
-  if (bankStatementFiles.length < 1) {
-    return NextResponse.json({ success: false, error: 'Please upload your three most recent business bank statements as one combined PDF or separate files.' }, { status: 400 });
-  }
 
   for (const { file } of parsedBody.files) {
     const fileScreen = await screenUploadedFile(file, {

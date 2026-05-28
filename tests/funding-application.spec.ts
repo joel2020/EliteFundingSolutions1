@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('public funding application', () => {
-  test('submits a complete funding application with required document upload', async ({ page }) => {
+  test('submits a simplified funding application without required document upload', async ({ page }) => {
     await mockCrmApis(page);
 
     await page.goto('/apply');
@@ -11,7 +11,6 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-dba-name').fill('Cedar Market');
     await page.getByTestId('application-legal-entity-type').selectOption('llc');
     await page.getByTestId('application-full-federal-tax-id-ein').fill('12-3456789');
-    await page.getByTestId('application-merchant-type').selectOption('retail');
     await page.getByTestId('application-date-business-started').fill('2021-01-15');
     await page.getByTestId('application-business-location').selectOption('leased');
     await page.getByTestId('application-business-phone').fill('2125550199');
@@ -23,11 +22,6 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-zip').fill('10001');
     await page.getByTestId('application-products-services-sold').fill('Specialty grocery');
     await page.getByTestId('application-industry').fill('Retail');
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByTestId('application-bank-name').fill('Chase');
-    await page.getByTestId('application-bank-contact').fill('Branch Manager');
-    await page.getByTestId('application-bank-phone').fill('2125550101');
     await page.getByRole('button', { name: /continue/i }).click();
 
     await page.getByTestId('application-first-name').first().fill('Casey');
@@ -54,13 +48,6 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-desired-funding-timeline').selectOption('asap');
     await page.getByRole('button', { name: /continue/i }).click();
 
-    await page.getByRole('button', { name: /continue/i }).click();
-
-    await page.getByLabel('Business Bank Statements').setInputFiles({
-      name: 'cedar-bank-statements.pdf',
-      mimeType: 'application/pdf',
-      buffer: Buffer.from('%PDF-1.4 bank statements'),
-    });
     await page.getByRole('button', { name: /continue/i }).click();
 
     await page.getByLabel(/I certify that all information/).check();
