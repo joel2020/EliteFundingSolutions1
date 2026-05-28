@@ -8,6 +8,7 @@ export { INTERNAL_CRM_ROLES } from '@/lib/auth-routing';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const supabaseProjectRef = new URL(supabaseUrl).hostname.split('.')[0];
 
 export type ServerCrmProfile = {
   id: string;
@@ -42,12 +43,38 @@ export function requireSameOrigin(request: Request) {
   return null;
 }
 
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function extractAccessTokenFromSupabaseCookies(cookieList: { name: string; value: string }[]) {
+  const baseName = `sb-${supabaseProjectRef}-auth-token`;
+  const matchingCookies = cookieList
+    .filter((cookie) => cookie.name === baseName || cookie.name.startsWith(`${baseName}.`))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  if (!matchingCookies.length) return null;
+
+  const rawValue = matchingCookies.map((cookie) => cookie.value).join('');
+  const sessionValue = rawValue.startsWith('base64-') ? decodeBase64Url(rawValue.slice('base64-'.length)) : rawValue;
+
+  try {
+    const parsed = JSON.parse(sessionValue) as { access_token?: unknown };
+    return typeof parsed.access_token === 'string' ? parsed.access_token : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getAuthenticatedUser(): Promise<{ user: User | null; error: string | null }> {
   const cookieStore = await cookies();
+  const allCookies = cookieStore.getAll();
   const authClient = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return allCookies;
       },
       setAll() {
         // API routes in this app do not mutate auth cookies.
@@ -56,6 +83,14 @@ export async function getAuthenticatedUser(): Promise<{ user: User | null; error
   });
 
   const { data, error } = await authClient.auth.getUser();
+  if (data.user) return { user: data.user, error: null };
+
+  const cookieAccessToken = extractAccessTokenFromSupabaseCookies(allCookies);
+  if (cookieAccessToken) {
+    const fallback = await authClient.auth.getUser(cookieAccessToken);
+    if (fallback.data.user) return { user: fallback.data.user, error: null };
+  }
+
   if (error || !data.user) return { user: null, error: 'Unauthorized' };
   return { user: data.user, error: null };
 }
