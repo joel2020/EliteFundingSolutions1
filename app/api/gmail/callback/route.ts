@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
-import { getOAuth2Client } from '@/lib/gmail';
+import { getOAuth2Client, verifyOAuthState } from '@/lib/gmail';
 import { google } from 'googleapis';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 import { INTERNAL_CRM_ROLES } from '@/lib/server-auth';
@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const code = searchParams.get('code');
+    const state = searchParams.get('state');
     const googleError = searchParams.get('error');
 
     if (googleError) {
@@ -29,6 +30,11 @@ export async function GET(request: NextRequest) {
 
     if (!code) {
       return redirectToSettings(request, 'no_code');
+    }
+
+    const verifiedState = verifyOAuthState(state);
+    if (!verifiedState) {
+      return redirectToSettings(request, 'invalid_oauth_state');
     }
 
     const authClient = createServerClient(
@@ -47,8 +53,13 @@ export async function GET(request: NextRequest) {
     );
 
     const { data: { user } } = await authClient.auth.getUser();
+    const authenticatedUserId = user?.id || verifiedState.userId;
 
-    if (!user) {
+    if (user?.id && user.id !== verifiedState.userId) {
+      return redirectToSettings(request, 'state_user_mismatch');
+    }
+
+    if (!authenticatedUserId) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('error', 'not_authenticated');
       loginUrl.searchParams.set('next', '/crm/settings');
@@ -77,7 +88,7 @@ export async function GET(request: NextRequest) {
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('id,role,is_active')
-      .eq('user_id', user.id)
+      .eq('user_id', authenticatedUserId)
       .eq('is_active', true)
       .is('deleted_at', null)
       .maybeSingle();
@@ -91,13 +102,13 @@ export async function GET(request: NextRequest) {
     const { data: existingToken } = await supabase
       .from('gmail_tokens')
       .select('refresh_token')
-      .eq('user_id', user.id)
+      .eq('user_id', authenticatedUserId)
       .maybeSingle();
 
     const { error } = await supabase
       .from('gmail_tokens')
       .upsert({
-        user_id: user.id,
+        user_id: authenticatedUserId,
         email: userInfo.email,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || existingToken?.refresh_token || null,
