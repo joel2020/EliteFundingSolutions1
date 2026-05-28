@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
       return redirectToSettings(request, 'no_code');
     }
 
-    const verifiedState = verifyOAuthState(state);
-    if (!verifiedState) {
+    const verifiedUserId = verifyOAuthState(state);
+    if (!verifiedUserId) {
       return redirectToSettings(request, 'invalid_oauth_state');
     }
 
@@ -53,9 +53,9 @@ export async function GET(request: NextRequest) {
     );
 
     const { data: { user } } = await authClient.auth.getUser();
-    const authenticatedUserId = user?.id || verifiedState.userId;
+    const authenticatedUserId = user?.id || verifiedUserId;
 
-    if (user?.id && user.id !== verifiedState.userId) {
+    if (user?.id && user.id !== verifiedUserId) {
       return redirectToSettings(request, 'state_user_mismatch');
     }
 
