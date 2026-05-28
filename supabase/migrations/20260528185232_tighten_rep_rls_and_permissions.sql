@@ -331,24 +331,8 @@ create policy "Assignment aware CRM offer reads"
     )
   );
 
-drop policy if exists "CRM staff can read org application documents" on storage.objects;
-create policy "CRM staff can read accessible application documents"
-  on storage.objects
-  for select
-  to authenticated
-  using (
-    bucket_id = 'application-documents'
-    and exists (
-      select 1
-      from public.documents d
-      where d.storage_path = storage.objects.name
-        and d.organization_id = private.current_user_org_id()
-        and (
-          private.current_user_role() = any (array['super_admin','admin','manager','processor','underwriter','viewer'])
-          or (d.deal_id is not null and private.current_user_can_access_deal(d.deal_id))
-          or (d.application_id is not null and private.current_user_can_access_application(d.application_id))
-        )
-    )
-  );
-
-comment on policy "CRM staff can read accessible application documents" on storage.objects is 'CRM storage reads are scoped to documents visible to the current role or assigned rep, not every object in the organization.';
+-- Storage object policy changes require the Supabase project owner because
+-- storage.objects is owned by the storage extension role. Apply the matching
+-- dashboard-only storage policy after this migration if direct browser storage
+-- reads need assignment-aware restrictions. Server document access remains
+-- mediated by API routes and signed URLs.
