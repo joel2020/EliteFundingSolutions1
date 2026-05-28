@@ -23,11 +23,14 @@ const emptyPartner = {
   min_monthly_revenue: '',
   min_time_in_business_months: '',
   states_served: '',
+  restricted_states: '',
   restricted_industries: '',
+  preferred_industries: '',
   product_types: 'MCA, Revenue based financing',
   submission_email: '',
   portal_url: '',
   avg_approval_days: '',
+  bonus_notes: '',
   notes: '',
 };
 
@@ -78,11 +81,14 @@ export default function PartnersPage() {
     min_monthly_revenue: partner.min_monthly_revenue?.toString() || '',
     min_time_in_business_months: partner.min_time_in_business_months?.toString() || '',
     states_served: Array.isArray(partner.states_served) ? partner.states_served.join(', ') : '',
+    restricted_states: Array.isArray(partner.restricted_states) ? partner.restricted_states.join(', ') : '',
     restricted_industries: Array.isArray(partner.restricted_industries) ? partner.restricted_industries.join(', ') : '',
+    preferred_industries: Array.isArray(partner.preferred_industries) ? partner.preferred_industries.join(', ') : '',
     product_types: Array.isArray(partner.product_types) ? partner.product_types.join(', ') : '',
     submission_email: partner.submission_email || '',
     portal_url: partner.portal_url || '',
     avg_approval_days: partner.avg_approval_days?.toString() || '',
+    bonus_notes: partner.bonus_notes || '',
     notes: partner.notes || '',
   });
 
@@ -156,8 +162,8 @@ export default function PartnersPage() {
         subtitle="Manage your lender and funder network"
         actions={<Button data-testid="add-partner" className="h-9 rounded-[8px] bg-[#2563EB]" onClick={openCreatePartner}><Plus className="mr-2 h-4 w-4" />Add Partner</Button>}
       />
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="crm-shell-bg flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {loading ? (
             <p className="text-[14px] text-[#A1A1AA]">Loading...</p>
           ) : partners.length === 0 ? (
@@ -165,13 +171,13 @@ export default function PartnersPage() {
           ) : partners.map((partner) => (
             <div
               key={partner.id}
-              className="rounded-[16px] border border-[#E4E4E7] bg-white p-5 transition-all hover:border-[#D4D4D8]"
+              className="rounded-[12px] border border-[#DDE6F2] bg-white p-4 transition-all hover:border-[#CBD5E1]"
               style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}
             >
-              <div className="mb-3 flex items-start justify-between">
+              <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-[15px] font-semibold text-[#09090B]">{partner.name}</h3>
-                  <p className="text-[13px] text-[#71717A]">{partner.contact_name ?? '-'}</p>
+                  <h3 className="text-[14px] font-bold text-[#0F172A]">{partner.name}</h3>
+                  <p className="text-[12px] font-medium text-[#64748B]">{partner.contact_name || 'No rep'}{partner.phone ? ` · ${partner.phone}` : ''}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`badge-${partner.is_active ? 'success' : 'default'}`}>{partner.is_active ? 'Active' : 'Inactive'}</span>
@@ -183,30 +189,28 @@ export default function PartnersPage() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-[8px] bg-[#F4F4F5] p-2">
-                  <div className="text-[11px] text-[#A1A1AA]">Min Funding</div>
-                  <div className="text-[13px] font-semibold text-[#09090B]">{fmt(partner.min_funding_amount)}</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">
+                  <div className="text-[10px] font-bold uppercase text-[#64748B]">Min</div>
+                  <div className="text-[12px] font-bold text-[#0F172A]">{fmt(partner.min_funding_amount)}</div>
                 </div>
-                <div className="rounded-[8px] bg-[#F4F4F5] p-2">
-                  <div className="text-[11px] text-[#A1A1AA]">Max Funding</div>
-                  <div className="text-[13px] font-semibold text-[#09090B]">{fmt(partner.max_funding_amount)}</div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">
+                  <div className="text-[10px] font-bold uppercase text-[#64748B]">Max</div>
+                  <div className="text-[12px] font-bold text-[#0F172A]">{fmt(partner.max_funding_amount)}</div>
                 </div>
-                <div className="rounded-[8px] bg-[#F4F4F5] p-2">
-                  <div className="text-[11px] text-[#A1A1AA]">Avg Decision</div>
-                  <div className="text-[13px] font-semibold text-[#09090B]">{partner.avg_approval_days ? `${partner.avg_approval_days}d` : '-'}</div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">
+                  <div className="text-[10px] font-bold uppercase text-[#64748B]">Decision</div>
+                  <div className="text-[12px] font-bold text-[#0F172A]">{partner.avg_approval_days ? `${partner.avg_approval_days}d` : '-'}</div>
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 text-xs text-[#475569]">
-                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Revenue min: <span className="font-semibold text-[#0F172A]">{fmt(partner.min_monthly_revenue)}</span></div>
-                <div className="rounded-[8px] bg-[#F8FAFC] p-2">States: <span className="font-semibold text-[#0F172A]">{partner.states_served?.length ? partner.states_served.join(', ') : 'All states'}</span></div>
-                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
+              <div className="mt-3 grid gap-1.5 text-xs text-[#475569]">
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Submission: <span className="font-semibold text-[#0F172A]">{partner.submission_email || '-'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Rep email: <span className="font-semibold text-[#0F172A]">{partner.email || '-'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted states: <span className="font-semibold text-[#0F172A]">{partner.restricted_states?.length ? partner.restricted_states.join(', ') : 'None listed'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted industries: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Preferred: <span className="font-semibold text-[#0F172A]">{partner.preferred_industries?.length ? partner.preferred_industries.join(', ') : 'None listed'}</span></div>
               </div>
-              {partner.email && (
-                <a href={`mailto:${partner.email}`} className="mt-3 block text-[12px] text-[#2563EB] hover:underline">
-                  {partner.email}
-                </a>
-              )}
+              {partner.bonus_notes && <p className="mt-3 rounded-[8px] border border-amber-200 bg-amber-50 p-2 text-xs font-medium leading-5 text-amber-950">{partner.bonus_notes}</p>}
               {partner.notes && <p className="mt-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-2 text-xs leading-5 text-[#475569]">{partner.notes}</p>}
             </div>
           ))}
@@ -221,9 +225,9 @@ export default function PartnersPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4 md:grid-cols-2">
             <div><Label>Company Name *</Label><Input data-testid="partner-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
-            <div><Label>Contact Name</Label><Input data-testid="partner-contact-name" value={form.contact_name} onChange={(event) => setForm({ ...form, contact_name: event.target.value })} /></div>
-            <div><Label>Email</Label><Input data-testid="partner-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
-            <div><Label>Phone Number</Label><Input data-testid="partner-phone" type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></div>
+            <div><Label>Name of Rep</Label><Input data-testid="partner-contact-name" value={form.contact_name} onChange={(event) => setForm({ ...form, contact_name: event.target.value })} /></div>
+            <div><Label>Rep Email</Label><Input data-testid="partner-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
+            <div><Label>Rep Phone Number</Label><Input data-testid="partner-phone" type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></div>
             <div><Label>Submission Email</Label><Input value={form.submission_email} onChange={(event) => setForm({ ...form, submission_email: event.target.value })} /></div>
             <div><Label>Portal URL</Label><Input value={form.portal_url} onChange={(event) => setForm({ ...form, portal_url: event.target.value })} /></div>
             <div><Label>Min Funding</Label><Input type="number" value={form.min_funding_amount} onChange={(event) => setForm({ ...form, min_funding_amount: event.target.value })} /></div>
@@ -231,10 +235,13 @@ export default function PartnersPage() {
             <div><Label>Min Monthly Revenue</Label><Input type="number" value={form.min_monthly_revenue} onChange={(event) => setForm({ ...form, min_monthly_revenue: event.target.value })} /></div>
             <div><Label>Min Months in Business</Label><Input type="number" value={form.min_time_in_business_months} onChange={(event) => setForm({ ...form, min_time_in_business_months: event.target.value })} /></div>
             <div><Label>Average Decision Days</Label><Input type="number" value={form.avg_approval_days} onChange={(event) => setForm({ ...form, avg_approval_days: event.target.value })} /></div>
+            <div><Label>Restricted States</Label><Input placeholder="TX, CA, PR" value={form.restricted_states} onChange={(event) => setForm({ ...form, restricted_states: event.target.value })} /></div>
             <div><Label>States Served</Label><Input placeholder="NY, NJ, FL" value={form.states_served} onChange={(event) => setForm({ ...form, states_served: event.target.value })} /></div>
+            <div><Label>Restricted Industries</Label><Input placeholder="Legal, Cannabis, Adult" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
+            <div><Label>Preferred Industries</Label><Input placeholder="Construction, Auto sales, Trucking" value={form.preferred_industries} onChange={(event) => setForm({ ...form, preferred_industries: event.target.value })} /></div>
             <div><Label>Product Types</Label><Input value={form.product_types} onChange={(event) => setForm({ ...form, product_types: event.target.value })} /></div>
-            <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
-            <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
+            <div><Label>Bonus / Commission Notes</Label><Textarea value={form.bonus_notes} onChange={(event) => setForm({ ...form, bonus_notes: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Lender Guideline Notes</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : editingPartner ? 'Save Changes' : 'Save Partner'}</Button></DialogFooter>
         </DialogContent>

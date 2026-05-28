@@ -22,8 +22,11 @@ const partnerSchema = z.object({
   min_monthly_revenue: z.coerce.number().nonnegative().optional().nullable(),
   min_time_in_business_months: z.coerce.number().int().nonnegative().optional().nullable(),
   states_served: z.string().trim().optional().default(''),
+  restricted_states: z.string().trim().optional().default(''),
   restricted_industries: z.string().trim().optional().default(''),
+  preferred_industries: z.string().trim().optional().default(''),
   avg_approval_days: z.coerce.number().int().nonnegative().optional().nullable(),
+  bonus_notes: z.string().trim().optional().default(''),
   notes: z.string().trim().optional().default(''),
 }).transform((value) => ({ ...value, name: value.name || value.company_name }));
 
@@ -65,8 +68,11 @@ export async function POST(request: Request) {
       min_monthly_revenue: form.min_monthly_revenue ?? null,
       min_time_in_business_months: form.min_time_in_business_months ?? null,
       states_served: csv(form.states_served.toUpperCase()),
+      restricted_states: csv(form.restricted_states.toUpperCase()),
       restricted_industries: csv(form.restricted_industries),
+      preferred_industries: csv(form.preferred_industries),
       avg_approval_days: form.avg_approval_days ?? null,
+      bonus_notes: form.bonus_notes || null,
       notes: form.notes || null,
       is_active: true,
       created_by: profile.id,

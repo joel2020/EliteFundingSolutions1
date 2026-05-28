@@ -314,9 +314,12 @@ export interface Database {
           min_time_in_business_months: number | null;
           min_credit_score: number | null;
           restricted_industries: string[];
+          restricted_states: string[];
+          preferred_industries: string[];
           states_served: string[];
           avg_approval_days: number | null;
           commission_rules: Json;
+          bonus_notes: string | null;
           notes: string | null;
           is_active: boolean;
           created_at: string;

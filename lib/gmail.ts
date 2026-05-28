@@ -43,6 +43,7 @@ export async function sendEmail({
   accessToken,
   refreshToken,
   to,
+  cc,
   subject,
   body,
   html,
@@ -52,6 +53,7 @@ export async function sendEmail({
   accessToken: string;
   refreshToken?: string;
   to: string;
+  cc?: string | string[];
   subject: string;
   body: string;
   html?: string;
@@ -74,6 +76,7 @@ export async function sendEmail({
   const messageParts = [
     `From: ${from || 'me'}`,
     `To: ${encodeHeader(to)}`,
+    ...(cc && (Array.isArray(cc) ? cc : [cc]).filter(Boolean).length ? [`Cc: ${encodeHeader((Array.isArray(cc) ? cc : [cc]).filter(Boolean).join(', '))}`] : []),
     `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',
   ];

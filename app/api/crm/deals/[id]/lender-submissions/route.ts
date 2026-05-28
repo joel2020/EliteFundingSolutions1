@@ -54,7 +54,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: partner } = await supabase
     .from('funding_partners')
-    .select('id,name,email,submission_email,portal_url')
+    .select('id,name,email,contact_name,phone,submission_email,portal_url,restricted_states,restricted_industries,preferred_industries,bonus_notes,notes')
     .eq('id', parsed.data.funding_partner_id)
     .eq('organization_id', profile.organization_id)
     .single();
@@ -65,6 +65,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!recipientEmail) {
     return NextResponse.json({ success: false, error: 'Funding partner has no submission email. Add a submission email before sending this deal.' }, { status: 400 });
   }
+  const ccEmails = Array.from(new Set([partner.email].filter((email) => email && email.toLowerCase() !== recipientEmail.toLowerCase())));
 
   const { data: gmailTokens, error: gmailTokenError } = await supabase
     .from('gmail_tokens')
@@ -192,6 +193,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     '',
     `Requested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}`,
     `Selected attachments: ${selectedAttachmentLine}`,
+    ccEmails.length ? `CC lender rep: ${partner.contact_name || 'Rep'} <${ccEmails.join(', ')}>` : '',
     priorDefaults?.length ? `Risk warning: prior default history exists with ${partner.name}. Review before proceeding.` : '',
   ].filter(Boolean).join('\n');
 
@@ -275,12 +277,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ? `\n\nSecure document links:\n${signedLinks.map((link) => `${link.fileName}: ${link.signedUrl}`).join('\n')}`
     : '';
   const riskWarningText = priorDefaults?.length ? `\n\nRisk warning: prior default history exists with ${partner.name}. Review before proceeding.` : '';
-  const emailText = `${parsed.data.custom_message}\n\nRequested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}\nSelected attachments: ${selectedAttachmentLine}${signedLinkText}${riskWarningText}`;
+  const lenderGuidelineText = [
+    partner.restricted_states?.length ? `Restricted states: ${partner.restricted_states.join(', ')}` : '',
+    partner.restricted_industries?.length ? `Restricted industries: ${partner.restricted_industries.join(', ')}` : '',
+    partner.preferred_industries?.length ? `Preferred industries: ${partner.preferred_industries.join(', ')}` : '',
+    partner.bonus_notes ? `Bonus notes: ${partner.bonus_notes}` : '',
+    partner.notes ? `Guideline notes: ${partner.notes}` : '',
+  ].filter(Boolean).join('\n');
+  const emailText = `${parsed.data.custom_message}\n\nRequested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}\nSelected attachments: ${selectedAttachmentLine}${lenderGuidelineText ? `\n\nInternal lender guidelines:\n${lenderGuidelineText}` : ''}${signedLinkText}${riskWarningText}`;
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
       <p>${textToHtml(parsed.data.custom_message)}</p>
       <p><strong>Requested amount:</strong> $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}</p>
       <p><strong>Selected attachments:</strong> ${escapeHtml(selectedAttachmentLine)}</p>
+      ${lenderGuidelineText ? `<p><strong>Internal lender guidelines:</strong></p><pre style="white-space: pre-wrap; font-family: Arial, sans-serif;">${escapeHtml(lenderGuidelineText)}</pre>` : ''}
       ${signedLinks.length ? `<p><strong>Secure document links:</strong></p><ul>${signedLinks.map((link) => `<li><a href="${escapeHtml(link.signedUrl)}">${escapeHtml(link.fileName)}</a></li>`).join('')}</ul>` : ''}
       ${priorDefaults?.length ? `<p style="color: #991b1b;"><strong>Risk warning:</strong> prior default history exists with ${escapeHtml(partner.name)}. Review before proceeding.</p>` : ''}
     </div>
@@ -296,6 +306,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       accessToken: decryptGmailToken(senderTokens.access_token) || '',
       refreshToken: decryptGmailToken(senderTokens.refresh_token) || undefined,
       to: recipientEmail,
+      cc: ccEmails,
       subject: emailSubject,
       body: emailText,
       html: emailHtml,
@@ -349,6 +360,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         email_provider_configured: true,
         email_provider_data: emailProviderData,
         email_provider_error: emailProviderError,
+        cc_emails: ccEmails,
         attachment_warnings: attachmentWarnings,
       },
     }),
@@ -398,6 +410,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ],
     emailDraft: {
       to: recipientEmail,
+      cc: ccEmails,
       subject: emailSubject,
       body: emailText,
       attachmentDocumentIds: documentIds,
