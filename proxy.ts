@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { isInternalCrmRole } from '@/lib/auth-routing';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
+const supabaseProjectRef = new URL(supabaseUrl).hostname.split('.')[0];
 
 type UserProfile = {
   role: string;
@@ -32,6 +34,31 @@ function redirectToLogin(req: NextRequest, redirectPath = req.nextUrl.pathname) 
   redirectUrl.pathname = '/login';
   redirectUrl.searchParams.set('redirectTo', redirectPath);
   return NextResponse.redirect(redirectUrl);
+}
+
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return globalThis.atob(padded);
+}
+
+function extractAccessTokenFromSupabaseCookies(cookieList: { name: string; value: string }[]) {
+  const baseName = `sb-${supabaseProjectRef}-auth-token`;
+  const matchingCookies = cookieList
+    .filter((cookie) => cookie.name === baseName || cookie.name.startsWith(`${baseName}.`))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  if (!matchingCookies.length) return null;
+
+  const rawValue = matchingCookies.map((cookie) => cookie.value).join('');
+  const sessionValue = rawValue.startsWith('base64-') ? decodeBase64Url(rawValue.slice('base64-'.length)) : rawValue;
+
+  try {
+    const parsed = JSON.parse(sessionValue) as { access_token?: unknown };
+    return typeof parsed.access_token === 'string' ? parsed.access_token : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function proxy(req: NextRequest) {
@@ -72,24 +99,33 @@ export async function proxy(req: NextRequest) {
     }
   );
 
+  const cookieAccessToken = extractAccessTokenFromSupabaseCookies(req.cookies.getAll());
   const {
     data: { user },
-    error: userError,
   } = await supabase.auth.getUser();
+  const fallbackUser = user ? null : cookieAccessToken ? (await supabase.auth.getUser(cookieAccessToken)).data.user : null;
+  const authenticatedUser = user || fallbackUser;
 
   // Redirect to login if accessing protected route without session
-  if ((isProtectedRoute || isCrmHostRoot) && !user) {
+  if ((isProtectedRoute || isCrmHostRoot) && !authenticatedUser) {
     return redirectToLogin(req, isCrmHostRoot ? '/crm' : pathname);
   }
 
-  if (!user) {
+  if (!authenticatedUser) {
     return res;
   }
 
-  const { data: profile } = await supabase
+  const profileClient = cookieAccessToken
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${cookieAccessToken}` } },
+    })
+    : supabase;
+
+  const { data: profile } = await profileClient
     .from('user_profiles')
     .select('role,is_active')
-    .eq('user_id', user.id)
+    .eq('user_id', authenticatedUser.id)
     .maybeSingle() as { data: UserProfile | null };
 
   if (!profile) {
