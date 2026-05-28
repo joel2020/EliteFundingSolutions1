@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const redirectUri = new URL('/api/gmail/callback', request.nextUrl.origin).toString();
-    const authUrl = getAuthUrl({ redirectUri });
+    const authUrl = getAuthUrl({ redirectUri, userId: auth.user.id });
     return NextResponse.json({ authUrl });
   } catch (error: any) {
     console.error('Gmail auth error:', error);
