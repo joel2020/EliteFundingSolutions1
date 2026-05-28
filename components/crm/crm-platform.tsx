@@ -336,34 +336,34 @@ function StatusBadge({ value }: { value?: string | null }) {
     key.includes('docs') || key.includes('contract') || key.includes('pending') ? '#D97706' :
     '#64748B';
   return (
-    <span className="inline-flex min-w-[84px] items-center justify-center rounded-[6px] border px-2.5 py-1 text-[11px] font-semibold capitalize" style={{ color, borderColor: `${color}33`, background: `${color}10` }}>
+    <span className="inline-flex min-w-[92px] items-center justify-center rounded-full border px-2.5 py-1 text-[11px] font-bold capitalize shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]" style={{ color, borderColor: `${color}35`, background: `${color}12` }}>
       {label}
     </span>
   );
 }
 
 function CrmCard({ children, className = '', ...props }: { children: React.ReactNode; className?: string } & React.HTMLAttributes<HTMLElement>) {
-  return <section {...props} className={`rounded-[8px] border border-[#E2E8F0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${className}`}>{children}</section>;
+  return <section {...props} className={`crm-panel ${className}`}>{children}</section>;
 }
 
 function MetricCard({ title, value, subtitle, icon, tone = '#0F2B5B', href }: { title: string; value: string | number; subtitle: string; icon: React.ReactNode; tone?: string; href?: string }) {
   const content = (
-    <CrmCard className="p-4">
+    <CrmCard className="group p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[12px] font-medium text-[#64748B]">{title}</p>
-          <p className="mt-2 truncate text-[24px] font-semibold tracking-normal text-[#0F172A]">{value}</p>
+          <p className="crm-kicker">{title}</p>
+          <p className="mt-2 truncate text-[26px] font-bold tracking-[-0.02em] text-[#0F172A]">{value}</p>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px]" style={{ background: `${tone}12`, color: tone }}>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-white shadow-sm transition-transform group-hover:scale-105" style={{ background: `${tone}12`, color: tone }}>
           {icon}
         </div>
       </div>
-      <p className="mt-3 text-[12px] text-[#64748B]">{subtitle}</p>
+      <p className="mt-3 text-[12px] font-medium text-[#64748B]">{subtitle}</p>
     </CrmCard>
   );
   if (!href) return content;
   return (
-    <Link href={href} className="block rounded-[8px] outline-none transition hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)] focus-visible:ring-2 focus-visible:ring-[#0F2B5B] focus-visible:ring-offset-2">
+    <Link href={href} className="crm-focus-ring block rounded-[14px]">
       {content}
     </Link>
   );
@@ -371,13 +371,13 @@ function MetricCard({ title, value, subtitle, icon, tone = '#0F2B5B', href }: { 
 
 function Toolbar({ search, setSearch, children }: { search: string; setSearch: (value: string) => void; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 border-b border-[#E2E8F0] p-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-col gap-3 border-b border-[#E2E8F0] bg-white/80 p-4 lg:flex-row lg:items-center lg:justify-between">
       <div className="relative w-full lg:max-w-[420px]">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search merchants, reps, IDs, partners..." className="h-10 rounded-[7px] border-[#CBD5E1] pl-9 text-[13px]" />
+        <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search merchants, reps, IDs, partners..." className="h-10 rounded-[9px] border-[#CBD5E1] bg-[#F8FAFC] pl-9 text-[13px] font-medium shadow-inner focus:bg-white" />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {search && <Button variant="outline" className="h-10 rounded-[7px]" onClick={() => setSearch('')}>Clear</Button>}
+        {search && <Button variant="outline" className="h-10 rounded-[9px]" onClick={() => setSearch('')}>Clear</Button>}
         {children}
       </div>
     </div>
@@ -386,10 +386,10 @@ function Toolbar({ search, setSearch, children }: { search: string; setSearch: (
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
-      <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#F1F5F9] text-[#64748B]"><FileArchive className="h-5 w-5" /></div>
-      <p className="mt-3 text-sm font-semibold text-[#0F172A]">{title}</p>
-      <p className="mt-1 max-w-sm text-sm text-[#64748B]">{body}</p>
+    <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC] text-[#64748B] shadow-sm"><FileArchive className="h-5 w-5" /></div>
+      <p className="mt-4 text-sm font-bold text-[#0F172A]">{title}</p>
+      <p className="mt-1 max-w-sm text-sm leading-6 text-[#64748B]">{body}</p>
     </div>
   );
 }
@@ -613,9 +613,9 @@ export function useCrmDataset() {
 function LoadingScreen({ title }: { title: string }) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <CrmTopbar title={title} subtitle="Loading broker workspace..." />
+      <CrmTopbar title={title} subtitle="Loading CRM workspace..." />
       <div className="grid gap-4 p-5 md:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-[8px] bg-[#E2E8F0]" />)}
+        {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-[14px] border border-[#E2E8F0] bg-white/70" />)}
       </div>
     </div>
   );
@@ -625,7 +625,7 @@ function PageFrame({ title, subtitle, actions, children }: { title: string; subt
   return (
     <div className="flex h-full flex-col overflow-hidden" data-testid={`crm-page-${normalize(title).replaceAll(' ', '-')}`}>
       <CrmTopbar title={title} subtitle={subtitle} actions={actions} />
-      <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-4 md:p-5">
+      <div className="crm-shell-bg flex-1 overflow-y-auto p-4 md:p-6">
         {children}
       </div>
     </div>
@@ -1007,14 +1007,14 @@ export function CrmLeadsExperience() {
 
 function DealTable({ rows, documents, currentPositions }: { rows: RecordMap[]; documents: RecordMap[]; currentPositions: RecordMap[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1560px] text-left text-sm">
-        <thead className="bg-[#F8FAFC] text-[11px] uppercase tracking-normal text-[#64748B]">
+    <div className="crm-scroll-shadow overflow-x-auto">
+      <table className="crm-table min-w-[1560px]">
+        <thead>
           <tr>
-            {['Deal ID', 'Business', 'Score', 'Missing Docs', 'Requested', 'Offered', 'Funded', 'Stage', 'Offer', 'Funded Status', 'Renewal', 'Current Balance', '% Paid', 'Assigned Rep', 'Funding Partner', 'Last Activity', 'Created'].map((head) => <th key={head} className="px-4 py-3 font-semibold">{head}</th>)}
+            {['Deal ID', 'Business', 'Score', 'Missing Docs', 'Requested', 'Offered', 'Funded', 'Stage', 'Offer', 'Funded Status', 'Renewal', 'Current Balance', '% Paid', 'Assigned Rep', 'Funding Partner', 'Last Activity', 'Created'].map((head) => <th key={head}>{head}</th>)}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E2E8F0]">
+        <tbody>
           {rows.map((deal) => {
             const offer = Array.isArray(deal.offers) ? deal.offers[0] : null;
             const renewal = Array.isArray(deal.renewals) ? deal.renewals[0] : null;
@@ -1024,24 +1024,24 @@ function DealTable({ rows, documents, currentPositions }: { rows: RecordMap[]; d
             const currentBalance = renewal?.current_balance || Math.max(Number(offer?.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
             const percentPaid = renewal?.percent_paid_down || (deal.stage_slug === 'funded' ? 55 : 0);
             return (
-              <tr key={deal.id} className="hover:bg-[#F8FAFC]" data-testid={`deal-row-${deal.id}`}>
-                <td className="px-4 py-3"><Link href={`/crm/deals/${deal.id}`} className="font-semibold text-[#0F2B5B]">{shortId(deal.id)}</Link></td>
-                <td className="px-4 py-3 font-semibold text-[#0F172A]">{businessName(deal)}</td>
-                <td className="px-4 py-3"><span className={`font-semibold ${score.score >= 70 ? 'text-[#059669]' : score.score >= 50 ? 'text-[#D97706]' : 'text-[#DC2626]'}`}>{score.score}</span><span className="ml-1 text-xs text-[#64748B]">{score.tier}</span></td>
-                <td className="px-4 py-3">{score.missingDocs.length ? <span className="font-semibold text-[#D97706]">{score.missingDocs.length}</span> : <span className="text-[#059669]">Clear</span>}</td>
-                <td className="px-4 py-3 font-semibold">{currency(deal.requested_amount)}</td>
-                <td className="px-4 py-3">{currency(offer?.approved_amount || deal.approved_amount)}</td>
-                <td className="px-4 py-3">{currency(deal.funded_amount)}</td>
-                <td className="px-4 py-3"><StatusBadge value={deal.stage_slug} /></td>
-                <td className="px-4 py-3"><StatusBadge value={offer?.status || 'pending'} /></td>
-                <td className="px-4 py-3"><StatusBadge value={deal.funded_at ? 'funded' : 'not funded'} /></td>
-                <td className="px-4 py-3"><StatusBadge value={renewal?.status || (deal.stage_slug === 'renewal_eligible' ? 'eligible' : 'not eligible')} /></td>
-                <td className="px-4 py-3">{currency(currentBalance)}</td>
-                <td className="px-4 py-3">{pct(percentPaid)}</td>
-                <td className="px-4 py-3">{repName(deal)}</td>
-                <td className="px-4 py-3">{offer?.funding_partners?.name || partnerName(deal)}</td>
-                <td className="px-4 py-3 text-[#64748B]">{date(deal.updated_at)}</td>
-                <td className="px-4 py-3 text-[#64748B]">{date(deal.created_at)}</td>
+              <tr key={deal.id} data-testid={`deal-row-${deal.id}`}>
+                <td><Link href={`/crm/deals/${deal.id}`} className="font-bold text-[#0F2B5B] hover:underline">{shortId(deal.id)}</Link></td>
+                <td className="font-bold text-[#0F172A]">{businessName(deal)}</td>
+                <td><span className={`font-bold ${score.score >= 70 ? 'text-[#059669]' : score.score >= 50 ? 'text-[#D97706]' : 'text-[#DC2626]'}`}>{score.score}</span><span className="ml-1 text-xs text-[#64748B]">{score.tier}</span></td>
+                <td>{score.missingDocs.length ? <span className="font-bold text-[#D97706]">{score.missingDocs.length}</span> : <span className="font-bold text-[#059669]">Clear</span>}</td>
+                <td className="font-bold text-[#0F172A]">{currency(deal.requested_amount)}</td>
+                <td>{currency(offer?.approved_amount || deal.approved_amount)}</td>
+                <td>{currency(deal.funded_amount)}</td>
+                <td><StatusBadge value={deal.stage_slug} /></td>
+                <td><StatusBadge value={offer?.status || 'pending'} /></td>
+                <td><StatusBadge value={deal.funded_at ? 'funded' : 'not funded'} /></td>
+                <td><StatusBadge value={renewal?.status || (deal.stage_slug === 'renewal_eligible' ? 'eligible' : 'not eligible')} /></td>
+                <td>{currency(currentBalance)}</td>
+                <td>{pct(percentPaid)}</td>
+                <td>{repName(deal)}</td>
+                <td>{offer?.funding_partners?.name || partnerName(deal)}</td>
+                <td className="text-[#64748B]">{date(deal.updated_at)}</td>
+                <td className="text-[#64748B]">{date(deal.created_at)}</td>
               </tr>
             );
           })}
@@ -1631,7 +1631,26 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   );
 
   return (
-    <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
+    <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} - ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="crm-focus-ring rounded-[8px] px-3 py-2 text-sm font-bold text-[#0F2B5B] hover:bg-[#EEF2F7]">Back to deals</Link>}>
+      <CrmCard className="mb-4 overflow-hidden">
+        <div className="grid gap-4 bg-[#081523] p-5 text-white lg:grid-cols-[1.3fr_0.7fr]">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#D9B95D]">Deal command center</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-[-0.02em] text-white">{businessName(deal)}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#CBD5E1]">{dealSummary(deal, app, businessOwners)}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="rounded-[12px] border border-white/10 bg-white/[0.06] p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#94A3B8]">Stage</p>
+              <div className="mt-2"><StatusBadge value={deal.stage_slug} /></div>
+            </div>
+            <div className="rounded-[12px] border border-white/10 bg-white/[0.06] p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#94A3B8]">Next action</p>
+              <p className="mt-2 text-sm font-bold text-white">{nextAction}</p>
+            </div>
+          </div>
+        </div>
+      </CrmCard>
       <div className="mb-4 grid gap-3 md:grid-cols-4">
         <MetricCard title="Requested" value={currency(deal.requested_amount)} subtitle="Merchant ask" icon={<Target className="h-4 w-4" />} />
         <MetricCard title="Submission Ready" value={`${submissionReadiness.score}%`} subtitle={submissionReadiness.status} icon={<ClipboardList className="h-4 w-4" />} tone={submissionReadiness.score >= 90 ? '#059669' : submissionReadiness.score >= 65 ? '#D97706' : '#DC2626'} />

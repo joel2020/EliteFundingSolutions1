@@ -26,23 +26,24 @@ import { useMemo } from 'react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 
 const navItems = [
-  { href: '/crm', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/crm/prospects', label: 'Prospects', icon: Tag },
-  { href: '/crm/pipeline', label: 'Pipeline', icon: GitBranch },
-  { href: '/crm/leads', label: 'Leads', icon: Tag },
-  { href: '/crm/deals', label: 'Deals', icon: Search },
-  { href: '/crm/underwriting', label: 'Underwriting', icon: FileText },
-  { href: '/crm/partners', label: 'Funders', icon: Building2 },
-  { href: '/crm/iso-brokers', label: 'ISO', icon: Users },
-  { href: '/crm/portfolio', label: 'Portfolio', icon: Briefcase },
-  { href: '/crm/vault', label: 'The Vault', icon: Archive },
-  { href: '/crm/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
-  { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw },
-  { href: '/crm/earnings', label: 'Earnings', icon: DollarSign },
-  { href: '/crm/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/crm/tools', label: 'Tools', icon: Wrench },
-  { href: '/crm/users', label: 'Users', icon: Users },
-  { href: '/crm/settings', label: 'Settings', icon: Settings },
+  { href: '/crm', label: 'Dashboard', icon: LayoutDashboard, group: 'Core' },
+  { href: '/crm/pipeline', label: 'Pipeline', icon: GitBranch, group: 'Core' },
+  { href: '/crm/deals', label: 'Deals', icon: Search, group: 'Core' },
+  { href: '/crm/applications', label: 'Applications', icon: FileText, group: 'Core' },
+  { href: '/crm/leads', label: 'Leads', icon: Tag, group: 'Core' },
+  { href: '/crm/prospects', label: 'Prospects', icon: Tag, group: 'Core' },
+  { href: '/crm/underwriting', label: 'Underwriting', icon: FileText, group: 'Funding' },
+  { href: '/crm/partners', label: 'Funders', icon: Building2, group: 'Funding' },
+  { href: '/crm/iso-brokers', label: 'ISOs', icon: Users, group: 'Funding' },
+  { href: '/crm/portfolio', label: 'Portfolio', icon: Briefcase, group: 'Funding' },
+  { href: '/crm/vault', label: 'The Vault', icon: Archive, group: 'Funding' },
+  { href: '/crm/knowledge-base', label: 'Knowledge Base', icon: BookOpen, group: 'Operations' },
+  { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw, group: 'Operations' },
+  { href: '/crm/earnings', label: 'Earnings', icon: DollarSign, group: 'Operations' },
+  { href: '/crm/reports', label: 'Reports', icon: BarChart3, group: 'Operations' },
+  { href: '/crm/tools', label: 'Tools', icon: Wrench, group: 'Admin' },
+  { href: '/crm/users', label: 'Users', icon: Users, group: 'Admin' },
+  { href: '/crm/settings', label: 'Settings', icon: Settings, group: 'Admin' },
 ];
 
 export function CrmSidebar() {
@@ -62,10 +63,10 @@ export function CrmSidebar() {
   };
 
   return (
-    <header className="z-40 shrink-0 border-b border-[#E2E8F0] bg-white text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.05)]" data-testid="crm-nexus-shell">
-      <div className="flex min-h-[72px] flex-col gap-3 px-3 py-3 lg:flex-row lg:items-center lg:px-5">
+    <header className="z-40 shrink-0 border-b border-[#D8E1EC] bg-white/95 text-[#0F172A] shadow-[0_1px_2px_rgba(15,23,42,0.05)] backdrop-blur" data-testid="crm-nexus-shell">
+      <div className="flex min-h-[76px] flex-col gap-3 px-3 py-3 xl:flex-row xl:items-center xl:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC]">
+          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[10px] border border-[#D8E1EC] bg-[#F8FAFC] shadow-sm">
             <Image
               src="/elite-funding-logo.png"
               alt="Elite Funding Solutions"
@@ -76,12 +77,12 @@ export function CrmSidebar() {
             />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold leading-tight text-[#0F172A]">Elite CRM Nexus v2</div>
-            <div className="truncate text-[11px] font-semibold uppercase leading-tight tracking-normal text-[#C9A84C]">Elite Funding Solutions</div>
+            <div className="truncate text-[14px] font-bold leading-tight text-[#0F172A]">Elite CRM Nexus v2</div>
+            <div className="truncate text-[11px] font-bold uppercase leading-tight tracking-[0.08em] text-[#A87811]">Elite Funding Solutions</div>
           </div>
         </div>
 
-        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto lg:justify-center" aria-label="CRM navigation">
+        <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto xl:justify-center" aria-label="CRM navigation">
           {navItems.map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
@@ -91,9 +92,10 @@ export function CrmSidebar() {
                 href={item.href}
                 prefetch={false}
                 aria-current={active ? 'page' : undefined}
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-semibold transition-colors ${
+                title={`${item.group}: ${item.label}`}
+                className={`crm-focus-ring inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 text-[12px] font-bold transition-all ${
                   active
-                    ? 'bg-[#0F2B5B] text-white'
+                    ? 'bg-[#0B1F3F] text-white shadow-[0_8px_18px_rgba(15,43,91,0.18)]'
                     : 'text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A]'
                 }`}
               >
@@ -108,7 +110,7 @@ export function CrmSidebar() {
           <Link
             href="/crm/deals"
             prefetch={false}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[7px] border border-[#CBD5E1] bg-white px-3 text-[12px] font-semibold text-[#334155] hover:bg-[#F8FAFC]"
+            className="crm-focus-ring inline-flex h-9 shrink-0 items-center gap-2 rounded-[8px] border border-[#CBD5E1] bg-white px-3 text-[12px] font-bold text-[#334155] hover:bg-[#F8FAFC]"
           >
             <Search className="h-3.5 w-3.5" />
             Search Deals
@@ -116,7 +118,7 @@ export function CrmSidebar() {
           <Link
             href="https://elitefundingsolution.com/"
             prefetch={false}
-            className="inline-flex h-9 shrink-0 items-center rounded-[7px] border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[12px] font-semibold text-[#0F2B5B] hover:bg-[#EEF2F7]"
+            className="crm-focus-ring inline-flex h-9 shrink-0 items-center rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[12px] font-bold text-[#0F2B5B] hover:bg-[#EEF2F7]"
           >
             Elite Connect
           </Link>
@@ -124,14 +126,14 @@ export function CrmSidebar() {
             href="/crm/settings"
             prefetch={false}
             aria-label="Profile settings"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[7px] border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]"
+            className="crm-focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]"
           >
             <UserCircle className="h-4 w-4" />
           </Link>
           <button
             data-testid="crm-sign-out"
             onClick={handleLogout}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[7px] border border-[#FECACA] bg-white px-3 text-[12px] font-semibold text-[#B91C1C] hover:bg-[#FEF2F2]"
+            className="crm-focus-ring inline-flex h-9 shrink-0 items-center gap-2 rounded-[8px] border border-[#FECACA] bg-white px-3 text-[12px] font-bold text-[#B91C1C] hover:bg-[#FEF2F2]"
           >
             <LogOut className="h-3.5 w-3.5" />
             Logout

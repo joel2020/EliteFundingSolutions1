@@ -11,15 +11,16 @@ interface TopbarProps {
 
 export function CrmTopbar({ title, subtitle, actions }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur border-b border-[#E2E8F0] flex items-center px-4 md:px-6 shrink-0">
+    <header className="sticky top-0 z-30 min-h-[72px] shrink-0 border-b border-[#D8E1EC] bg-white/88 px-4 backdrop-blur-xl md:px-6">
+      <div className="flex min-h-[72px] items-center gap-4">
       <div className="flex-1 min-w-0">
-        <h1 className="text-[17px] font-semibold text-[#0F172A] leading-tight">{title}</h1>
-        {subtitle && <p className="text-[12px] text-[#64748B] mt-0.5">{subtitle}</p>}
+        <h1 className="text-[20px] font-bold leading-tight text-[#0F172A] tracking-[-0.01em]">{title}</h1>
+        {subtitle && <p className="mt-1 text-[13px] font-medium text-[#64748B]">{subtitle}</p>}
       </div>
 
-      <div className="flex items-center gap-2 ml-4">
+      <div className="ml-4 flex items-center gap-2 overflow-x-auto">
         {actions}
-        <Link href="/crm/deals" prefetch={false} className="hidden h-9 items-center gap-2 rounded-[7px] border border-[#E2E8F0] px-3 text-[12px] font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] lg:flex">
+        <Link href="/crm/deals" prefetch={false} className="crm-focus-ring hidden h-9 shrink-0 items-center gap-2 rounded-[8px] border border-[#D8E1EC] bg-white px-3 text-[12px] font-bold text-[#475569] transition-colors hover:bg-[#F8FAFC] lg:flex">
           <Search className="w-4 h-4" />
           Search CRM
         </Link>
@@ -28,7 +29,7 @@ export function CrmTopbar({ title, subtitle, actions }: TopbarProps) {
           prefetch={false}
           title="Review open tasks and follow-ups"
           aria-label="Review open tasks and follow-ups"
-          className="relative flex h-9 w-9 items-center justify-center rounded-[7px] text-[#64748B] transition-colors hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+          className="crm-focus-ring relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-transparent text-[#64748B] transition-colors hover:border-[#D8E1EC] hover:bg-white hover:text-[#0F172A]"
         >
           <Bell className="w-4 h-4" />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#C9A84C]" />
@@ -36,13 +37,14 @@ export function CrmTopbar({ title, subtitle, actions }: TopbarProps) {
         <Link
           href="/crm/settings"
           prefetch={false}
-          className="w-9 h-9 rounded-[7px] flex items-center justify-center text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
+          className="crm-focus-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-transparent text-[#64748B] transition-colors hover:border-[#D8E1EC] hover:bg-white"
         >
           <Settings className="w-4 h-4" />
         </Link>
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#0A1628] text-[13px] font-bold ml-1" style={{ background: 'linear-gradient(135deg, #C9A84C 0%, #B8962E 100%)' }}>
+        <div className="ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-[#0A1628] shadow-sm" style={{ background: 'linear-gradient(135deg, #D9B95D 0%, #B8962E 100%)' }}>
           E
         </div>
+      </div>
       </div>
     </header>
   );

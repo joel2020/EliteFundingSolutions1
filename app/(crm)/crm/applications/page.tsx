@@ -192,7 +192,7 @@ export default function ApplicationsPage() {
   });
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       <CrmTopbar
         title="Applications"
         subtitle={`${applications.length} applications`}
@@ -212,24 +212,28 @@ export default function ApplicationsPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="relative max-w-[320px] mb-5">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A1A1AA]" />
+      <div className="crm-shell-bg flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full max-w-[420px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" />
           <Input
             type="text"
             placeholder="Search applications…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="h-10 rounded-[9px] border-[#CBD5E1] bg-white pl-9 text-[13px] font-medium"
           />
         </div>
+        <div className="text-sm font-medium text-[#64748B]">Sensitive fields stay masked unless an admin reveals them.</div>
+        </div>
 
-        <div className="bg-white border border-[#E4E4E7] rounded-[16px] overflow-hidden">
-          <table className="w-full">
+        <div className="crm-panel overflow-hidden">
+          <div className="crm-scroll-shadow overflow-x-auto">
+          <table className="crm-table min-w-[920px]">
             <thead>
-              <tr className="bg-[#F4F4F5]">
+              <tr>
                 {['Business', 'Contact', 'Amount', 'Status', 'Submitted', 'Actions'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.04em] text-[#71717A]">
+                  <th key={h}>
                     {h}
                   </th>
                 ))}
@@ -238,28 +242,28 @@ export default function ApplicationsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-[#A1A1AA]">Loading…</td>
+                  <td colSpan={6} className="py-10 text-center font-medium text-[#64748B]">Loading...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-[#A1A1AA]">No applications found</td>
+                  <td colSpan={6} className="py-10 text-center font-medium text-[#64748B]">No applications found</td>
                 </tr>
               ) : (
                 filtered.map((app) => (
-                  <tr key={app.id} className="border-b border-[#F4F4F5] hover:bg-[#FAFAFA]">
-                    <td className="px-4 py-3">
+                  <tr key={app.id}>
+                    <td>
                       <div className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-[#71717A]" />
-                        <span className="font-medium text-[#09090B]">{app.businesses?.legal_name || app.businesses?.dba || 'Unlinked business'}</span>
+                        <span className="font-bold text-[#0F172A]">{app.businesses?.legal_name || app.businesses?.dba || 'Unlinked business'}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[#52525B]">{[app.leads?.first_name, app.leads?.last_name].filter(Boolean).join(' ') || app.leads?.email || app.businesses?.email || '—'}</td>
-                    <td className="px-4 py-3 font-semibold text-[#09090B]">
-                      {app.requested_amount ? `$${app.requested_amount.toLocaleString()}` : '—'}
+                    <td>{[app.leads?.first_name, app.leads?.last_name].filter(Boolean).join(' ') || app.leads?.email || app.businesses?.email || '-'}</td>
+                    <td className="font-bold text-[#0F172A]">
+                      {app.requested_amount ? `$${app.requested_amount.toLocaleString()}` : '-'}
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <Badge
-                        className="inline-flex items-center rounded-[6px] px-2 py-0.5 text-[11px] font-semibold"
+                        className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold"
                         style={{ 
                           backgroundColor: statusConfig[app.status]?.bg, 
                           color: statusConfig[app.status]?.text 
@@ -268,10 +272,10 @@ export default function ApplicationsPage() {
                         {statusConfig[app.status]?.label || app.status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-[#52525B] text-sm">
+                    <td className="text-sm text-[#64748B]">
                       {new Date(app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
-                    <td className="px-4 py-3">
+                    <td>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">
@@ -295,50 +299,51 @@ export default function ApplicationsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {selectedApplication && (
-          <div className="mt-6 bg-white border border-[#E4E4E7] rounded-[16px] overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#F4F4F5]">
+          <div className="crm-panel mt-6 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-[#E2E8F0] bg-white px-5 py-4">
               <div>
-                <h2 className="text-[18px] font-semibold text-[#09090B]">Application Details</h2>
-                <p className="text-[13px] text-[#71717A]">Sensitive fields are masked by default. Super Admin/Admin reveals are audited in activity logs.</p>
+                <h2 className="text-[18px] font-bold text-[#0F172A]">Application Details</h2>
+                <p className="text-[13px] font-medium text-[#64748B]">Sensitive fields are masked by default. Super Admin/Admin reveals are audited in activity logs.</p>
               </div>
               <div className="flex items-center gap-2">{canRevealSensitive && !revealSensitive && <Button variant="outline" size="sm" onClick={revealSensitiveFields}>Reveal sensitive fields</Button>}<Button variant="ghost" size="sm" onClick={() => setSelectedApplication(null)}><X className="w-4 h-4" /></Button></div>
             </div>
             <div className="p-5 grid grid-cols-1 xl:grid-cols-3 gap-5">
               <div className="xl:col-span-2">
-                <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A] mb-3">Submitted Fields</h3>
-                <div className="max-h-[460px] overflow-auto border border-[#F4F4F5] rounded-[12px]">
+                <h3 className="crm-kicker mb-3">Submitted Fields</h3>
+                <div className="max-h-[460px] overflow-auto rounded-[12px] border border-[#E2E8F0]">
                   {payloadEntries.length === 0 ? (
-                    <p className="p-4 text-[14px] text-[#A1A1AA]">No digital payload fields are available for this application.</p>
+                    <p className="p-4 text-[14px] font-medium text-[#64748B]">No digital payload fields are available for this application.</p>
                   ) : payloadEntries.map(([key, value]) => (
-                    <div key={key} className="grid grid-cols-1 md:grid-cols-3 gap-2 border-b last:border-b-0 border-[#F4F4F5] px-4 py-3">
-                      <div className="text-[12px] font-semibold uppercase tracking-[0.04em] text-[#71717A]">{key.replaceAll('_', ' ')}</div>
-                      <pre className="md:col-span-2 whitespace-pre-wrap break-words text-[12px] text-[#09090B] font-sans">{typeof (revealSensitive ? value : maskValue(key, value)) === 'string' ? (revealSensitive ? value : maskValue(key, value)) : JSON.stringify(revealSensitive ? value : maskValue(key, value), null, 2)}</pre>
+                    <div key={key} className="grid grid-cols-1 gap-2 border-b border-[#E2E8F0] px-4 py-3 last:border-b-0 md:grid-cols-3">
+                      <div className="text-[12px] font-bold uppercase tracking-[0.04em] text-[#64748B]">{key.replaceAll('_', ' ')}</div>
+                      <pre className="whitespace-pre-wrap break-words font-sans text-[12px] text-[#0F172A] md:col-span-2">{typeof (revealSensitive ? value : maskValue(key, value)) === 'string' ? (revealSensitive ? value : maskValue(key, value)) : JSON.stringify(revealSensitive ? value : maskValue(key, value), null, 2)}</pre>
                     </div>
                   ))}
                 </div>
               </div>
               <div className="space-y-5">
                 <div>
-                  <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A] mb-3">Uploaded Files</h3>
+                  <h3 className="crm-kicker mb-3">Uploaded Files</h3>
                   <div className="space-y-2">
-                    {selectedDocuments.length === 0 ? <p className="text-[14px] text-[#A1A1AA]">No files found.</p> : selectedDocuments.map((doc) => (
-                      <div key={doc.id} className="rounded-[10px] border border-[#F4F4F5] p-3">
-                        <div className="text-[14px] font-medium text-[#09090B]">{doc.label}</div>
-                        <div className="text-[12px] text-[#71717A]">{doc.file_name}</div>
+                    {selectedDocuments.length === 0 ? <p className="text-[14px] font-medium text-[#64748B]">No files found.</p> : selectedDocuments.map((doc) => (
+                      <div key={doc.id} className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <div className="text-[14px] font-bold text-[#0F172A]">{doc.label}</div>
+                        <div className="text-[12px] text-[#64748B]">{doc.file_name}</div>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#71717A] mb-3">Status History</h3>
+                  <h3 className="crm-kicker mb-3">Status History</h3>
                   <div className="space-y-2">
-                    {selectedHistory.length === 0 ? <p className="text-[14px] text-[#A1A1AA]">No status history found.</p> : selectedHistory.map((item) => (
-                      <div key={item.id} className="rounded-[10px] border border-[#F4F4F5] p-3">
-                        <div className="text-[14px] font-medium text-[#09090B]">{item.previous_status || 'New'} → {item.new_status}</div>
-                        <div className="text-[12px] text-[#71717A]">{item.notes}</div>
+                    {selectedHistory.length === 0 ? <p className="text-[14px] font-medium text-[#64748B]">No status history found.</p> : selectedHistory.map((item) => (
+                      <div key={item.id} className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                        <div className="text-[14px] font-bold text-[#0F172A]">{item.previous_status || 'New'} to {item.new_status}</div>
+                        <div className="text-[12px] text-[#64748B]">{item.notes}</div>
                       </div>
                     ))}
                   </div>

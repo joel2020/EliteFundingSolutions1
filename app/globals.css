@@ -117,6 +117,64 @@
 }
 
 @layer components {
+  .crm-shell-bg {
+    background:
+      radial-gradient(circle at 16% 0%, rgba(15, 43, 91, 0.08), transparent 28%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  }
+
+  .crm-panel {
+    @apply rounded-[14px] border border-[#DDE6F2] bg-white;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 14px 40px rgba(15, 23, 42, 0.05);
+  }
+
+  .crm-panel-subtle {
+    @apply rounded-[12px] border border-[#E2E8F0] bg-[#F8FAFC];
+  }
+
+  .crm-table {
+    @apply w-full text-left text-sm;
+  }
+
+  .crm-table thead {
+    @apply sticky top-0 z-10 bg-[#F8FAFC] text-[11px] uppercase tracking-[0.06em] text-[#475569];
+  }
+
+  .crm-table th {
+    @apply whitespace-nowrap px-4 py-3 font-bold;
+  }
+
+  .crm-table td {
+    @apply px-4 py-3 align-middle text-[#334155];
+  }
+
+  .crm-table tbody {
+    @apply divide-y divide-[#E2E8F0];
+  }
+
+  .crm-table tbody tr {
+    @apply transition-colors hover:bg-[#F8FAFC];
+  }
+
+  .crm-scroll-shadow {
+    background:
+      linear-gradient(90deg, #fff 30%, rgba(255,255,255,0)),
+      linear-gradient(90deg, rgba(255,255,255,0), #fff 70%) 100% 0,
+      radial-gradient(farthest-side at 0 50%, rgba(15,23,42,0.12), rgba(15,23,42,0)),
+      radial-gradient(farthest-side at 100% 50%, rgba(15,23,42,0.12), rgba(15,23,42,0)) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  .crm-kicker {
+    @apply text-[11px] font-bold uppercase tracking-[0.12em] text-[#64748B];
+  }
+
+  .crm-focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F2B5B] focus-visible:ring-offset-2;
+  }
+
   /* Button primitives */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-[10px] text-white font-semibold text-[15px] h-11 px-6 transition-all duration-150 ease-in;
