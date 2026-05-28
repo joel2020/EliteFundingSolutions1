@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const updateSchema = z.object({
   status: z.string().optional(),
   notes: z.string().optional().nullable(),
+  custom_message: z.string().optional().nullable(),
   decline_reason: z.string().optional().nullable(),
   conditions: z.string().optional().nullable(),
 });
@@ -24,7 +25,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { data: submission } = await supabase
     .from('partner_submissions')
-    .select('id,organization_id,deal_id,application_id,status,notes,decline_reason,funding_partners(name)')
+    .select('id,organization_id,deal_id,application_id,status,notes,custom_message,decline_reason,funding_partners(name)')
     .eq('id', (await params).id)
     .eq('organization_id', profile.organization_id)
     .single();
@@ -52,7 +53,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       application_id: submission.application_id,
       activity_type: 'partner_submission',
       title: 'Lender submission updated',
-      body: parsed.data.status ? `${submission.status} -> ${parsed.data.status}` : parsed.data.notes || parsed.data.decline_reason || 'Submission updated',
+      body: parsed.data.status ? `${submission.status} -> ${parsed.data.status}` : parsed.data.notes || parsed.data.custom_message || parsed.data.decline_reason || 'Submission updated',
       performed_by: profile.id,
     }),
     supabase.from('audit_logs').insert({
@@ -61,7 +62,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       action: 'partner_submission_updated',
       resource_type: 'partner_submissions',
       resource_id: submission.id,
-      old_data: { status: submission.status, notes: submission.notes, decline_reason: submission.decline_reason },
+      old_data: { status: submission.status, notes: submission.notes, custom_message: submission.custom_message, decline_reason: submission.decline_reason },
       new_data: parsed.data,
     }),
   ]);

@@ -212,9 +212,11 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
     await page.getByTestId('deal-submit-lender').click();
-    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with this lender');
+    await page.getByTestId('deal-submission-lender-88888888-8888-8888-8888-888888888888').check();
+    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with selected lender');
     await page.getByTestId('deal-submission-notes').fill('Strong deposits, explain two negative days from tax payment timing.');
-    await page.getByTestId('deal-save-submission').click();
+    await page.getByTestId('deal-submission-internal-notes').fill('Internal note: package reviewed before sending.');
+    await page.getByTestId('deal-save-submission').evaluate((button: HTMLElement) => button.click());
     await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'partner_submission')).toBe(true);
     expect(calls.some((call) => call.method === 'POST' && call.table === 'partner_submissions')).toBe(true);
 

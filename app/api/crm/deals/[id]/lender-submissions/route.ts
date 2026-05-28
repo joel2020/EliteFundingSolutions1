@@ -14,6 +14,7 @@ const LENDER_PACKAGE_LINK_TTL_SECONDS = 60 * 60 * 24;
 const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
   custom_message: z.string().trim().min(1, 'A lender message is required.'),
+  internal_note: z.string().trim().optional().nullable(),
   attachment_document_ids: z.array(z.string().uuid()).default([]),
 });
 
@@ -206,7 +207,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       submitted_by: profile.id,
       submitted_at: new Date().toISOString(),
       status: 'submitted',
-      notes: parsed.data.custom_message,
+      notes: parsed.data.internal_note || null,
       custom_message: parsed.data.custom_message,
       attachment_document_ids: documentIds,
       email_subject: emailSubject,
