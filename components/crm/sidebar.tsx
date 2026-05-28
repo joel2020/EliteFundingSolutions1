@@ -24,6 +24,10 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
+import { useCrmUser } from '@/lib/crm-auth';
+
+const ADMIN_NAV_ROLES = ['super_admin', 'admin'];
+const FINANCE_NAV_ROLES = ['super_admin', 'admin', 'manager'];
 
 const navItems = [
   { href: '/crm', label: 'Dashboard', icon: LayoutDashboard, group: 'Core' },
@@ -32,23 +36,23 @@ const navItems = [
   { href: '/crm/applications', label: 'Applications', icon: FileText, group: 'Core' },
   { href: '/crm/leads', label: 'Leads', icon: Tag, group: 'Core' },
   { href: '/crm/prospects', label: 'Prospects', icon: Tag, group: 'Core' },
-  { href: '/crm/underwriting', label: 'Underwriting', icon: FileText, group: 'Funding' },
   { href: '/crm/partners', label: 'Funders', icon: Building2, group: 'Funding' },
   { href: '/crm/iso-brokers', label: 'ISOs', icon: Users, group: 'Funding' },
   { href: '/crm/portfolio', label: 'Portfolio', icon: Briefcase, group: 'Funding' },
   { href: '/crm/vault', label: 'The Vault', icon: Archive, group: 'Funding' },
   { href: '/crm/knowledge-base', label: 'Knowledge Base', icon: BookOpen, group: 'Operations' },
   { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw, group: 'Operations' },
-  { href: '/crm/earnings', label: 'Earnings', icon: DollarSign, group: 'Operations' },
-  { href: '/crm/reports', label: 'Reports', icon: BarChart3, group: 'Operations' },
-  { href: '/crm/tools', label: 'Tools', icon: Wrench, group: 'Admin' },
-  { href: '/crm/users', label: 'Users', icon: Users, group: 'Admin' },
-  { href: '/crm/settings', label: 'Settings', icon: Settings, group: 'Admin' },
+  { href: '/crm/earnings', label: 'Earnings', icon: DollarSign, group: 'Operations', roles: FINANCE_NAV_ROLES },
+  { href: '/crm/reports', label: 'Reports', icon: BarChart3, group: 'Operations', roles: FINANCE_NAV_ROLES },
+  { href: '/crm/tools', label: 'Tools', icon: Wrench, group: 'Admin', roles: ADMIN_NAV_ROLES },
+  { href: '/crm/users', label: 'Users', icon: Users, group: 'Admin', roles: ADMIN_NAV_ROLES },
+  { href: '/crm/settings', label: 'Settings', icon: Settings, group: 'Admin', roles: ADMIN_NAV_ROLES },
 ];
 
 export function CrmSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { profile } = useCrmUser();
   const authClient = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co',
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build'
@@ -83,7 +87,7 @@ export function CrmSidebar() {
         </div>
 
         <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto xl:justify-center" aria-label="CRM navigation">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.roles || item.roles.includes(profile?.role || '')).map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
             return (

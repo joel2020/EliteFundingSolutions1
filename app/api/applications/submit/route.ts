@@ -18,7 +18,10 @@ const isPositiveMoney = (value?: string) => {
   const number = toNumber(value);
   return typeof number === 'number' && Number.isFinite(number) && number > 0;
 };
+const isBlankOrPositiveMoney = (value?: string) => !value || isPositiveMoney(value);
 const isValidPhone = (value?: string) => digitsOnly(value).length >= 10;
+const isBlankOrValidPhone = (value?: string) => !value || isValidPhone(value);
+const isBlankOrEmail = (value?: string) => !value || z.string().email().safeParse(value).success;
 const allowedFileTypes = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/heic', 'image/heif']);
 const allowedFileExtensions = new Set(['pdf', 'png', 'jpg', 'jpeg', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -58,22 +61,22 @@ const existingAdvanceSchema = z.object({
 const applicationSchema = z.object({
   legal_name: z.string().min(2),
   dba: z.string().optional().default(''),
-  entity_type: z.string().min(1),
+  entity_type: z.string().optional().default(''),
   ein: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'EIN must be exactly 9 digits.'),
   merchant_type: z.string().optional().default(''),
   industry: z.string().min(1),
   start_date: z.string().min(1),
-  business_phone: z.string().refine(isValidPhone, 'Business phone must be a valid U.S. phone number.'),
+  business_phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Business phone must be a valid U.S. phone number.'),
   business_mobile: z.string().optional().default(''),
   fax: z.string().optional().default(''),
-  business_email: z.string().email(),
+  business_email: z.string().optional().default('').refine(isBlankOrEmail, 'Business email must be valid.'),
   website: z.string().optional().default(''),
   address: z.string().min(3),
   city: z.string().min(1),
   state: z.string().min(2),
   zip: z.string().min(5),
-  business_location: z.string().min(1),
-  products_services: z.string().min(1),
+  business_location: z.string().optional().default(''),
+  products_services: z.string().optional().default(''),
   pos_contact_name: z.string().optional().default(''),
   pos_contact_phone: z.string().optional().default(''),
   pos_system: z.string().optional().default(''),
@@ -85,14 +88,14 @@ const applicationSchema = z.object({
   bank_contact: z.string().optional().default(''),
   bank_phone: z.string().optional().default(''),
   account_type: z.string().optional().default('checking'),
-  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'), email: z.string().email(), phone: z.string().refine(isValidPhone, 'Owner phone must be valid.'), mobile: z.string().refine(isValidPhone, 'Owner mobile phone must be valid.'), dob: z.string().min(1), ssn: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'SSN must be exactly 9 digits.'), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
+  owner1: ownerSchema.extend({ first_name: z.string().min(1), last_name: z.string().min(1), ownership_pct: z.string().optional().default('').refine((value) => { if (!value) return true; const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'), email: z.string().optional().default('').refine(isBlankOrEmail, 'Owner email must be valid.'), phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner phone must be valid.'), mobile: z.string().refine(isValidPhone, 'Owner mobile phone must be valid.'), dob: z.string().min(1), ssn: z.string().transform(digitsOnly).refine((value) => value.length === 9, 'SSN must be exactly 9 digits.'), address: z.string().min(1), city: z.string().min(1), state: z.string().min(2), zip: z.string().min(5) }),
   owner2: ownerSchema.default({}),
-  requested_amount: z.string().refine(isPositiveMoney, 'Requested funding amount must be positive.'),
-  use_of_funds: z.string().min(1),
+  requested_amount: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Requested funding amount must be positive.'),
+  use_of_funds: z.string().optional().default(''),
   timeline: z.string().optional().default(''),
-  average_monthly_sales: z.string().refine(isPositiveMoney, 'Average monthly sales must be positive.'),
+  average_monthly_sales: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Average monthly sales must be positive.'),
   average_visa_mc_sales: z.string().optional().default(''),
-  monthly_gross_revenue: z.string().refine(isPositiveMoney, 'Monthly revenue must be positive.'),
+  monthly_gross_revenue: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Monthly revenue must be positive.'),
   has_existing_advances: z.boolean().default(false),
   notes: z.string().optional().default(''),
   existing_advances: z.array(existingAdvanceSchema).default([]),
@@ -734,8 +737,9 @@ export async function POST(request: Request) {
     const internalRecipients = uniqueEmails([rohanEmail, referralProfile?.email, isoBrokerReferral?.email]);
     const internalHtml = internalApplicationNotification({ form, appId: app.id, dealId: deal.id, rep: referralProfile, broker: isoBrokerReferral, uploadedDocuments });
 
+    const applicantEmail = form.owner1.email || form.business_email;
     await Promise.allSettled([
-      sendEmail({ to: form.owner1.email || form.business_email, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount)) }),
+      applicantEmail ? sendEmail({ to: applicantEmail, subject: 'Elite Funding Solutions received your application', html: emailTemplates.applicationReceived(form.legal_name, Number(form.requested_amount || 0)) }) : Promise.resolve(),
       ...internalRecipients.map((to) => sendEmail({ to, subject: `New funding application: ${form.legal_name}`, html: internalHtml })),
     ]);
 

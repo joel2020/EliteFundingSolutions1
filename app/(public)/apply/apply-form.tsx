@@ -176,18 +176,18 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2"><InputField label="Business Legal Name" value={data.legal_name} onChange={(v) => update('legal_name', v)} required /></div>
         <InputField label="DBA Name" value={data.dba} onChange={(v) => update('dba', v)} />
-        <SelectField label="Legal Entity Type" value={data.entity_type} onChange={(v) => update('entity_type', v)} required options={[{ value: 'llc', label: 'LLC' }, { value: 'corporation', label: 'Corporation' }, { value: 'sole_proprietor', label: 'Sole Proprietor' }, { value: 'partnership', label: 'Partnership' }, { value: 'other', label: 'Other' }]} />
+        <SelectField label="Legal Entity Type" value={data.entity_type} onChange={(v) => update('entity_type', v)} options={[{ value: 'llc', label: 'LLC' }, { value: 'corporation', label: 'Corporation' }, { value: 'sole_proprietor', label: 'Sole Proprietor' }, { value: 'partnership', label: 'Partnership' }, { value: 'other', label: 'Other' }]} />
         <InputField label="Full Federal Tax ID / EIN" value={data.ein} onChange={(v) => update('ein', v)} required placeholder="12-3456789" />
         <InputField label="Date Business Started" value={data.start_date} onChange={(v) => update('start_date', v)} type="date" required />
-        <SelectField label="Business Location" value={data.business_location} onChange={(v) => update('business_location', v)} required options={[{ value: 'leased', label: 'Leased' }, { value: 'owned', label: 'Owned' }, { value: 'home_based', label: 'Home Based' }, { value: 'online', label: 'No physical location / Online only' }]} />
-        <InputField label="Business Phone" value={data.business_phone} onChange={(v) => update('business_phone', v)} required />
+        <SelectField label="Business Location" value={data.business_location} onChange={(v) => update('business_location', v)} options={[{ value: 'leased', label: 'Leased' }, { value: 'owned', label: 'Owned' }, { value: 'home_based', label: 'Home Based' }, { value: 'online', label: 'No physical location / Online only' }]} />
+        <InputField label="Business Phone" value={data.business_phone} onChange={(v) => update('business_phone', v)} />
         <InputField label="Business Mobile Phone" value={data.business_mobile} onChange={(v) => update('business_mobile', v)} />
-        <InputField label="Business Email" value={data.business_email} onChange={(v) => update('business_email', v)} type="email" required />
+        <InputField label="Business Email" value={data.business_email} onChange={(v) => update('business_email', v)} type="email" />
         <InputField label="Website" value={data.website} onChange={(v) => update('website', v)} />
         <div className="md:col-span-2"><InputField label="Address" value={data.address} onChange={(v) => update('address', v)} required /></div>
         <InputField label="City" value={data.city} onChange={(v) => update('city', v)} required />
         <div className="grid grid-cols-2 gap-4"><SelectField label="State" value={data.state} onChange={(v) => update('state', v)} required options={usStates.map((state) => ({ value: state, label: state }))} /><InputField label="Zip" value={data.zip} onChange={(v) => update('zip', v)} required /></div>
-        <div className="md:col-span-2"><InputField label="Products / Services Sold" value={data.products_services} onChange={(v) => update('products_services', v)} required /></div>
+        <div className="md:col-span-2"><InputField label="Products / Services Sold" value={data.products_services} onChange={(v) => update('products_services', v)} /></div>
         <InputField label="Industry" value={data.industry} onChange={(v) => update('industry', v)} required />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -208,9 +208,9 @@ function OwnerCard({ title, owner, required, update }: { title: string; owner: O
         <InputField label="First Name" value={owner.first_name} onChange={(v) => update('first_name', v)} required={required} />
         <InputField label="Last Name" value={owner.last_name} onChange={(v) => update('last_name', v)} required={required} />
         <InputField label="Title" value={owner.title} onChange={(v) => update('title', v)} />
-        <InputField label="Ownership %" value={owner.ownership_pct} onChange={(v) => update('ownership_pct', v)} type="number" required={required} />
-        <InputField label="Email" value={owner.email} onChange={(v) => update('email', v)} type="email" required={required} />
-        <InputField label="Owner Phone" value={owner.phone} onChange={(v) => update('phone', v)} required={required} />
+        <InputField label="Ownership %" value={owner.ownership_pct} onChange={(v) => update('ownership_pct', v)} type="number" />
+        <InputField label="Email" value={owner.email} onChange={(v) => update('email', v)} type="email" />
+        <InputField label="Owner Phone" value={owner.phone} onChange={(v) => update('phone', v)} />
         <InputField label="Owner Mobile Phone" value={owner.mobile} onChange={(v) => update('mobile', v)} required={required} />
         <InputField label="Date of Birth" value={owner.dob} onChange={(v) => update('dob', v)} type="date" required={required} />
         <InputField label="Full Social Security Number" value={owner.ssn} onChange={(v) => update('ssn', v)} type="password" required={required} placeholder="XXX-XX-XXXX" hint="Used for authorized underwriting and identity verification; transmitted through the secure application workflow." />
@@ -238,11 +238,11 @@ function StepFunding({ data, update }: { data: ApplicationFormData; update: <K e
     <div className="space-y-6">
       <SectionIntro title="Funding Information" text="Share the requested amount, revenue context, and use of funds so advisors can evaluate appropriate capital structures without overpromising availability." />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <InputField label="Amount Requested" value={data.requested_amount} onChange={(v) => update('requested_amount', v)} type="number" required />
-        <InputField label="Use of Funds" value={data.use_of_funds} onChange={(v) => update('use_of_funds', v)} required />
-        <InputField label="Average Monthly Sales" value={data.average_monthly_sales} onChange={(v) => update('average_monthly_sales', v)} type="number" required />
+        <InputField label="Amount Requested" value={data.requested_amount} onChange={(v) => update('requested_amount', v)} type="number" />
+        <InputField label="Use of Funds" value={data.use_of_funds} onChange={(v) => update('use_of_funds', v)} />
+        <InputField label="Average Monthly Sales" value={data.average_monthly_sales} onChange={(v) => update('average_monthly_sales', v)} type="number" />
         <InputField label="Average Visa/MasterCard Monthly Sales" value={data.average_visa_mc_sales} onChange={(v) => update('average_visa_mc_sales', v)} type="number" />
-        <InputField label="Monthly Gross Revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" required />
+        <InputField label="Monthly Gross Revenue" value={data.monthly_gross_revenue} onChange={(v) => update('monthly_gross_revenue', v)} type="number" />
         <SelectField label="Desired Funding Timeline" value={data.timeline} onChange={(v) => update('timeline', v)} options={[{ value: 'asap', label: 'As soon as possible' }, { value: '1_week', label: 'Within 1 week' }, { value: '2_4_weeks', label: '2-4 weeks' }, { value: 'exploring', label: 'Exploring options' }]} />
       </div>
       <textarea value={data.notes} onChange={(event) => update('notes', event.target.value)} rows={4} className="w-full bg-white border border-[#E4E4E7] rounded-[10px] px-[14px] py-3 text-[15px] text-[#09090B] placeholder-[#A1A1AA] resize-none focus:outline-none focus:border-[#0F2B5B]" placeholder="Additional context for underwriting..." />
@@ -349,11 +349,11 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   const handleSubmit = async () => {
     if (digitsOnly(form.ein).length !== 9) return toast.error('EIN must be exactly 9 digits.');
     if (digitsOnly(form.owner1.ssn).length !== 9) return toast.error('Owner SSN must be exactly 9 digits.');
-    if (digitsOnly(form.owner1.mobile).length < 10 || digitsOnly(form.owner1.phone).length < 10 || digitsOnly(form.business_phone).length < 10) return toast.error('Please provide valid phone and mobile numbers.');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.business_email) || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.owner1.email)) return toast.error('Please provide valid business and owner email addresses.');
-    const ownership = Number(form.owner1.ownership_pct);
-    if (!Number.isFinite(ownership) || ownership < 0 || ownership > 100) return toast.error('Ownership percentage must be between 0 and 100.');
-    if (Number(form.requested_amount) <= 0 || Number(form.monthly_gross_revenue) <= 0 || Number(form.average_monthly_sales) <= 0) return toast.error('Revenue and requested funding amounts must be positive.');
+    if (digitsOnly(form.owner1.mobile).length < 10 || (form.owner1.phone && digitsOnly(form.owner1.phone).length < 10) || (form.business_phone && digitsOnly(form.business_phone).length < 10)) return toast.error('Please provide a valid owner cell phone number.');
+    if ((form.business_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.business_email)) || (form.owner1.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.owner1.email))) return toast.error('Please provide valid email addresses or leave them blank.');
+    const ownership = form.owner1.ownership_pct ? Number(form.owner1.ownership_pct) : null;
+    if (ownership != null && (!Number.isFinite(ownership) || ownership < 0 || ownership > 100)) return toast.error('Ownership percentage must be between 0 and 100.');
+    if ((form.requested_amount && Number(form.requested_amount) <= 0) || (form.monthly_gross_revenue && Number(form.monthly_gross_revenue) <= 0) || (form.average_monthly_sales && Number(form.average_monthly_sales) <= 0)) return toast.error('Revenue and requested funding amounts must be positive when provided.');
     if (invalidUpload) return toast.error('Uploads must be PDF, PNG, JPG, JPEG, or HEIC files up to 10MB each.');
     if (!form.certification_accepted) return toast.error('Please accept the certification of accuracy.');
     if (!form.credit_authorization_accepted || !form.authorization_consent) return toast.error('Please accept the required credit/background authorization.');

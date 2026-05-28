@@ -24,6 +24,7 @@ export function createCrmState(role: MockRole = 'admin'): MockState {
     first_name: role === 'sales_rep' ? 'Sam' : 'Avery',
     last_name: role === 'sales_rep' ? 'Rep' : 'Admin',
     role,
+    permissions: role === 'manager' ? ['ninja_view', 'assign_deals'] : [],
     is_active: true,
     last_login_at: now,
   };
@@ -452,6 +453,17 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'partner_submission', title: `Submitted to lender: ${partner?.name || 'Funding partner'}`, body: payload.custom_message, created_at: now });
     calls.push({ method: route.request().method(), table: 'partner_submissions', body: payload });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, submissionId: submission.id, emailDeliveryStatus: 'sent', emailProviderConfigured: true, emailProvider: 'gmail', senderEmail: 'admin@elitefunding.test', storageAccessMode: 'server_service_role_private_bucket', warnings: [], emailDraft: { to: partner?.submission_email || partner?.email || '', subject: 'Mock lender package', body: payload.custom_message, attachmentDocumentIds: payload.attachment_document_ids || [] } }) });
+  });
+
+  await page.route('**/api/crm/deals/*/analyze-bank-statements', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const hasBankStatements = state.documents.some((doc) => doc.deal_id === id && String(doc.document_type || doc.label || '').toLowerCase().includes('bank_statement'));
+    calls.push({ method: route.request().method(), table: 'deal_bank_statement_analysis', body: { deal_id: id, hasBankStatements } });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, analysis: hasBankStatements ? { position_count: 1 } : { analyzed: false, analysis_status: 'not_analyzed', reason: 'No bank statements are attached to this deal yet.', position_count: 0 } }),
+    });
   });
 
   await page.route('**/api/crm/partner-submissions/*/offer', async (route) => {

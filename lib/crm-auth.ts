@@ -12,6 +12,7 @@ export type CrmProfile = {
   first_name: string;
   last_name: string;
   role: string;
+  permissions?: string[];
   is_active: boolean;
 };
 
@@ -23,7 +24,7 @@ export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; err
 
   const { data: profile, error } = await supabase
     .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,is_active')
+    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,is_active')
     .eq('user_id', user.id)
     .maybeSingle();
 

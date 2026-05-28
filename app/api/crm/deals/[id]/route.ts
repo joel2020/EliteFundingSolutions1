@@ -31,9 +31,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const brokerTouched = Object.prototype.hasOwnProperty.call(parsed.data, 'iso_broker_id');
   const assignmentFields = ['assigned_user_id', 'junior_closer_id', 'senior_closer_id'] as const;
   const assignmentTouched = assignmentFields.some((field) => Object.prototype.hasOwnProperty.call(parsed.data, field));
+  const canAssign = ASSIGNMENT_ROLES.includes(profile.role) || (profile.role === 'manager' && Array.isArray(profile.permissions) && profile.permissions.includes('assign_deals'));
 
-  if (assignmentTouched && !ASSIGNMENT_ROLES.includes(profile.role)) {
-    return NextResponse.json({ success: false, error: 'Only admins can change deal rep assignments.' }, { status: 403 });
+  if (assignmentTouched && !canAssign) {
+    return NextResponse.json({ success: false, error: 'Only admins and permitted managers can change deal rep assignments.' }, { status: 403 });
   }
   if (!brokerTouched && !assignmentTouched) {
     return NextResponse.json({ success: false, error: 'No supported deal fields were provided.' }, { status: 400 });

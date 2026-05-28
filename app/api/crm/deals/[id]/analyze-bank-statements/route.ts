@@ -40,7 +40,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const statementDocs = (documents || []).filter((doc: any) => isBankStatement(doc) && doc.storage_path && doc.status !== 'rejected');
   if (!statementDocs.length) {
-    return NextResponse.json({ success: false, error: 'Upload at least one bank statement before running AI analysis.' }, { status: 400 });
+    await supabase.from('activities').insert({
+      organization_id: profile.organization_id,
+      deal_id: deal.id,
+      application_id: deal.application_id,
+      business_id: deal.business_id,
+      lead_id: deal.lead_id,
+      activity_type: 'system',
+      title: 'AI bank statement analysis skipped',
+      body: 'No bank statements are attached to this deal yet.',
+      performed_by: profile.id,
+    });
+    return NextResponse.json({
+      success: true,
+      analysis: {
+        analyzed: false,
+        analysis_status: 'not_analyzed',
+        reason: 'No bank statements are attached to this deal yet.',
+        position_count: 0,
+      },
+    });
   }
 
   const texts: string[] = [];

@@ -163,6 +163,21 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByText('Atlas Retail')).toHaveCount(0);
   });
 
+  test('sales rep navigation hides admin and finance surfaces', async ({ page }) => {
+    await mockCrmApis(page, 'sales_rep');
+    await page.goto('/crm/deals');
+
+    await expect(page.getByTestId('crm-nexus-shell')).toBeVisible();
+    await expect(page.getByText('Users', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Tools', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Earnings', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Reports', { exact: true })).toHaveCount(0);
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await expect(page.getByRole('tab', { name: 'Finance' })).toHaveCount(0);
+    await expect(page.getByTestId('deal-detail-primary-rep')).toHaveCount(0);
+  });
+
   test('creates users only when the current role has admin permission', async ({ page }) => {
     const { state } = await mockCrmApis(page, 'admin');
 
@@ -249,6 +264,17 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByText('No lender submissions yet.')).toBeVisible();
     await page.getByRole('tab', { name: 'Offers' }).click();
     await expect(page.getByText('No offers received yet.')).toBeVisible();
+  });
+
+  test('AI analysis handles deals with no bank statements without blocking the CRM', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page);
+    state.documents = [];
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await page.getByRole('tab', { name: 'AI Analysis' }).click();
+    await page.getByRole('button', { name: /run ai analysis/i }).click();
+
+    await expect.poll(() => calls.some((call) => call.table === 'deal_bank_statement_analysis' && call.body.hasBankStatements === false)).toBe(true);
   });
 
   test('creates funding partners and presents offers from CRM action buttons', async ({ page }) => {

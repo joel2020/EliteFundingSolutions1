@@ -201,6 +201,8 @@ const emptyUser = {
 
 const USER_PERMISSION_OPTIONS = [
   ['send_to_lenders', 'Send deals to lenders'],
+  ['assign_deals', 'Assign and reassign reps on deals'],
+  ['ninja_view', 'Manager ninja view for supervised CRM training'],
   ['manage_documents', 'Manage deal documents'],
   ['manage_commissions', 'Manage finance and commissions'],
   ['manage_users', 'Add and edit users'],
@@ -338,8 +340,14 @@ function userDisplayName(user?: RecordMap | null) {
   return [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'Unnamed user';
 }
 
+function hasPermission(profile: RecordMap | null | undefined, permission: string) {
+  if (!profile) return false;
+  if (['super_admin', 'admin'].includes(profile.role)) return true;
+  return Array.isArray(profile.permissions) && profile.permissions.includes(permission);
+}
+
 function getStoredNinjaViewUserId(profile?: RecordMap | null) {
-  if (typeof window === 'undefined' || !profile || !NINJA_VIEW_ROLES.includes(profile.role)) return '';
+  if (typeof window === 'undefined' || !profile || !NINJA_VIEW_ROLES.includes(profile.role) || (profile.role === 'manager' && !hasPermission(profile, 'ninja_view'))) return '';
   return window.localStorage.getItem(NINJA_VIEW_KEY) || '';
 }
 
@@ -683,7 +691,7 @@ function NinjaViewControl() {
   const { profile, organizationId } = useCrmUser();
   const [users, setUsers] = useState<RecordMap[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const canUseNinjaView = profile && NINJA_VIEW_ROLES.includes(profile.role);
+  const canUseNinjaView = profile && NINJA_VIEW_ROLES.includes(profile.role) && (profile.role !== 'manager' || hasPermission(profile, 'ninja_view'));
 
   useEffect(() => {
     if (!canUseNinjaView) return;
@@ -1502,7 +1510,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const selectedSubmissionPartners = partners.filter((row: RecordMap) => submissionPartnerIds.includes(row.id));
   const selectedPartnerDefaultEvents = riskEvents.filter((row: RecordMap) => row.business_id === deal.business_id && submissionPartnerIds.includes(row.funding_partner_id) && row.event_type === 'defaulted');
   const canSendToLenders = ['super_admin', 'admin', 'sales_rep'].includes(profile?.role || '');
-  const canAssignDeal = ['super_admin', 'admin'].includes(profile?.role || '');
+  const canAssignDeal = ['super_admin', 'admin'].includes(profile?.role || '') || (profile?.role === 'manager' && hasPermission(profile as RecordMap | null, 'assign_deals'));
   const canViewFinance = ['super_admin', 'admin'].includes(profile?.role || '');
   const assignableUsers = users.filter((row: RecordMap) => row.is_active !== false && !row.deleted_at && row.role !== 'client');
   const repNameById = (id?: string | null) => repName({ user_profiles: users.find((row: RecordMap) => row.id === id) });
