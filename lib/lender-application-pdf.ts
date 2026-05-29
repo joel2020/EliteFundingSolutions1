@@ -38,10 +38,6 @@ function ownerName(owner?: Owner) {
   return [owner?.first_name, owner?.last_name].map(text).filter(Boolean).join(' ');
 }
 
-function addressLine(row?: Record<string, any> | null) {
-  return [row?.address, row?.city, row?.state, row?.zip].map(text).filter(Boolean).join(', ');
-}
-
 function wrap(value: string, max = 42) {
   if (value.length <= max) return [value];
   const words = value.split(/\s+/);
@@ -76,6 +72,13 @@ function wrapPdfText(value: string, max = 120) {
   return lines;
 }
 
+function pngDataFromUrl(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const match = value.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return null;
+  return Buffer.from(match[1], 'base64');
+}
+
 export async function generateLenderApplicationPdf(data: LenderApplicationPdfData) {
   const pdfDoc = await PDFDocument.load(await fs.readFile(templatePath), { ignoreEncryption: true });
   const page = pdfDoc.getPage(0);
@@ -92,6 +95,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   const owner2 = owners[1] || payload.owner2 || {};
   const existingAdvance = Array.isArray(payload.existing_advances) ? payload.existing_advances[0] : null;
   const hasExistingAdvance = Boolean(application.has_existing_advances || payload.has_existing_advances);
+  const drawnSignaturePng = pngDataFromUrl(payload.signature_data_url);
 
   const draw = (value: unknown, x: number, y: number, size = 15, max = 52) => {
     const cleaned = text(value);
@@ -174,6 +178,14 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   draw(money(payload.average_visa_mc_sales), 1040, 470, 14, 18);
 
   const signer = text(application.signed_name || payload.signature || ownerName(owner1));
+  if (drawnSignaturePng) {
+    const signatureImage = await pdfDoc.embedPng(drawnSignaturePng);
+    const imageDims = signatureImage.scale(1);
+    const maxWidth = 260;
+    const maxHeight = 52;
+    const scale = Math.min(maxWidth / imageDims.width, maxHeight / imageDims.height, 1);
+    page.drawImage(signatureImage, { x: 100, y: 258, width: imageDims.width * scale, height: imageDims.height * scale });
+  }
   draw(signer, 105, 251, 13, 28);
   draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 425, 251, 13, 18);
   if (ownerName(owner2)) {
@@ -222,9 +234,16 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     cursorY -= 5;
   });
 
-  ensureSpace(68);
+  ensureSpace(96);
   disclosurePage.drawLine({ start: { x: disclosureMargin, y: cursorY }, end: { x: firstPageSize.width - disclosureMargin, y: cursorY }, thickness: 1, color: rgb(0.78, 0.82, 0.88) });
   cursorY -= 24;
+  if (drawnSignaturePng) {
+    const disclosureSignatureImage = await pdfDoc.embedPng(drawnSignaturePng);
+    const imageDims = disclosureSignatureImage.scale(1);
+    const scale = Math.min(240 / imageDims.width, 44 / imageDims.height, 1);
+    disclosurePage.drawImage(disclosureSignatureImage, { x: disclosureMargin, y: cursorY - 44, width: imageDims.width * scale, height: imageDims.height * scale });
+    cursorY -= 52;
+  }
   disclosurePage.drawText(`Applicant signature: ${signer || 'Not provided'}`, { x: disclosureMargin, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
   disclosurePage.drawText(`Date: ${dateValue(application.signature_date || payload.signature_date || application.submitted_at) || 'Not provided'}`, { x: firstPageSize.width - 330, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
 
