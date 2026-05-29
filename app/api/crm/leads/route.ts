@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep'];
 const leadSchema = z.object({
+  name: z.string().trim().optional().nullable(),
   business_name: z.string().trim().optional().nullable(),
   first_name: z.string().trim().optional().nullable(),
   last_name: z.string().trim().optional().nullable(),
@@ -18,6 +19,13 @@ const leadSchema = z.object({
   requested_amount: z.coerce.number().nonnegative().optional().nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
 });
+
+function splitLeadName(name?: string | null) {
+  const cleanName = (name || '').trim().replace(/\s+/g, ' ');
+  if (!cleanName) return { firstName: null, lastName: null };
+  const [firstName, ...lastParts] = cleanName.split(' ');
+  return { firstName, lastName: lastParts.join(' ') || null };
+}
 
 export async function POST(request: Request) {
   const csrf = requireSameOrigin(request);
@@ -34,21 +42,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Invalid lead payload.', issues: parsed.error.flatten() }, { status: 400 });
   }
 
-  const insertRows = parsed.data.map((row) => ({
-    organization_id: profile.organization_id,
-    business_name: row.business_name || null,
-    first_name: row.first_name || null,
-    last_name: row.last_name || null,
-    phone: row.phone || null,
-    email: row.email || null,
-    lead_source: row.lead_source || 'manual_entry',
-    status: row.status || 'new',
-    notes: row.notes || null,
-    requested_amount: row.requested_amount ?? null,
-    assigned_user_id: row.assigned_user_id || profile.id,
-    created_by: profile.id,
-    updated_by: profile.id,
-  }));
+  const insertRows = parsed.data.map((row) => {
+    const parsedName = splitLeadName(row.name);
+    return {
+      organization_id: profile.organization_id,
+      business_name: row.business_name || null,
+      first_name: row.first_name || parsedName.firstName,
+      last_name: row.last_name || parsedName.lastName,
+      phone: row.phone || null,
+      email: row.email || null,
+      lead_source: row.lead_source || 'manual_entry',
+      status: row.status || 'new',
+      notes: row.notes || null,
+      requested_amount: row.requested_amount ?? null,
+      assigned_user_id: row.assigned_user_id || profile.id,
+      created_by: profile.id,
+      updated_by: profile.id,
+    };
+  });
 
   const { data: leads, error } = await supabase.from('leads').insert(insertRows).select('id,business_name,email');
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
