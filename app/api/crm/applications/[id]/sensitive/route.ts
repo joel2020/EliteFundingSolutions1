@@ -45,15 +45,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const primaryOwner = (ownerLinks || [])[0]?.owners as any;
   const sensitive = {
-    ein: decryptSensitiveField((business as any)?.ein_encrypted) || null,
-    ein_last4: (business as any)?.ein_last4 || null,
-    owner: primaryOwner ? {
+    business: {
+      ein: decryptSensitiveField((business as any)?.ein_encrypted) || null,
+      ein_last4: (business as any)?.ein_last4 || null,
+    },
+    owners: primaryOwner ? [{
       id: primaryOwner.id,
       name: [primaryOwner.first_name, primaryOwner.last_name].filter(Boolean).join(' '),
       ssn: decryptSensitiveField(primaryOwner.ssn_encrypted) || null,
       ssn_last4: primaryOwner.ssn_last4 || null,
       dob: decryptSensitiveField(primaryOwner.dob_encrypted) || null,
-    } : null,
+    }] : [],
   };
 
   await supabase.from('audit_logs').insert({
@@ -69,5 +71,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     },
   });
 
-  return NextResponse.json({ success: true, sensitive });
+  return NextResponse.json({ success: true, data: sensitive, sensitive });
 }
