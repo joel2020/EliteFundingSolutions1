@@ -151,7 +151,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
       organization_id: DEFAULT_ORG_ID,
       deal_id: deal.id,
       application_id: application.id,
-      business_id: application.business_id,
       lead_id: application.lead_id,
       document_type: 'completed_application',
       label: 'Signed Elite Funding Solutions application',
