@@ -13,6 +13,55 @@ export type LenderApplicationPdfData = {
   ein?: string | null;
 };
 
+export type ResolvedLenderApplicationPdfFields = {
+  businessLegalName: string;
+  businessDba: string;
+  businessStreet: string;
+  businessCityLine: string;
+  businessState: string;
+  businessZip: string;
+  businessSuite: string;
+  businessPhone: string;
+  businessMobile: string;
+  businessFax: string;
+  businessWebsite: string;
+  businessEmail: string;
+  ein: string;
+  businessStartDate: string;
+  productsServices: string;
+  posContact: string;
+  posSystem: string;
+  entityType: string;
+  merchantType: string;
+  businessLocation: string;
+  hasRisk: boolean;
+  riskNotes: string;
+  isSeasonal: boolean;
+  owner1: ResolvedOwnerPdfFields;
+  owner2: ResolvedOwnerPdfFields;
+  hasExistingAdvance: boolean;
+  existingAdvanceFunder: string;
+  existingAdvanceBalance: string;
+  requestedAmount: string;
+  averageMonthlySales: string;
+  averageVisaMcSales: string;
+  signer: string;
+  signatureDate: string;
+  drawnSignaturePng: Buffer | null;
+};
+
+export type ResolvedOwnerPdfFields = {
+  name: string;
+  street: string;
+  cityLine: string;
+  phone: string;
+  email: string;
+  ownershipPercentage: string;
+  dob: string;
+  ssn: string;
+  driversLicense: string;
+};
+
 const templatePath = path.join(process.cwd(), 'public', 'templates', 'elite-funding-lender-application-template.pdf');
 const logoPath = path.join(process.cwd(), 'public', 'Elite_Funding_Solutions_Logo_Final.jpg');
 
@@ -29,6 +78,11 @@ function money(value: unknown) {
 function dateValue(value: unknown) {
   const raw = text(value);
   if (!raw) return '';
+  const dateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return `${Number(month)}/${Number(day)}/${year}`;
+  }
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
   return date.toLocaleDateString('en-US');
@@ -147,13 +201,25 @@ function pngDataFromUrl(value: unknown) {
   return Buffer.from(match[1], 'base64');
 }
 
-export async function generateLenderApplicationPdf(data: LenderApplicationPdfData) {
-  const pdfDoc = await PDFDocument.load(await fs.readFile(templatePath), { ignoreEncryption: true });
-  const page = pdfDoc.getPage(0);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const logo = await pdfDoc.embedJpg(await fs.readFile(logoPath));
+function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: Record<string, any>): ResolvedOwnerPdfFields {
+  const ownerCity = fieldWithAddressFallback(owner.city, combinedAddress, 'city');
+  const ownerState = fieldWithAddressFallback(owner.state, combinedAddress, 'state');
+  const ownerZip = fieldWithAddressFallback(owner.zip, combinedAddress, 'zip');
 
+  return {
+    name: ownerName(owner),
+    street: fieldWithAddressFallback(owner.address, combinedAddress, 'address'),
+    cityLine: cityStateZip(ownerCity, ownerState, ownerZip),
+    phone: firstText(owner.phone, owner.mobile, payload.cell_phone),
+    email: firstText(owner.email, payload.business_email),
+    ownershipPercentage: text(owner.ownership_percentage || owner.ownership_pct),
+    dob: dateValue(owner.dob || owner.dob_decrypted),
+    ssn: formatSsn(owner.ssn || owner.ssn_decrypted || owner.ssn_last4),
+    driversLicense: text(owner.drivers_license),
+  };
+}
+
+export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData): ResolvedLenderApplicationPdfFields {
   const payload = data.application?.application_payload || {};
   const business = data.business || {};
   const application = data.application || {};
@@ -162,14 +228,60 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   const owner1 = owners[0] || payload.owner1 || {};
   const owner2 = owners[1] || payload.owner2 || {};
   const existingAdvance = Array.isArray(payload.existing_advances) ? payload.existing_advances[0] : null;
-  const hasExistingAdvance = Boolean(application.has_existing_advances || payload.has_existing_advances);
-  const drawnSignaturePng = pngDataFromUrl(payload.signature_data_url);
   const businessAddress = firstText(business.address, payload.address, payload.business_address);
   const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address);
   const owner2Address = firstText(owner2.address, owner2.home_address);
   const businessCity = fieldWithAddressFallback(firstText(business.city, payload.city), businessAddress, 'city');
   const businessState = fieldWithAddressFallback(firstText(business.state, payload.state), businessAddress, 'state');
   const businessZip = fieldWithAddressFallback(firstText(business.zip, payload.zip), businessAddress, 'zip');
+  const signatureDate = dateValue(application.signature_date || payload.signature_date || application.submitted_at);
+
+  return {
+    businessLegalName: firstText(business.legal_name, payload.legal_name, payload.company_name, deal.title),
+    businessDba: firstText(business.dba, payload.dba),
+    businessStreet: fieldWithAddressFallback(firstText(business.address, payload.address), businessAddress, 'address'),
+    businessCityLine: cityStateZip(businessCity, businessState, businessZip),
+    businessState,
+    businessZip,
+    businessSuite: text(payload.suite),
+    businessPhone: firstText(business.phone, payload.business_phone, payload.cell_phone),
+    businessMobile: firstText(payload.business_mobile, owner1.mobile, owner1.phone, payload.cell_phone),
+    businessFax: text(payload.fax),
+    businessWebsite: firstText(business.website, payload.website),
+    businessEmail: firstText(business.email, payload.business_email, owner1.email),
+    ein: formatEin(data.ein || business.ein_last4 || payload.ein),
+    businessStartDate: dateValue(firstText(payload.start_date, payload.business_start_date, business.start_date)),
+    productsServices: firstText(payload.products_services, business.industry, payload.industry),
+    posContact: [payload.pos_contact_name, payload.pos_contact_phone].filter(Boolean).join(' / '),
+    posSystem: text(payload.pos_system),
+    entityType: text(payload.entity_type || business.entity_type).toLowerCase(),
+    merchantType: text(payload.merchant_type).toLowerCase(),
+    businessLocation: text(payload.business_location).toLowerCase(),
+    hasRisk: Boolean(payload.has_judgments || payload.has_tax_lien || payload.has_bankruptcy || business.has_tax_lien || business.has_bankruptcy),
+    riskNotes: text(payload.notes),
+    isSeasonal: Boolean(payload.is_seasonal),
+    owner1: resolveOwnerPdfFields(owner1, owner1Address, payload),
+    owner2: resolveOwnerPdfFields(owner2, owner2Address, payload),
+    hasExistingAdvance: Boolean(application.has_existing_advances || payload.has_existing_advances),
+    existingAdvanceFunder: text(existingAdvance?.funder_name),
+    existingAdvanceBalance: money(existingAdvance?.current_balance),
+    requestedAmount: money(deal.requested_amount || application.requested_amount || payload.requested_amount),
+    averageMonthlySales: money(payload.average_monthly_sales || business.monthly_gross_revenue),
+    averageVisaMcSales: money(payload.average_visa_mc_sales),
+    signer: text(application.signed_name || payload.signature || ownerName(owner1)),
+    signatureDate,
+    drawnSignaturePng: pngDataFromUrl(payload.signature_data_url),
+  };
+}
+
+export async function generateLenderApplicationPdf(data: LenderApplicationPdfData) {
+  const pdfDoc = await PDFDocument.load(await fs.readFile(templatePath), { ignoreEncryption: true });
+  const page = pdfDoc.getPage(0);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const logo = await pdfDoc.embedJpg(await fs.readFile(logoPath));
+
+  const fields = resolveLenderApplicationPdfFields(data);
 
   const draw = (value: unknown, x: number, y: number, size = 15, max = 52) => {
     const cleaned = text(value);
@@ -186,88 +298,80 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   page.drawRectangle({ x: 58, y: 1660, width: 420, height: 250, color: rgb(1, 1, 1) });
   page.drawImage(logo, { x: 72, y: 1710, width: 340, height: 191 });
 
-  draw(firstText(business.legal_name, payload.legal_name, payload.company_name, deal.title), 252, 1562, 14, 30);
-  draw(firstText(business.dba, payload.dba), 925, 1562, 14, 30);
-  draw(fieldWithAddressFallback(firstText(business.address, payload.address), businessAddress, 'address'), 118, 1527, 14, 42);
-  draw(cityStateZip(businessCity, businessState, businessZip), 86, 1492, 14, 36);
-  draw(payload.suite || '', 925, 1527, 14, 18);
-  draw(businessState, 925, 1492, 14, 12);
-  draw(businessZip, 86, 1458, 14, 12);
-  draw(firstText(business.phone, payload.business_phone, payload.cell_phone), 925, 1458, 14, 20);
-  draw(firstText(payload.business_mobile, owner1.mobile, owner1.phone, payload.cell_phone), 105, 1425, 14, 20);
-  draw(payload.fax, 925, 1425, 14, 20);
-  draw(firstText(business.website, payload.website), 118, 1390, 14, 34);
-  draw(firstText(business.email, payload.business_email, owner1.email), 925, 1390, 14, 34);
-  draw(formatEin(data.ein || business.ein_last4 || payload.ein), 995, 1358, 14, 20);
-  draw(dateValue(firstText(payload.start_date, payload.business_start_date, business.start_date)), 1010, 1324, 14, 18);
-  draw(firstText(payload.products_services, business.industry, payload.industry), 995, 1290, 14, 30);
-  draw([payload.pos_contact_name, payload.pos_contact_phone].filter(Boolean).join(' / '), 260, 1257, 13, 30);
-  draw(payload.pos_system, 1015, 1257, 13, 24);
+  draw(fields.businessLegalName, 252, 1562, 14, 30);
+  draw(fields.businessDba, 925, 1562, 14, 30);
+  draw(fields.businessStreet, 118, 1527, 14, 42);
+  draw(fields.businessCityLine, 86, 1492, 14, 36);
+  draw(fields.businessSuite, 925, 1527, 14, 18);
+  draw(fields.businessState, 925, 1492, 14, 12);
+  draw(fields.businessZip, 86, 1458, 14, 12);
+  draw(fields.businessPhone, 925, 1458, 14, 20);
+  draw(fields.businessMobile, 105, 1425, 14, 20);
+  draw(fields.businessFax, 925, 1425, 14, 20);
+  draw(fields.businessWebsite, 118, 1390, 14, 34);
+  draw(fields.businessEmail, 925, 1390, 14, 34);
+  draw(fields.ein, 995, 1358, 14, 20);
+  draw(fields.businessStartDate, 1010, 1324, 14, 18);
+  draw(fields.productsServices, 995, 1290, 14, 30);
+  draw(fields.posContact, 260, 1257, 13, 30);
+  draw(fields.posSystem, 1015, 1257, 13, 24);
 
-  const entity = text(payload.entity_type || business.entity_type).toLowerCase();
-  check(entity.includes('corp') && !entity.includes('s_') && !entity.includes('c_'), 223, 1357);
-  check(entity.includes('sole'), 326, 1357);
-  check(entity.includes('llc'), 465, 1357);
-  check(entity.includes('partner'), 555, 1357);
+  check(fields.entityType.includes('corp') && !fields.entityType.includes('s_') && !fields.entityType.includes('c_'), 223, 1357);
+  check(fields.entityType.includes('sole'), 326, 1357);
+  check(fields.entityType.includes('llc'), 465, 1357);
+  check(fields.entityType.includes('partner'), 555, 1357);
 
-  const merchantType = text(payload.merchant_type).toLowerCase();
-  check(merchantType.includes('retail'), 195, 1324);
-  check(merchantType.includes('restaurant'), 305, 1324);
-  check(merchantType.includes('service'), 438, 1324);
-  check(merchantType.includes('internet'), 575, 1324);
+  check(fields.merchantType.includes('retail'), 195, 1324);
+  check(fields.merchantType.includes('restaurant'), 305, 1324);
+  check(fields.merchantType.includes('service'), 438, 1324);
+  check(fields.merchantType.includes('internet'), 575, 1324);
 
-  const location = text(payload.business_location).toLowerCase();
-  check(location.includes('store'), 260, 1291);
-  check(location.includes('office'), 415, 1291);
-  check(location.includes('home'), 530, 1291);
-  check(location.includes('other'), 645, 1291);
+  check(fields.businessLocation.includes('store'), 260, 1291);
+  check(fields.businessLocation.includes('office'), 415, 1291);
+  check(fields.businessLocation.includes('home'), 530, 1291);
+  check(fields.businessLocation.includes('other'), 645, 1291);
 
-  const hasRisk = Boolean(payload.has_judgments || payload.has_tax_lien || payload.has_bankruptcy || business.has_tax_lien || business.has_bankruptcy);
-  check(hasRisk, 267, 1207);
-  check(!hasRisk, 335, 1207);
-  draw(payload.notes, 435, 1205, 12, 38);
-  check(Boolean(payload.is_seasonal), 1135, 1207);
-  check(!payload.is_seasonal, 1210, 1207);
+  check(fields.hasRisk, 267, 1207);
+  check(!fields.hasRisk, 335, 1207);
+  draw(fields.riskNotes, 435, 1205, 12, 38);
+  check(fields.isSeasonal, 1135, 1207);
+  check(!fields.isSeasonal, 1210, 1207);
 
-  const drawOwner = (owner: Owner, x: number, combinedAddress: string) => {
-    const ownerCity = fieldWithAddressFallback(owner.city, combinedAddress, 'city');
-    const ownerState = fieldWithAddressFallback(owner.state, combinedAddress, 'state');
-    const ownerZip = fieldWithAddressFallback(owner.zip, combinedAddress, 'zip');
-    draw(ownerName(owner), x + 72, 884, 14, 33);
-    draw(fieldWithAddressFallback(owner.address, combinedAddress, 'address'), x + 94, 849, 14, 33);
-    draw(cityStateZip(ownerCity, ownerState, ownerZip), x + 126, 815, 14, 33);
-    draw(firstText(owner.phone, owner.mobile, payload.cell_phone), x + 80, 780, 14, 22);
-    draw(firstText(owner.email, payload.business_email), x + 80, 746, 14, 34);
-    draw(owner.ownership_percentage || owner.ownership_pct, x + 150, 711, 14, 12);
-    draw(dateValue(owner.dob || owner.dob_decrypted), x + 130, 677, 14, 18);
-    draw(formatSsn(owner.ssn || owner.ssn_decrypted || owner.ssn_last4), x + 95, 643, 14, 18);
-    draw(owner.drivers_license || '', x + 190, 608, 14, 18);
+  const drawOwner = (owner: ResolvedOwnerPdfFields, x: number) => {
+    draw(owner.name, x + 72, 884, 14, 33);
+    draw(owner.street, x + 94, 849, 14, 33);
+    draw(owner.cityLine, x + 126, 815, 14, 33);
+    draw(owner.phone, x + 80, 780, 14, 22);
+    draw(owner.email, x + 80, 746, 14, 34);
+    draw(owner.ownershipPercentage, x + 150, 711, 14, 12);
+    draw(owner.dob, x + 130, 677, 14, 18);
+    draw(owner.ssn, x + 95, 643, 14, 18);
+    draw(owner.driversLicense, x + 190, 608, 14, 18);
   };
-  drawOwner(owner1, 0, owner1Address);
-  drawOwner(owner2, 755, owner2Address);
+  drawOwner(fields.owner1, 0);
+  drawOwner(fields.owner2, 755);
 
-  check(hasExistingAdvance, 465, 553);
-  check(!hasExistingAdvance, 575, 553);
-  draw(existingAdvance?.funder_name, 70, 520, 13, 42);
-  draw(money(existingAdvance?.current_balance), 1000, 553, 14, 18);
-  draw(money(deal.requested_amount || application.requested_amount || payload.requested_amount), 975, 520, 14, 18);
-  draw(money(payload.average_monthly_sales || business.monthly_gross_revenue), 305, 470, 14, 18);
-  draw(money(payload.average_visa_mc_sales), 1040, 470, 14, 18);
+  check(fields.hasExistingAdvance, 465, 553);
+  check(!fields.hasExistingAdvance, 575, 553);
+  draw(fields.existingAdvanceFunder, 70, 520, 13, 42);
+  draw(fields.existingAdvanceBalance, 1000, 553, 14, 18);
+  draw(fields.requestedAmount, 975, 520, 14, 18);
+  draw(fields.averageMonthlySales, 305, 470, 14, 18);
+  draw(fields.averageVisaMcSales, 1040, 470, 14, 18);
 
-  const signer = text(application.signed_name || payload.signature || ownerName(owner1));
-  if (drawnSignaturePng) {
-    const signatureImage = await pdfDoc.embedPng(drawnSignaturePng);
+  if (fields.drawnSignaturePng) {
+    const signatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
     const imageDims = signatureImage.scale(1);
     const maxWidth = 260;
     const maxHeight = 52;
     const scale = Math.min(maxWidth / imageDims.width, maxHeight / imageDims.height, 1);
     page.drawImage(signatureImage, { x: 100, y: 258, width: imageDims.width * scale, height: imageDims.height * scale });
   }
-  draw(signer, 105, 251, 13, 28);
-  draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 425, 251, 13, 18);
-  if (ownerName(owner2)) {
-    draw(ownerName(owner2), 655, 251, 13, 28);
-    draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 980, 251, 18);
+  draw(fields.signer, 105, 251, 13, 28);
+  draw(fields.signatureDate, 425, 251, 13, 18);
+  if (fields.owner2.name) {
+    draw(fields.owner2.name, 655, 251, 13, 28);
+    draw(fields.signatureDate, 980, 251, 13, 18);
   }
 
   const firstPageSize = page.getSize();
@@ -314,15 +418,15 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   ensureSpace(96);
   disclosurePage.drawLine({ start: { x: disclosureMargin, y: cursorY }, end: { x: firstPageSize.width - disclosureMargin, y: cursorY }, thickness: 1, color: rgb(0.78, 0.82, 0.88) });
   cursorY -= 24;
-  if (drawnSignaturePng) {
-    const disclosureSignatureImage = await pdfDoc.embedPng(drawnSignaturePng);
+  if (fields.drawnSignaturePng) {
+    const disclosureSignatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
     const imageDims = disclosureSignatureImage.scale(1);
     const scale = Math.min(240 / imageDims.width, 44 / imageDims.height, 1);
     disclosurePage.drawImage(disclosureSignatureImage, { x: disclosureMargin, y: cursorY - 44, width: imageDims.width * scale, height: imageDims.height * scale });
     cursorY -= 52;
   }
-  disclosurePage.drawText(`Applicant signature: ${signer || 'Not provided'}`, { x: disclosureMargin, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
-  disclosurePage.drawText(`Date: ${dateValue(application.signature_date || payload.signature_date || application.submitted_at) || 'Not provided'}`, { x: firstPageSize.width - 330, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
+  disclosurePage.drawText(`Applicant signature: ${fields.signer || 'Not provided'}`, { x: disclosureMargin, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
+  disclosurePage.drawText(`Date: ${fields.signatureDate || 'Not provided'}`, { x: firstPageSize.width - 330, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
 
   return Buffer.from(await pdfDoc.save());
 }
