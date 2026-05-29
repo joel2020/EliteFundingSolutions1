@@ -8,6 +8,14 @@ Use a CRM admin or sales user for testing. Navigate to:
 
 After login, the user lands in the CRM at `/crm`. Client-only users are routed to `/portal` and cannot access CRM screens.
 
+## OAuth redirect URI
+
+The production Google OAuth client must allow this exact redirect URI:
+
+- `https://elitefundingsolution.com/api/gmail/callback`
+
+If `GOOGLE_REDIRECT_URI` is set in Vercel, it must match the Google Cloud Console authorized redirect URI exactly. The CRM can still start the connection from `https://crm.elitefundingsolution.com`; the callback redirects users back to CRM settings after Google completes the grant.
+
 ## Where to connect Google
 
 Open the CRM, then go to:
