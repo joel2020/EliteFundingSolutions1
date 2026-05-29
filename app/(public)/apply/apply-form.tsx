@@ -109,7 +109,7 @@ function SectionIntro({ title, text }: { title: string; text: string }) {
   return (
     <div>
       <h2 className="text-[24px] font-bold text-[#0F172A]">{title}</h2>
-      <p className="mt-1 text-[14px] leading-6 text-[#64748B]">{text}</p>
+      <p className="mt-1 text-[14px] font-medium leading-6 text-[#334155]">{text}</p>
     </div>
   );
 }
@@ -117,8 +117,8 @@ function SectionIntro({ title, text }: { title: string; text: string }) {
 function ReviewRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
   const shown = sensitive && value ? `***-${digitsOnly(value).slice(-4)}` : value;
   return (
-    <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-      <p className="text-[11px] font-bold uppercase tracking-wide text-[#64748B]">{label}</p>
+    <div className="rounded-[8px] border border-[#CBD5E1] bg-white p-3 shadow-sm">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-[#334155]">{label}</p>
       <p className="mt-1 text-sm font-semibold text-[#0F172A]">{shown || 'Missing'}</p>
     </div>
   );
@@ -195,11 +195,11 @@ function SignaturePad({ value, onChange }: { value: string; onChange: (value: st
   };
 
   return (
-    <div className="rounded-[10px] border border-[#CBD5E1] bg-white p-4">
+    <div className="rounded-[10px] border border-[#CBD5E1] bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-[14px] font-semibold text-[#0F172A]">Draw your signature <span className="text-[#B91C1C]">*</span></p>
-          <p className="text-[12px] leading-5 text-[#64748B]">Use your mouse, finger, or trackpad. This signature is saved on the PDF application.</p>
+          <p className="text-[12px] font-medium leading-5 text-[#334155]">Use your mouse, finger, or trackpad. This signature is saved on the PDF application.</p>
         </div>
         <button type="button" onClick={clearSignature} className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-[#CBD5E1] px-3 text-[12px] font-semibold text-[#334155] hover:bg-[#F8FAFC]">
           <RotateCcw className="h-3.5 w-3.5" /> Clear
@@ -273,34 +273,34 @@ function StepReview({ data, update }: { data: ApplicationFormData; update: <K ex
         <ReviewRow label="Business start date" value={data.business_start_date} />
       </div>
       <SignaturePad value={data.signature_data_url} onChange={(value) => update('signature_data_url', value)} />
-      <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] md:p-5">
+      <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm md:p-5">
         <div className="mb-4 rounded-[10px] border border-[#BFDBFE] bg-[#EFF6FF] p-4">
           <h3 className="text-[16px] font-semibold text-[#0F2B5B]">Important Application Authorization</h3>
-          <p className="mt-2 text-[15px] font-medium leading-[1.6] text-[#0F172A]">
+          <p className="mt-2 text-[15px] font-semibold leading-[1.6] text-[#0F172A]">
             Please read these disclosures before submitting. They explain what Elite Funding Solutions and its funding partners may review, how consent is recorded, and how your information may be used.
           </p>
         </div>
         <div className="grid gap-4">
           {APPLICATION_DISCLOSURE_SECTIONS.map((section) => (
-            <section key={section.title} className="rounded-[10px] border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-              <h3 className="text-[15px] font-semibold text-[#0F2B5B]">{section.title}</h3>
+            <section key={section.title} className="rounded-[10px] border border-[#CBD5E1] bg-white p-4">
+              <h3 className="text-[15px] font-bold text-[#0F2B5B]">{section.title}</h3>
               <div className="mt-2 space-y-3">
                 {section.paragraphs.map((paragraph) => (
-                  <p key={paragraph} className="text-[14px] font-normal leading-[1.6] text-[#111827]">{paragraph}</p>
+                  <p key={paragraph} className="text-[14px] font-medium leading-[1.6] text-[#0F172A]">{paragraph}</p>
                 ))}
               </div>
             </section>
           ))}
         </div>
       </div>
-      <label className="application-disclosure-copy flex cursor-pointer gap-3 rounded-[10px] border border-[#94A3B8] bg-white p-4">
+      <label className="application-disclosure-copy flex cursor-pointer gap-3 rounded-[10px] border border-[#64748B] bg-white p-4 shadow-sm">
         <input
           type="checkbox"
           checked={data.consent_accepted}
           onChange={(event) => update('consent_accepted', event.target.checked)}
           className="mt-1 h-5 w-5 shrink-0 rounded border-[#475569]"
         />
-        <span className="text-[14px] font-medium leading-[1.6] text-[#111827]">
+        <span className="text-[14px] font-semibold leading-[1.6] text-[#0F172A]">
           {APPLICATION_CHECKBOX_CONSENT}
         </span>
       </label>
