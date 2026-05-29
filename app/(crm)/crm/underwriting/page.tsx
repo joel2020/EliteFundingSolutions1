@@ -23,7 +23,7 @@ const reviewDecisions = [
   { value: 'declined', label: 'Decline', icon: XCircle },
 ];
 
-type ReviewDocument = { id: string; status?: string | null; document_type?: string | null };
+type ReviewDocument = { id: string; application_id?: string | null; status?: string | null; document_type?: string | null };
 
 type FundingReviewApplication = Application & {
   application_review_status?: string | null;
@@ -159,9 +159,11 @@ export default function FundingReviewPage() {
 
   const loadApplications = useCallback(async () => {
     if (!organizationId) return;
+    setLoading(true);
+
     const { data, error } = await supabase
       .from('applications')
-      .select('id,organization_id,business_id,status,application_review_status,requested_amount,notes,submitted_at,created_at,negative_days_count,nsf_count,businesses(legal_name,dba,monthly_gross_revenue,start_date,industry,state),documents(id,status,document_type)')
+      .select('id,organization_id,business_id,status,application_review_status,requested_amount,notes,submitted_at,created_at,negative_days_count,nsf_count,businesses(legal_name,dba,monthly_gross_revenue,start_date,industry,state)')
       .eq('organization_id', organizationId)
       .in('status', ['submitted', 'under_review'])
       .order('submitted_at', { ascending: false, nullsFirst: false });
@@ -169,14 +171,37 @@ export default function FundingReviewPage() {
     if (error) {
       toast.error('Failed to load funding review queue');
       console.error(error);
-    } else if (data) {
-      const ids = data.map((app: any) => app.id);
-      const { data: deals } = ids.length
-        ? await supabase.from('deals').select('id,application_id,business_id,stage_slug,requested_amount,title').in('application_id', ids).eq('organization_id', organizationId)
-        : { data: [] as any[] };
-      const dealsByApplication = Object.fromEntries((deals || []).map((deal: any) => [deal.application_id, deal]));
-      setApplications(data.map((app: any) => ({ ...app, deal: dealsByApplication[app.id] || null })) as FundingReviewApplication[]);
+      setLoading(false);
+      return;
     }
+
+    const ids = (data || []).map((app: any) => app.id);
+    const [{ data: deals, error: dealsError }, { data: documents, error: documentsError }] = ids.length
+      ? await Promise.all([
+          supabase.from('deals').select('id,application_id,business_id,stage_slug,requested_amount,title').in('application_id', ids).eq('organization_id', organizationId),
+          supabase.from('documents').select('id,application_id,status,document_type').in('application_id', ids).eq('organization_id', organizationId),
+        ])
+      : [{ data: [] as any[], error: null }, { data: [] as any[], error: null }];
+
+    if (dealsError || documentsError) {
+      toast.error('Failed to load funding review queue');
+      console.error(dealsError || documentsError);
+      setLoading(false);
+      return;
+    }
+
+    const dealsByApplication = Object.fromEntries((deals || []).map((deal: any) => [deal.application_id, deal]));
+    const documentsByApplication = (documents || []).reduce<Record<string, ReviewDocument[]>>((map, document: ReviewDocument) => {
+      if (!document.application_id) return map;
+      map[document.application_id] = [...(map[document.application_id] || []), document];
+      return map;
+    }, {});
+
+    setApplications((data || []).map((app: any) => ({
+      ...app,
+      deal: dealsByApplication[app.id] || null,
+      documents: documentsByApplication[app.id] || [],
+    })) as FundingReviewApplication[]);
     setLoading(false);
   }, [organizationId]);
 
