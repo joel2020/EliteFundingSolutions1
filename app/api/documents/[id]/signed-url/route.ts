@@ -5,11 +5,7 @@ import { isInternalCrmRole } from '@/lib/access-control';
 export const dynamic = 'force-dynamic';
 
 async function funderCanAccessSubmittedDocument(
-  supabase: ReturnType<typeof requireCrmAccess> extends Promise<infer T>
-    ? T extends { supabase: infer S }
-      ? S
-      : never
-    : never,
+  supabase: any,
   organizationId: string,
   fundingPartnerId: string,
   dealId: string,
