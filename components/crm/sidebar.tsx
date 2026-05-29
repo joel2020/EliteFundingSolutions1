@@ -29,7 +29,7 @@ import { useCrmUser } from '@/lib/crm-auth';
 
 const staffRoles = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer'];
 const adminRoles = ['super_admin', 'admin'];
-const underwritingRoles = ['super_admin', 'admin', 'manager', 'processor', 'underwriter'];
+const fundingReviewRoles = ['super_admin', 'admin', 'manager', 'processor', 'underwriter'];
 const externalRoles = ['funder', 'iso_broker', 'broker', 'referral_partner'];
 
 const navItems = [
@@ -37,7 +37,7 @@ const navItems = [
   { href: '/crm/deals', label: 'Deals', icon: Search, roles: [...staffRoles, ...externalRoles] },
   { href: '/crm/applications', label: 'Applications', icon: FileText, roles: staffRoles },
   { href: '/crm/leads', label: 'Leads', icon: Tag, roles: staffRoles },
-  { href: '/crm/underwriting', label: 'Underwriting', icon: ClipboardList, roles: underwritingRoles },
+  { href: '/crm/underwriting', label: 'Funding Review', icon: ClipboardList, roles: fundingReviewRoles },
   { href: '/crm/offers', label: 'Offers', icon: Send, roles: [...staffRoles, 'funder'] },
   { href: '/crm/partners', label: 'Funders', icon: Building2, roles: staffRoles },
   { href: '/crm/iso-brokers', label: 'ISOs / Partners', icon: Users, roles: staffRoles },
