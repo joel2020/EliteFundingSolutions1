@@ -4,6 +4,40 @@ import { isInternalCrmRole } from '@/lib/access-control';
 
 export const dynamic = 'force-dynamic';
 
+async function funderCanAccessSubmittedDocument(
+  supabase: ReturnType<typeof requireCrmAccess> extends Promise<infer T>
+    ? T extends { supabase: infer S }
+      ? S
+      : never
+    : never,
+  organizationId: string,
+  fundingPartnerId: string,
+  dealId: string,
+  documentId: string,
+) {
+  const { data: submissions } = await supabase
+    .from('partner_submissions')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('deal_id', dealId)
+    .eq('funding_partner_id', fundingPartnerId)
+    .limit(100);
+
+  const submissionIds = (submissions || []).map((submission: { id: string }) => submission.id);
+  if (!submissionIds.length) return false;
+
+  const { data: attachment } = await supabase
+    .from('lender_submission_attachments')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('document_id', documentId)
+    .in('partner_submission_id', submissionIds)
+    .limit(1)
+    .maybeSingle();
+
+  return Boolean(attachment);
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -14,7 +48,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: doc, error } = await supabase
     .from('documents')
-    .select('id, organization_id, deal_id, application_id, storage_path, file_name')
+    .select('id, organization_id, deal_id, application_id, storage_path, file_name, visibility, uploaded_by_user_id, uploaded_by')
     .eq('id', params.id)
     .single();
 
@@ -23,29 +57,32 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   if (!isInternalCrmRole(profile.role)) {
-    const canAccessAsFunder = profile.role === 'funder' && profile.access_entity_type === 'funding_partner' && profile.access_entity_id && doc.deal_id
-      ? await supabase
-        .from('partner_submissions')
-        .select('id')
-        .eq('organization_id', profile.organization_id)
-        .eq('deal_id', doc.deal_id)
-        .eq('funding_partner_id', profile.access_entity_id)
-        .limit(1)
-        .maybeSingle()
-      : { data: null };
+    let allowed = false;
 
-    const canAccessAsPartner = ['iso_broker', 'broker', 'referral_partner'].includes(profile.role) && profile.access_entity_id && doc.deal_id
-      ? await supabase
+    if (profile.role === 'funder' && profile.access_entity_type === 'funding_partner' && profile.access_entity_id && doc.deal_id) {
+      allowed = await funderCanAccessSubmittedDocument(
+        supabase,
+        profile.organization_id,
+        profile.access_entity_id,
+        doc.deal_id,
+        doc.id,
+      );
+    }
+
+    if (!allowed && ['iso_broker', 'broker', 'referral_partner'].includes(profile.role) && profile.access_entity_id && doc.deal_id) {
+      const { data: partnerDeal } = await supabase
         .from('deals')
         .select('id')
         .eq('organization_id', profile.organization_id)
         .eq('id', doc.deal_id)
         .eq('iso_broker_id', profile.access_entity_id)
         .limit(1)
-        .maybeSingle()
-      : { data: null };
+        .maybeSingle();
 
-    if (!canAccessAsFunder.data && !canAccessAsPartner.data) {
+      allowed = Boolean(partnerDeal) && doc.visibility === 'shared';
+    }
+
+    if (!allowed) {
       return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     }
   }
