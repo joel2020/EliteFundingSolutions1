@@ -25,7 +25,7 @@ function escapeHtml(value: string) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
 
@@ -289,20 +289,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (attachmentError) return NextResponse.json({ success: false, error: attachmentError.message }, { status: 500 });
   }
 
-  const totalAttachmentBytes = (documents || []).reduce((total: number, doc: any) => total + Number(doc.file_size || 0), 0);
-  const canAttachFiles = totalAttachmentBytes > 0 && totalAttachmentBytes <= MAX_GMAIL_ATTACHMENT_BYTES;
   const providerAttachments: { filename?: string | false; content?: Buffer; contentType?: string }[] = [];
   const signedLinks: { fileName: string; signedUrl: string }[] = [];
   const attachmentWarnings: string[] = [];
+  let attachedBytes = 0;
 
   if (recipientEmail && documentIds.length) {
     for (const doc of documents || []) {
+      const fileSize = Number(doc.file_size || 0);
+      const isApplicationPdf = doc.document_type === 'completed_application';
+
       if (!doc.storage_path) {
         attachmentWarnings.push(`${doc.file_name} has no storage path.`);
         continue;
       }
 
-      if (canAttachFiles) {
+      const canAttachThisFile = fileSize > 0 && attachedBytes + fileSize <= MAX_GMAIL_ATTACHMENT_BYTES;
+      if (canAttachThisFile) {
         const { data: fileData, error: downloadError } = await supabase.storage
           .from('application-documents')
           .download(doc.storage_path);
@@ -316,8 +319,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
             content: Buffer.from(arrayBuffer),
             contentType: doc.mime_type || 'application/octet-stream',
           });
+          attachedBytes += fileSize;
           continue;
         }
+      } else if (isApplicationPdf) {
+        attachmentWarnings.push(`${doc.file_name} could not be attached because it exceeds the email attachment limit.`);
       }
 
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
@@ -332,8 +338,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
-  if (recipientEmail && totalAttachmentBytes > MAX_GMAIL_ATTACHMENT_BYTES) {
-    attachmentWarnings.push('Selected documents exceed the direct attachment limit, so secure download links were included instead.');
+  if (signedLinks.length) {
+    attachmentWarnings.push('One or more files were too large to attach directly, so secure download links were included for those files.');
   }
 
   const signedLinkText = signedLinks.length
