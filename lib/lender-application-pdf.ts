@@ -34,6 +34,22 @@ function dateValue(value: unknown) {
   return date.toLocaleDateString('en-US');
 }
 
+function digitsOnly(value: unknown) {
+  return text(value).replace(/\D/g, '');
+}
+
+function formatEin(value: unknown) {
+  const digits = digitsOnly(value);
+  if (digits.length !== 9) return text(value);
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+}
+
+function formatSsn(value: unknown) {
+  const digits = digitsOnly(value);
+  if (digits.length !== 9) return text(value);
+  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+}
+
 function splitAddress(value: unknown) {
   const raw = text(value);
   if (!raw) return { address: '', city: '', state: '', zip: '' };
@@ -66,7 +82,20 @@ function firstText(...values: unknown[]) {
 }
 
 function fieldWithAddressFallback(explicitValue: unknown, combinedAddress: unknown, key: 'address' | 'city' | 'state' | 'zip') {
-  return firstText(explicitValue, splitAddress(combinedAddress)[key]);
+  const explicit = text(explicitValue);
+  const combined = text(combinedAddress);
+  const parsed = splitAddress(combined);
+  if (key === 'address' && explicit && explicit === combined && (parsed.city || parsed.state || parsed.zip)) {
+    return parsed.address || explicit;
+  }
+  return firstText(explicit, parsed[key]);
+}
+
+function cityStateZip(city: unknown, state: unknown, zip: unknown) {
+  const cityText = text(city);
+  const stateZip = [text(state), text(zip)].filter(Boolean).join(' ');
+  if (cityText && stateZip) return `${cityText}, ${stateZip}`;
+  return [cityText, stateZip].filter(Boolean).join(' ');
 }
 
 function ownerName(owner?: Owner) {
@@ -138,6 +167,9 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   const businessAddress = firstText(business.address, payload.address, payload.business_address);
   const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address);
   const owner2Address = firstText(owner2.address, owner2.home_address);
+  const businessCity = fieldWithAddressFallback(firstText(business.city, payload.city), businessAddress, 'city');
+  const businessState = fieldWithAddressFallback(firstText(business.state, payload.state), businessAddress, 'state');
+  const businessZip = fieldWithAddressFallback(firstText(business.zip, payload.zip), businessAddress, 'zip');
 
   const draw = (value: unknown, x: number, y: number, size = 15, max = 52) => {
     const cleaned = text(value);
@@ -156,21 +188,17 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   draw(firstText(business.legal_name, payload.legal_name, payload.company_name, deal.title), 252, 1562, 14, 30);
   draw(firstText(business.dba, payload.dba), 925, 1562, 14, 30);
-  draw(fieldWithAddressFallback(firstText(business.address, payload.address), payload.business_address, 'address'), 118, 1527, 14, 42);
-  draw([
-    fieldWithAddressFallback(firstText(business.city, payload.city), businessAddress, 'city'),
-    fieldWithAddressFallback(firstText(business.state, payload.state), businessAddress, 'state'),
-    fieldWithAddressFallback(firstText(business.zip, payload.zip), businessAddress, 'zip'),
-  ].filter(Boolean).join(', '), 86, 1492, 14, 36);
+  draw(fieldWithAddressFallback(firstText(business.address, payload.address), businessAddress, 'address'), 118, 1527, 14, 42);
+  draw(cityStateZip(businessCity, businessState, businessZip), 86, 1492, 14, 36);
   draw(payload.suite || '', 925, 1527, 14, 18);
-  draw(fieldWithAddressFallback(firstText(business.state, payload.state), businessAddress, 'state'), 925, 1492, 14, 12);
-  draw(fieldWithAddressFallback(firstText(business.zip, payload.zip), businessAddress, 'zip'), 86, 1458, 14, 12);
+  draw(businessState, 925, 1492, 14, 12);
+  draw(businessZip, 86, 1458, 14, 12);
   draw(firstText(business.phone, payload.business_phone, payload.cell_phone), 925, 1458, 14, 20);
   draw(firstText(payload.business_mobile, owner1.mobile, owner1.phone, payload.cell_phone), 105, 1425, 14, 20);
   draw(payload.fax, 925, 1425, 14, 20);
   draw(firstText(business.website, payload.website), 118, 1390, 14, 34);
   draw(firstText(business.email, payload.business_email, owner1.email), 925, 1390, 14, 34);
-  draw(data.ein || business.ein_last4 || payload.ein, 995, 1358, 14, 20);
+  draw(formatEin(data.ein || business.ein_last4 || payload.ein), 995, 1358, 14, 20);
   draw(dateValue(firstText(payload.start_date, payload.business_start_date, business.start_date)), 1010, 1324, 14, 18);
   draw(firstText(payload.products_services, business.industry, payload.industry), 995, 1290, 14, 30);
   draw([payload.pos_contact_name, payload.pos_contact_phone].filter(Boolean).join(' / '), 260, 1257, 13, 30);
@@ -202,18 +230,17 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   check(!payload.is_seasonal, 1210, 1207);
 
   const drawOwner = (owner: Owner, x: number, combinedAddress: string) => {
+    const ownerCity = fieldWithAddressFallback(owner.city, combinedAddress, 'city');
+    const ownerState = fieldWithAddressFallback(owner.state, combinedAddress, 'state');
+    const ownerZip = fieldWithAddressFallback(owner.zip, combinedAddress, 'zip');
     draw(ownerName(owner), x + 72, 884, 14, 33);
     draw(fieldWithAddressFallback(owner.address, combinedAddress, 'address'), x + 94, 849, 14, 33);
-    draw([
-      fieldWithAddressFallback(owner.city, combinedAddress, 'city'),
-      fieldWithAddressFallback(owner.state, combinedAddress, 'state'),
-      fieldWithAddressFallback(owner.zip, combinedAddress, 'zip'),
-    ].filter(Boolean).join(', '), x + 126, 815, 14, 33);
+    draw(cityStateZip(ownerCity, ownerState, ownerZip), x + 126, 815, 14, 33);
     draw(firstText(owner.phone, owner.mobile, payload.cell_phone), x + 80, 780, 14, 22);
     draw(firstText(owner.email, payload.business_email), x + 80, 746, 14, 34);
     draw(owner.ownership_percentage || owner.ownership_pct, x + 150, 711, 14, 12);
     draw(dateValue(owner.dob || owner.dob_decrypted), x + 130, 677, 14, 18);
-    draw(owner.ssn || owner.ssn_decrypted || owner.ssn_last4, x + 95, 643, 14, 18);
+    draw(formatSsn(owner.ssn || owner.ssn_decrypted || owner.ssn_last4), x + 95, 643, 14, 18);
     draw(owner.drivers_license || '', x + 190, 608, 14, 18);
   };
   drawOwner(owner1, 0, owner1Address);
@@ -240,7 +267,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 425, 251, 13, 18);
   if (ownerName(owner2)) {
     draw(ownerName(owner2), 655, 251, 13, 28);
-    draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 980, 251, 13, 18);
+    draw(dateValue(application.signature_date || payload.signature_date || application.submitted_at), 980, 251, 18);
   }
 
   const firstPageSize = page.getSize();
