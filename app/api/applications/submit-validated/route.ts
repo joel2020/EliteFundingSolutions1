@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { POST as submitApplication } from '../submit/route';
 import { digitsOnly } from '@/lib/security';
+import { requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,9 @@ function validateMinimumApplicationFields(payload: any) {
 }
 
 export async function POST(request: Request) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   let payload: any;
 
   try {
