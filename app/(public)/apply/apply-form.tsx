@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, Shield } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, RotateCcw, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { APPLICATION_CHECKBOX_CONSENT, APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 import { COMPANY, CONSENT_VERSION } from '@/lib/company';
@@ -19,6 +19,7 @@ type ApplicationFormData = {
   ein: string;
   business_start_date: string;
   consent_accepted: boolean;
+  signature_data_url: string;
   bot_field: string;
   referral_code: string;
   referral_path: string;
@@ -35,12 +36,13 @@ const initialForm: ApplicationFormData = {
   ein: '',
   business_start_date: '',
   consent_accepted: false,
+  signature_data_url: '',
   bot_field: '',
   referral_code: '',
   referral_path: '',
 };
 
-const steps = ['About You', 'About Your Business', 'Review and Submit', 'Confirmation'];
+const steps = ['About You', 'About Your Business', 'Review and Sign', 'Confirmation'];
 
 function fieldTestId(label: string) {
   return `application-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
@@ -122,6 +124,102 @@ function ReviewRow({ label, value, sensitive = false }: { label: string; value: 
   );
 }
 
+function SignaturePad({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingRef = useRef(false);
+  const hasInkRef = useRef(Boolean(value));
+
+  const resizeCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+    canvas.height = Math.max(1, Math.floor(rect.height * ratio));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0F172A';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, rect.width, rect.height);
+  };
+
+  useEffect(() => {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
+  const pointForEvent = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    canvas.setPointerCapture(event.pointerId);
+    const point = pointForEvent(event);
+    drawingRef.current = true;
+    hasInkRef.current = true;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+  };
+
+  const draw = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const point = pointForEvent(event);
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    const canvas = canvasRef.current;
+    if (canvas && hasInkRef.current) onChange(canvas.toDataURL('image/png'));
+  };
+
+  const clearSignature = () => {
+    hasInkRef.current = false;
+    onChange('');
+    resizeCanvas();
+  };
+
+  return (
+    <div className="rounded-[10px] border border-[#CBD5E1] bg-white p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[14px] font-semibold text-[#0F172A]">Draw your signature <span className="text-[#B91C1C]">*</span></p>
+          <p className="text-[12px] leading-5 text-[#64748B]">Use your mouse, finger, or trackpad. This signature is saved on the PDF application.</p>
+        </div>
+        <button type="button" onClick={clearSignature} className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-[#CBD5E1] px-3 text-[12px] font-semibold text-[#334155] hover:bg-[#F8FAFC]">
+          <RotateCcw className="h-3.5 w-3.5" /> Clear
+        </button>
+      </div>
+      <canvas
+        ref={canvasRef}
+        data-testid="application-signature-pad"
+        onPointerDown={startDrawing}
+        onPointerMove={draw}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
+        onPointerLeave={stopDrawing}
+        className="h-[170px] w-full touch-none rounded-[8px] border border-dashed border-[#94A3B8] bg-white"
+      />
+      {value && <p className="mt-2 text-[12px] font-semibold text-[#047857]">Signature captured.</p>}
+    </div>
+  );
+}
+
 function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
@@ -162,7 +260,7 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
 function StepReview({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
-      <SectionIntro title="Review and Submit" text="Confirm the basics and authorize Elite Funding Solutions to review your funding options." />
+      <SectionIntro title="Review and Sign" text="Confirm the basics, draw your signature, and authorize Elite Funding Solutions to review your funding options." />
       <div className="grid gap-3 md:grid-cols-2">
         <ReviewRow label="Full name" value={data.full_name} />
         <ReviewRow label="Cell phone" value={data.cell_phone} />
@@ -174,6 +272,7 @@ function StepReview({ data, update }: { data: ApplicationFormData; update: <K ex
         <ReviewRow label="EIN" value={data.ein} sensitive />
         <ReviewRow label="Business start date" value={data.business_start_date} />
       </div>
+      <SignaturePad value={data.signature_data_url} onChange={(value) => update('signature_data_url', value)} />
       <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] md:p-5">
         <div className="mb-4 rounded-[10px] border border-[#BFDBFE] bg-[#EFF6FF] p-4">
           <h3 className="text-[16px] font-semibold text-[#0F2B5B]">Important Application Authorization</h3>
@@ -218,7 +317,7 @@ function StepConfirmation() {
       </div>
       <h2 className="mb-3 text-[26px] font-bold text-[#09090B]">Application Received</h2>
       <p className="mx-auto mb-8 max-w-[520px] text-[16px] leading-relaxed text-[#475569]">
-        Thank you. Your application has been received. An Elite Funding Solutions funding specialist will review your information and contact you shortly.
+        Thank you. Your signed application has been received. An Elite Funding Solutions funding specialist will review your information and contact you shortly.
       </p>
       <a href="/" className="btn-gold">Return Home <ArrowRight className="h-4 w-4" /></a>
     </div>
@@ -274,7 +373,10 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       if (digitsOnly(form.ein).length !== 9) return 'Please enter a valid 9 digit Tax ID / EIN.';
       if (!form.business_start_date || Number.isNaN(new Date(form.business_start_date).getTime())) return 'Please enter a valid business start date.';
     }
-    if (currentStep === 3 && !form.consent_accepted) return 'Please accept the consent before submitting.';
+    if (currentStep === 3) {
+      if (!form.signature_data_url) return 'Please draw your signature before submitting.';
+      if (!form.consent_accepted) return 'Please accept the consent before submitting.';
+    }
     return null;
   };
 
@@ -312,6 +414,15 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Application submission failed.');
+
+      const signatureResponse = await fetch(`/api/applications/${result.applicationId}/signature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signature_data_url: form.signature_data_url, consent_version: CONSENT_VERSION }),
+      });
+      const signatureResult = await signatureResponse.json();
+      if (!signatureResponse.ok || !signatureResult.success) throw new Error(signatureResult.error || 'Application was saved, but the signed PDF could not be generated. Please contact support.');
+
       setCurrentStep(4);
     } catch (err) {
       trackApplicationEvent('application_submit_failed');
@@ -349,15 +460,15 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
           {currentStep < 4 && (
             <>
               <div className="mt-8 rounded-[10px] border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]">
-                <Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" /> SSN, DOB, and Tax ID are encrypted before storage.
+                <Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" /> SSN, DOB, Tax ID, and signature are encrypted or protected before storage.
               </div>
               <div className="mt-6 flex items-center justify-between border-t border-[#F4F4F5] pt-6">
-                <button type="button" onClick={back} disabled={currentStep === 1} className="inline-flex h-11 items-center gap-2 rounded-[8px] px-4 py-2 text-[14px] font-medium text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B] disabled:cursor-not-allowed disabled:text-[#A1A1AA]">
+                <button type="button" onClick={back} disabled={currentStep === 1 || submitting} className="inline-flex h-11 items-center gap-2 rounded-[8px] px-4 py-2 text-[14px] font-medium text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B] disabled:cursor-not-allowed disabled:text-[#A1A1AA]">
                   <ArrowLeft className="h-4 w-4" /> Back
                 </button>
                 {currentStep === 3 ? (
                   <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex h-12 items-center gap-2 rounded-[10px] bg-[#061326] px-5 text-[14px] font-semibold text-white transition-all hover:bg-[#0A1730] disabled:opacity-50">
-                    {submitting ? 'Submitting...' : 'Get My Funding Options'} {!submitting && <CheckCircle2 className="h-4 w-4" />}
+                    {submitting ? 'Generating signed PDF...' : 'Get My Funding Options'} {!submitting && <CheckCircle2 className="h-4 w-4" />}
                   </button>
                 ) : (
                   <button type="button" onClick={continueStep} className="inline-flex h-12 items-center gap-2 rounded-[10px] bg-[#0F2B5B] px-5 text-[14px] font-semibold text-white transition-all hover:bg-[#0A1E42]">
