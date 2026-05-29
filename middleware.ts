@@ -49,6 +49,12 @@ export async function middleware(req: NextRequest) {
   const host = req.headers.get('host')?.split(':')[0].toLowerCase() ?? '';
   const isCrmHost = host.startsWith('crm.');
 
+  if (pathname === '/api/applications/submit' && req.method === 'POST') {
+    const rewriteUrl = req.nextUrl.clone();
+    rewriteUrl.pathname = '/api/applications/submit-validated';
+    return NextResponse.rewrite(rewriteUrl);
+  }
+
   if (process.env.E2E_AUTH_BYPASS === '1' && (pathname.startsWith('/crm') || pathname.startsWith('/portal'))) {
     return res;
   }
@@ -150,5 +156,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/crm/:path*', '/portal/:path*', '/login'],
+  matcher: ['/', '/crm/:path*', '/portal/:path*', '/login', '/api/applications/submit'],
 };
