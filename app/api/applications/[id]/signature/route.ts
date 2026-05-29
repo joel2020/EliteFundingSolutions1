@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { decryptSensitiveField } from '@/lib/security';
+import { requireSameOrigin } from '@/lib/server-auth';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,9 @@ function disclosureAcceptance(application: Record<string, any>, consentVersion?:
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
   const supabase = createServiceSupabaseClient();
   const body = await request.json().catch(() => ({}));
   const signaturePng = decodePngDataUrl(body.signature_data_url);
