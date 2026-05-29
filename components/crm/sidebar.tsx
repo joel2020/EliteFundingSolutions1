@@ -80,7 +80,7 @@ export function CrmSidebar() {
             />
           </div>
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-semibold leading-tight text-[#0F172A]">Elite CRM Nexus</div>
+            <div className="truncate text-[13px] font-semibold leading-tight text-[#0F172A]">Elite CRM Nexus v2</div>
             <div className="truncate text-[11px] font-semibold uppercase leading-tight tracking-normal text-[#C9A84C]">Elite Funding Solutions</div>
           </div>
         </Link>
@@ -131,7 +131,7 @@ export function CrmSidebar() {
           prefetch={false}
           className="mb-2 inline-flex h-10 w-full items-center rounded-[7px] border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[12px] font-semibold text-[#0F2B5B] hover:bg-[#EEF2F7]"
         >
-          Public Website
+          Elite Connect
         </Link>
         <button
           data-testid="crm-sign-out"
