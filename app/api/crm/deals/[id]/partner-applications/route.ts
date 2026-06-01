@@ -22,6 +22,7 @@ const allowedTypes = new Set([
 ]);
 const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'doc', 'docx', 'csv']);
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const DOCUMENT_SELECT = 'id,organization_id,deal_id,application_id,uploaded_by_user_id,document_type,label,file_name,file_size,mime_type,storage_path,status,application_source,application_variant,related_partner_application_upload_id,review_notes,created_at,updated_at';
 
 function safeName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 140) || 'partner-application';
@@ -137,7 +138,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       application_variant: 'original_partner',
       review_notes: notes || null,
     })
-    .select('id,file_name,document_type,label,status,created_at,storage_path')
+    .select(DOCUMENT_SELECT)
     .single();
 
   if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
@@ -300,5 +301,5 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }),
   ]);
 
-  return NextResponse.json({ success: true, partnerApplication: convertedUpload || upload, document, convertedDocument });
+  return NextResponse.json({ success: true, applicationId, partnerApplication: convertedUpload || upload, document, convertedDocument });
 }

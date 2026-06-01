@@ -1390,6 +1390,15 @@ function getOfferInsights(offers: RecordMap[]) {
   };
 }
 
+function uniqueRecordsById(rows: RecordMap[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (!row?.id || seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+}
+
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, partnerApplications, profile, loading, reload } = useCrmDataset();
   const { profile: directProfile, loading: directProfileLoading } = useCrmUser();
@@ -1431,6 +1440,10 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [checklistNotes, setChecklistNotes] = useState<Record<string, string>>({});
   const [commissionForm, setCommissionForm] = useState<RecordMap>({ recipient_name: '', recipient_type: 'referral_partner', percentage: '20', flat_amount: '', notes: '', payout_status: 'pending' });
   const [riskForm, setRiskForm] = useState<RecordMap>({ event_type: 'defaulted', funding_partner_id: '', amount: '', notes: '' });
+  const [recentPartnerApplicationBundles, setRecentPartnerApplicationBundles] = useState<RecordMap[]>([]);
+  useEffect(() => {
+    setRecentPartnerApplicationBundles([]);
+  }, [dealId]);
   useEffect(() => {
     if (!profile || ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer'].includes(profile.role)) return;
     fetch('/api/crm/access-log', {
@@ -1448,8 +1461,11 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const dealCommissionRecipients = commissionRecipients.filter((row: RecordMap) => row.deal_id === deal.id);
   const dealRiskEvents = riskEvents.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
   const repeatDeals = deals.filter((row: RecordMap) => row.id !== deal.id && (row.business_id === deal.business_id || row.duplicate_of_business_id === deal.business_id || row.business_id === deal.duplicate_of_business_id));
-  const dealDocs = documents.filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
-  const dealPartnerApplications = partnerApplications.filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id);
+  const recentPartnerBundlesForDeal = recentPartnerApplicationBundles.filter((bundle) => bundle.deal_id === deal.id || bundle.partnerApplication?.deal_id === deal.id || (deal.application_id && bundle.application_id === deal.application_id));
+  const recentPartnerDocs = recentPartnerBundlesForDeal.flatMap((bundle) => bundle.documents || []);
+  const recentPartnerApplications = recentPartnerBundlesForDeal.map((bundle) => bundle.partnerApplication).filter(Boolean);
+  const dealDocs = uniqueRecordsById([...recentPartnerDocs, ...documents]).filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id || recentPartnerBundlesForDeal.some((bundle) => doc.application_id && doc.application_id === bundle.application_id));
+  const dealPartnerApplications = uniqueRecordsById([...recentPartnerApplications, ...partnerApplications]).filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id || recentPartnerBundlesForDeal.some((bundle) => row.application_id && row.application_id === bundle.application_id));
   const originalPartnerApplicationDocs = dealDocs.filter((doc: RecordMap) => doc.application_variant === 'original_partner' || doc.document_type === 'partner_application');
   const convertedApplicationDocs = dealDocs.filter((doc: RecordMap) => doc.application_variant === 'elite_converted_partner' || doc.application_variant === 'elite_generated' || doc.document_type === 'completed_application');
   const publicApplicationStatus = app?.application_source ? app.application_source : app?.submitted_at ? 'website' : 'not_started';
@@ -1548,6 +1564,16 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       const response = await fetch(`/api/crm/deals/${deal.id}/partner-applications`, { method: 'POST', body: formData });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload partner application');
+      setRecentPartnerApplicationBundles((current) => {
+        const partnerApplication = result.partnerApplication || {};
+        const bundle = {
+          deal_id: partnerApplication.deal_id || deal.id,
+          application_id: result.applicationId || partnerApplication.application_id || deal.application_id || null,
+          partnerApplication,
+          documents: [result.document, result.convertedDocument].filter(Boolean),
+        };
+        return [bundle, ...current.filter((item) => item.partnerApplication?.id !== partnerApplication.id)];
+      });
       toast.success('Partner application converted and ready for lenders');
       setPartnerApplicationDialogOpen(false);
       resetPartnerApplicationDialog();

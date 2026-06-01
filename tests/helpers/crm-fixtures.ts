@@ -383,11 +383,28 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     }
     const body = route.request().postData() || '';
     const fileName = body.match(/filename="([^"]+)"/)?.[1] || 'partner-application.pdf';
+    const deal = state.deals.find((row) => row.id === id);
+    let applicationId = deal?.application_id || null;
+    if (!applicationId) {
+      applicationId = `application-${state.applications.length + 1}`;
+      state.applications.unshift({
+        id: applicationId,
+        organization_id: ORG_ID,
+        business_id: deal?.business_id || BUSINESS_ID,
+        status: 'submitted',
+        application_source: 'partner_upload',
+        application_review_status: 'converted_from_partner_app',
+        submitted_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+      state.deals = state.deals.map((row) => row.id === id ? { ...row, application_id: applicationId, stage_slug: 'application_submitted', updated_at: now } : row);
+    }
     const upload = {
       id: `partner-app-${state.partner_application_uploads.length + 1}`,
       organization_id: ORG_ID,
       deal_id: id,
-      application_id: 'application-1',
+      application_id: applicationId,
       source_partner_name: 'Mock Partner',
       original_file_name: fileName,
       original_file_mime_type: 'application/pdf',
@@ -404,7 +421,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       id: `document-${state.documents.length + 1}`,
       organization_id: ORG_ID,
       deal_id: id,
-      application_id: 'application-1',
+      application_id: applicationId,
       document_type: 'partner_application',
       label: 'Original partner application',
       file_name: fileName,
@@ -422,7 +439,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       id: `document-${state.documents.length + 2}`,
       organization_id: ORG_ID,
       deal_id: id,
-      application_id: 'application-1',
+      application_id: applicationId,
       document_type: 'completed_application',
       label: 'Elite Funding Solutions converted application',
       file_name: 'atlas-retail-llc-elite-application.pdf',
@@ -440,7 +457,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.partner_application_uploads.unshift(upload);
     state.documents.unshift(convertedDocument, document);
     calls.push({ method: route.request().method(), table: 'partner_application_uploads_api', body: { file_name: fileName } });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, partnerApplication: upload, document, convertedDocument }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationId, partnerApplication: upload, document, convertedDocument }) });
   });
 
   await page.route('**/api/crm/partner-applications/*', async (route) => {

@@ -224,6 +224,30 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     expect(calls.some((call) => call.table === 'application_sensitive_api')).toBe(true);
   });
 
+  test('attaches an uploaded partner application to a deal that has no application yet', async ({ page }) => {
+    const { state } = await mockCrmApis(page);
+    state.deals = state.deals.map((deal) => deal.id === DEAL_ID ? { ...deal, application_id: null } : deal);
+    state.applications = [];
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
+    await page.getByRole('tab', { name: 'Applications' }).click();
+
+    await page.getByTestId('deal-upload-partner-application').click();
+    await page.getByTestId('partner-application-file').setInputFiles({
+      name: 'new-record-partner-app.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 partner app for new app record'),
+    });
+    await page.getByTestId('save-partner-application').click();
+
+    await expect.poll(() => state.deals.find((deal) => deal.id === DEAL_ID)?.application_id).toBe('application-1');
+    await expect.poll(() => state.applications.some((app) => app.id === 'application-1' && app.application_source === 'partner_upload')).toBe(true);
+    await expect(page.getByText('Original partner application')).toBeVisible();
+    await expect(page.getByText('Elite Funding Solutions converted application')).toBeVisible();
+    await expect(page.getByText('new-record-partner-app.pdf')).toBeVisible();
+  });
+
   test('loads earnings and reports pages', async ({ page }) => {
     await mockCrmApis(page);
 
