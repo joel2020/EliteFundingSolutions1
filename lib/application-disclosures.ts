@@ -9,7 +9,7 @@ export const APPLICATION_DISCLOSURE_SECTIONS = [
   {
     title: 'Credit Review Consent',
     paragraphs: [
-      'I authorize Elite Funding Solutions, its affiliates, service providers, funding partners, lenders, funders, banks, processors, and underwriting partners to obtain business, consumer, personal, investigative, credit, bank, processor, and financial reports for underwriting, verification, fraud prevention, renewal review, servicing, and compliance purposes.',
+      'I authorize Elite Funding Solutions, its affiliates, service providers, funding partners, funders, banks, processors, and underwriting partners to obtain business, consumer, personal, investigative, credit, bank, processor, and financial reports for underwriting, verification, fraud prevention, renewal review, servicing, and compliance purposes.',
       'Credit review may include soft or hard inquiries depending on the funding product, funding partner, and stage of review.',
     ],
   },

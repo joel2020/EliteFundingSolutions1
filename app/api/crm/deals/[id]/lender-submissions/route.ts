@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 import { evaluateDealReadinessForLenderSubmission } from '@/lib/deal-readiness';
@@ -129,7 +130,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     deal.application_id
       ? supabase
         .from('applications')
-        .select('id,organization_id,business_id,requested_amount,has_existing_advances,bank_name,account_type,submitted_at,signed_name,signature_date,application_payload')
+        .select('id,organization_id,business_id,requested_amount,has_existing_advances,bank_name,account_type,submitted_at,signed_name,signature_date,signature_data_storage_path,application_payload')
         .eq('id', deal.application_id)
         .eq('organization_id', profile.organization_id)
         .maybeSingle()
@@ -182,6 +183,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
       owners,
       ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+      drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
     });
     const safeDealName = (deal.title || (business as any)?.legal_name || 'merchant-application')
       .toLowerCase()

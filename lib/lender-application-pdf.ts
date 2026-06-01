@@ -11,6 +11,7 @@ export type LenderApplicationPdfData = {
   business?: Record<string, any> | null;
   owners?: Owner[];
   ein?: string | null;
+  drawnSignaturePng?: Buffer | null;
 };
 
 export type ResolvedLenderApplicationPdfFields = {
@@ -154,9 +155,9 @@ function cityStateZip(city: unknown, state: unknown, zip: unknown) {
 
 function ownerName(owner?: Owner) {
   return firstText(
-    owner?.full_name,
     owner?.owner_full_name,
     [owner?.first_name, owner?.last_name].map(text).filter(Boolean).join(' '),
+    owner?.full_name,
   );
 }
 
@@ -225,33 +226,33 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
   const application = data.application || {};
   const deal = data.deal || {};
   const owners = data.owners || [];
-  const owner1 = owners[0] || payload.owner1 || {};
-  const owner2 = owners[1] || payload.owner2 || {};
+  const owner1 = { ...(owners[0] || {}), ...(payload.owner1 || {}) };
+  const owner2 = { ...(owners[1] || {}), ...(payload.owner2 || {}) };
   const existingAdvance = Array.isArray(payload.existing_advances) ? payload.existing_advances[0] : null;
-  const businessAddress = firstText(business.address, payload.address, payload.business_address);
+  const businessAddress = firstText(payload.address, payload.business_address, business.address);
   const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address);
   const owner2Address = firstText(owner2.address, owner2.home_address);
-  const businessCity = fieldWithAddressFallback(firstText(business.city, payload.city), businessAddress, 'city');
-  const businessState = fieldWithAddressFallback(firstText(business.state, payload.state), businessAddress, 'state');
-  const businessZip = fieldWithAddressFallback(firstText(business.zip, payload.zip), businessAddress, 'zip');
+  const businessCity = fieldWithAddressFallback(firstText(payload.city, business.city), businessAddress, 'city');
+  const businessState = fieldWithAddressFallback(firstText(payload.state, business.state), businessAddress, 'state');
+  const businessZip = fieldWithAddressFallback(firstText(payload.zip, business.zip), businessAddress, 'zip');
   const signatureDate = dateValue(application.signature_date || payload.signature_date || application.submitted_at);
 
   return {
-    businessLegalName: firstText(business.legal_name, payload.legal_name, payload.company_name, deal.title),
-    businessDba: firstText(business.dba, payload.dba),
-    businessStreet: fieldWithAddressFallback(firstText(business.address, payload.address), businessAddress, 'address'),
+    businessLegalName: firstText(payload.legal_name, payload.company_name, business.legal_name, deal.title),
+    businessDba: firstText(payload.dba, business.dba),
+    businessStreet: fieldWithAddressFallback(firstText(payload.address, payload.business_address, business.address), businessAddress, 'address'),
     businessCityLine: cityStateZip(businessCity, businessState, businessZip),
     businessState,
     businessZip,
     businessSuite: text(payload.suite),
-    businessPhone: firstText(business.phone, payload.business_phone, payload.cell_phone),
+    businessPhone: firstText(payload.business_phone, payload.cell_phone, business.phone),
     businessMobile: firstText(payload.business_mobile, owner1.mobile, owner1.phone, payload.cell_phone),
     businessFax: text(payload.fax),
-    businessWebsite: firstText(business.website, payload.website),
-    businessEmail: firstText(business.email, payload.business_email, owner1.email),
-    ein: formatEin(data.ein || business.ein_last4 || payload.ein),
+    businessWebsite: firstText(payload.website, business.website),
+    businessEmail: firstText(payload.business_email, business.email, owner1.email),
+    ein: formatEin(firstText(payload.ein, data.ein, business.ein_last4)),
     businessStartDate: dateValue(firstText(payload.start_date, payload.business_start_date, business.start_date)),
-    productsServices: firstText(payload.products_services, business.industry, payload.industry),
+    productsServices: firstText(payload.products_services, payload.industry, business.industry),
     posContact: [payload.pos_contact_name, payload.pos_contact_phone].filter(Boolean).join(' / '),
     posSystem: text(payload.pos_system),
     entityType: text(payload.entity_type || business.entity_type).toLowerCase(),
@@ -270,7 +271,7 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     averageVisaMcSales: money(payload.average_visa_mc_sales),
     signer: text(application.signed_name || payload.signature || ownerName(owner1)),
     signatureDate,
-    drawnSignaturePng: pngDataFromUrl(payload.signature_data_url),
+    drawnSignaturePng: data.drawnSignaturePng || pngDataFromUrl(payload.signature_data_url),
   };
 }
 
@@ -295,26 +296,25 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     page.drawText('X', { x, y, size: 15, font: boldFont, color: rgb(0.02, 0.09, 0.25) });
   };
 
-  page.drawRectangle({ x: 58, y: 1660, width: 420, height: 250, color: rgb(1, 1, 1) });
-  page.drawImage(logo, { x: 72, y: 1710, width: 340, height: 191 });
+  void logo;
 
-  draw(fields.businessLegalName, 252, 1562, 14, 30);
-  draw(fields.businessDba, 925, 1562, 14, 30);
-  draw(fields.businessStreet, 118, 1527, 14, 42);
-  draw(fields.businessCityLine, 86, 1492, 14, 36);
-  draw(fields.businessSuite, 925, 1527, 14, 18);
-  draw(fields.businessState, 925, 1492, 14, 12);
-  draw(fields.businessZip, 86, 1458, 14, 12);
-  draw(fields.businessPhone, 925, 1458, 14, 20);
-  draw(fields.businessMobile, 105, 1425, 14, 20);
-  draw(fields.businessFax, 925, 1425, 14, 20);
-  draw(fields.businessWebsite, 118, 1390, 14, 34);
-  draw(fields.businessEmail, 925, 1390, 14, 34);
-  draw(fields.ein, 995, 1358, 14, 20);
-  draw(fields.businessStartDate, 1010, 1324, 14, 18);
-  draw(fields.productsServices, 995, 1290, 14, 30);
-  draw(fields.posContact, 260, 1257, 13, 30);
-  draw(fields.posSystem, 1015, 1257, 13, 24);
+  draw(fields.businessLegalName, 318, 1549, 12, 32);
+  draw(fields.businessDba, 1050, 1549, 12, 24);
+  draw(fields.businessStreet, 118, 1515, 12, 42);
+  draw(fields.businessCityLine, 86, 1480, 12, 36);
+  draw(fields.businessSuite, 925, 1515, 12, 18);
+  draw(fields.businessState, 925, 1480, 12, 12);
+  draw(fields.businessZip, 86, 1446, 12, 12);
+  draw(fields.businessPhone, 925, 1446, 12, 20);
+  draw(fields.businessMobile, 105, 1413, 12, 20);
+  draw(fields.businessFax, 925, 1413, 12, 20);
+  draw(fields.businessWebsite, 118, 1378, 12, 34);
+  draw(fields.businessEmail, 925, 1378, 12, 34);
+  draw(fields.ein, 1080, 1346, 12, 18);
+  draw(fields.businessStartDate, 1115, 1312, 12, 16);
+  draw(fields.productsServices, 1120, 1278, 12, 22);
+  draw(fields.posContact, 260, 1245, 12, 30);
+  draw(fields.posSystem, 1015, 1245, 12, 24);
 
   check(fields.entityType.includes('corp') && !fields.entityType.includes('s_') && !fields.entityType.includes('c_'), 223, 1357);
   check(fields.entityType.includes('sole'), 326, 1357);
@@ -338,26 +338,26 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   check(!fields.isSeasonal, 1210, 1207);
 
   const drawOwner = (owner: ResolvedOwnerPdfFields, x: number) => {
-    draw(owner.name, x + 72, 884, 14, 33);
-    draw(owner.street, x + 94, 849, 14, 33);
-    draw(owner.cityLine, x + 126, 815, 14, 33);
-    draw(owner.phone, x + 80, 780, 14, 22);
-    draw(owner.email, x + 80, 746, 14, 34);
-    draw(owner.ownershipPercentage, x + 150, 711, 14, 12);
-    draw(owner.dob, x + 130, 677, 14, 18);
-    draw(owner.ssn, x + 95, 643, 14, 18);
-    draw(owner.driversLicense, x + 190, 608, 14, 18);
+    draw(owner.name, x + 125, 871, 11, 34);
+    draw(owner.street, x + 125, 836, 11, 34);
+    draw(owner.cityLine, x + 165, 802, 11, 30);
+    draw(owner.phone, x + 105, 767, 11, 22);
+    draw(owner.email, x + 105, 733, 11, 34);
+    draw(owner.ownershipPercentage, x + 160, 698, 11, 10);
+    draw(owner.dob, x + 135, 664, 11, 16);
+    draw(owner.ssn, x + 105, 630, 11, 18);
+    draw(owner.driversLicense, x + 195, 595, 11, 18);
   };
   drawOwner(fields.owner1, 0);
   drawOwner(fields.owner2, 755);
 
   check(fields.hasExistingAdvance, 465, 553);
   check(!fields.hasExistingAdvance, 575, 553);
-  draw(fields.existingAdvanceFunder, 70, 520, 13, 42);
-  draw(fields.existingAdvanceBalance, 1000, 553, 14, 18);
-  draw(fields.requestedAmount, 975, 520, 14, 18);
-  draw(fields.averageMonthlySales, 305, 470, 14, 18);
-  draw(fields.averageVisaMcSales, 1040, 470, 14, 18);
+  draw(fields.existingAdvanceFunder, 70, 508, 12, 42);
+  draw(fields.existingAdvanceBalance, 1000, 541, 12, 18);
+  draw(fields.requestedAmount, 975, 508, 12, 18);
+  draw(fields.averageMonthlySales, 305, 458, 12, 18);
+  draw(fields.averageVisaMcSales, 1040, 458, 12, 18);
 
   if (fields.drawnSignaturePng) {
     const signatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);

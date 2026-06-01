@@ -71,6 +71,75 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.averageMonthlySales).toBe('$85,000');
   });
 
+  test('uses reviewed partner payload values before older CRM fields', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      business: {
+        legal_name: 'Old CRM Name LLC',
+        address: '1 Old Street, Miami, FL 33101',
+        phone: '3055550000',
+        email: 'old@example.com',
+      },
+      application: {
+        ...sampleApplicationData.application,
+        application_payload: {
+          ...sampleApplicationData.application.application_payload,
+          legal_name: 'Reviewed Partner Name LLC',
+          address: '77 Reviewed Ave, Orlando, FL 32801',
+          city: 'Orlando',
+          state: 'FL',
+          zip: '32801',
+          business_phone: '4075550100',
+          business_email: 'reviewed@example.com',
+          ein: '987654321',
+          owner1: {
+            first_name: 'Reviewed',
+            last_name: 'Owner',
+            address: '44 Owner Way',
+            city: 'Orlando',
+            state: 'FL',
+            zip: '32803',
+            phone: '4075550111',
+            email: 'owner-reviewed@example.com',
+            ownership_percentage: '80',
+          },
+        },
+      },
+      owners: [
+        {
+          full_name: 'Old CRM Owner',
+          address: '1 Old Owner Street',
+          city: 'Miami',
+          state: 'FL',
+          zip: '33101',
+          phone: '3055550001',
+          email: 'old-owner@example.com',
+        },
+      ],
+      ein: '123456789',
+    });
+
+    expect(fields.businessLegalName).toBe('Reviewed Partner Name LLC');
+    expect(fields.businessStreet).toBe('77 Reviewed Ave');
+    expect(fields.businessCityLine).toBe('Orlando, FL 32801');
+    expect(fields.businessPhone).toBe('4075550100');
+    expect(fields.businessEmail).toBe('reviewed@example.com');
+    expect(fields.ein).toBe('98-7654321');
+    expect(fields.owner1.name).toBe('Reviewed Owner');
+    expect(fields.owner1.street).toBe('44 Owner Way');
+    expect(fields.owner1.cityLine).toBe('Orlando, FL 32803');
+  });
+
+  test('accepts stored signature PNG bytes for regenerated PDFs', () => {
+    const signaturePng = Buffer.from('signature-bytes');
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      drawnSignaturePng: signaturePng,
+    });
+
+    expect(fields.drawnSignaturePng).toBe(signaturePng);
+  });
+
   test('generates a branded multi-page PDF from the resolved data contract', async () => {
     const pdfBuffer = await generateLenderApplicationPdf(sampleApplicationData);
     const pdf = await PDFDocument.load(pdfBuffer);

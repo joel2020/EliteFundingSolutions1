@@ -138,6 +138,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     business,
     owners,
     ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+    drawnSignaturePng: signaturePng,
   });
 
   const pdfPath = `${DEFAULT_ORG_ID}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-signed-application.pdf`;

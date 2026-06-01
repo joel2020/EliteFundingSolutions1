@@ -16,6 +16,15 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   poweredByHeader: false,
   images: { unoptimized: true },
+  async redirects() {
+    return [
+      {
+        source: '/blog/documents-lenders-review-before-offer',
+        destination: '/blog/documents-funders-review-before-offer',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 const differentiators = [
   ['Complete-file discipline', 'We help applicants submit the business profile, owner information, consent records, and bank statements underwriters need to review the request without unnecessary back-and-forth.', FileCheck2],
-  ['Partner-network access', 'Elite Funding Solutions works with a marketplace of funding partners, lenders, funders, banks, and specialty programs instead of forcing every business into one product.', Users],
+  ['Partner-network access', 'Elite Funding Solutions works with a marketplace of funding partners, funders, banks, and specialty programs instead of forcing every business into one product.', Users],
   ['Transparent comparisons', 'Advisors explain repayment mechanics, estimated total cost, documentation conditions, and funding timelines before an applicant accepts an offer.', Scale],
   ['Security-minded intake', 'Sensitive EIN, SSN, consent, and document uploads are handled through a protected application workflow designed for business funding review.', LockKeyhole],
 ];

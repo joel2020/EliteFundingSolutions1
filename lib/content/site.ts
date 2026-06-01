@@ -23,7 +23,7 @@ export const industries = [
 
 export const blogPosts = [
   { slug: 'how-to-prepare-for-working-capital-application', title: 'How to Prepare for a Working Capital Application', description: 'A practical checklist for organizing revenue, bank statements, owner information, and use-of-funds details before applying for working capital.', author: 'Elite Funding Advisory Team', date: '2026-04-22', updated: '2026-05-06', minutes: 6, sections: [
-    ['Start with a clear use of funds', 'Lenders want to understand whether proceeds support revenue-generating activity, stability, or expansion. Prepare a concise explanation that connects the requested amount to inventory, payroll, equipment, marketing, hiring, or other operating needs.'],
+    ['Start with a clear use of funds', 'Funders want to understand whether proceeds support revenue-generating activity, stability, or expansion. Prepare a concise explanation that connects the requested amount to inventory, payroll, equipment, marketing, hiring, or other operating needs.'],
     ['Organize bank statements before submission', 'Complete statements help underwriting review deposit consistency, average balances, negative days, and returned items. Upload all pages for the most recent three months and confirm the business name matches the applicant.'],
     ['Confirm owner and business details', 'Validate legal business name, DBA, EIN, entity type, start date, ownership percentage, mobile phone, email, and business address before submission to reduce back-and-forth.'],
   ] },
@@ -32,7 +32,7 @@ export const blogPosts = [
     ['When speed matters', 'MCA options can move quickly for businesses with strong deposits and urgent needs. Lines of credit may offer more flexibility for recurring needs but can require more underwriting review.'],
     ['Cost and control considerations', 'Compare total payback, repayment frequency, renewal flexibility, and cash-flow fit. The best structure depends on revenue consistency, timing, and whether capital is one-time or recurring.'],
   ] },
-  { slug: 'documents-lenders-review-before-offer', title: 'Documents Lenders Review Before Issuing an Offer', description: 'Learn which documents lenders commonly review before presenting a business funding offer and how to avoid delays.', author: 'Elite Funding Advisory Team', date: '2026-02-27', updated: '2026-04-10', minutes: 5, sections: [
+  { slug: 'documents-funders-review-before-offer', title: 'Documents Funders Review Before Issuing an Offer', description: 'Learn which documents funders commonly review before presenting a business funding offer and how to avoid delays.', author: 'Elite Funding Advisory Team', date: '2026-02-27', updated: '2026-04-10', minutes: 5, sections: [
     ['Bank statements', 'Recent bank statements show deposit volume, balance trends, negative days, and cash-flow behavior. Missing pages or screenshots can slow review.'],
     ['Owner identification and business verification', 'Underwriters commonly verify the owner identity, business entity, EIN, address, and ownership percentage. Make sure submitted information matches official records.'],
     ['Product-specific documents', 'Equipment financing may require vendor quotes, invoice factoring may require A/R reports, and SBA or commercial real estate requests may require tax returns, financial statements, rent rolls, or property documents.'],

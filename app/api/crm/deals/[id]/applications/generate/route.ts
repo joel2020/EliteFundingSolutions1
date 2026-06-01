@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -96,6 +97,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
     owners,
     ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+    drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
   });
 
     const fileBase = safeDealName((business as any)?.legal_name || deal.title);

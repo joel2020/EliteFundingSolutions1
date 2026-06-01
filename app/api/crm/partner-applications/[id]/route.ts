@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
@@ -120,6 +121,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
       owners,
       ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || editedPayload.ein || null,
+      drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
     });
 
     const fileBase = safeDealName(editedPayload.company_name || (business as any)?.legal_name || deal.title);

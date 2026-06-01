@@ -131,7 +131,7 @@ const faqs = [
   ['What types of businesses do you fund?', 'We support established U.S. businesses across construction, healthcare, restaurants, trucking, retail, professional services, and many additional industries.'],
   ['How fast can I receive funding?', 'Many reviews are returned within 24 to 72 hours after a complete application and supporting documentation are received. Timing and available options vary by profile.'],
   ['Is there an obligation to accept an offer?', 'No. Pre-qualification is designed to show available options, and you are never obligated to accept an offer.'],
-  ['What credit score do I need?', 'Programs may be available for owners with 625+ credit, subject to revenue, deposits, business history, and lender underwriting requirements.'],
+  ['What credit score do I need?', 'Programs may be available for owners with 625+ credit, subject to revenue, deposits, business history, and funder underwriting requirements.'],
   ['How does your pre-qualification process work?', 'Submit a short application, review curated options with a funding advisor, select terms that fit, then complete documentation for funding.'],
 ];
 
