@@ -159,7 +159,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'Readiness', 'Applications', 'Documents', 'Notes', 'Lenders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'Readiness', 'Applications', 'Documents', 'Notes', 'Funders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -390,14 +390,20 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('deal-save-note').click();
     await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'note' && String(activity.body).includes('Processor requested'))).toBe(true);
 
-    await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
+    await page.getByRole('tab', { name: 'Funders Sent To' }).click();
     await page.getByTestId('deal-submit-lender').click();
-    await expect(page.getByTestId('lender-preset-summary')).toContainText('Lender package preset');
-    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with this lender');
+    await expect(page.getByTestId('lender-preset-summary')).toContainText('Funder package preset');
+    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with this funder');
     await page.getByTestId('deal-submission-notes').fill('Strong deposits, explain two negative days from tax payment timing.');
     await page.getByTestId('deal-save-submission').click();
     await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'partner_submission')).toBe(true);
     expect(calls.some((call) => call.method === 'POST' && call.table === 'partner_submissions')).toBe(true);
+    const submissionCall = calls.find((call) => call.method === 'POST' && call.table === 'partner_submissions');
+    expect(submissionCall?.body.attachment_document_ids).toContain(DOC_ID);
+    expect(submissionCall?.body.attachment_document_ids).toEqual(expect.arrayContaining([
+      DOC_ID,
+      expect.stringMatching(/^document-/),
+    ]));
 
     await page.getByRole('tab', { name: 'Offers' }).click();
     await expect(page.getByTestId('offer-comparison-view')).toContainText('Recommended Offer');
@@ -416,8 +422,8 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await page.getByRole('tab', { name: 'Documents' }).click();
     await expect(page.getByText('No documents attached.')).toBeVisible();
-    await page.getByRole('tab', { name: 'Lenders Sent To' }).click();
-    await expect(page.getByText('No lender submissions yet.')).toBeVisible();
+    await page.getByRole('tab', { name: 'Funders Sent To' }).click();
+    await expect(page.getByText('No funder submissions yet.')).toBeVisible();
     await page.getByRole('tab', { name: 'Offers' }).click();
     await expect(page.getByText('No offers received yet.')).toBeVisible();
   });

@@ -12,10 +12,14 @@ export const dynamic = 'force-dynamic';
 const SEND_ROLES = ['super_admin', 'admin', 'sales_rep'];
 const MAX_GMAIL_ATTACHMENT_BYTES = 24 * 1024 * 1024;
 const LENDER_PACKAGE_LINK_TTL_SECONDS = 60 * 60 * 24;
+const DOCUMENT_PACKAGE_SELECT = 'id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size,application_variant,application_source,created_at,updated_at';
+const EXCLUDED_PACKAGE_DOCUMENT_STATUSES = new Set(['rejected', 'needs_replacement', 'expired', 'deleted']);
+const ORIGINAL_PARTNER_APPLICATION_TYPES = new Set(['partner_application', 'original_partner_application']);
+const ORIGINAL_PARTNER_APPLICATION_VARIANTS = new Set(['original_partner']);
 
 const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
-  custom_message: z.string().trim().min(1, 'A lender message is required.'),
+  custom_message: z.string().trim().min(1, 'A funder message is required.'),
   attachment_document_ids: z.array(z.string().uuid()).default([]),
   override_readiness_gate: z.boolean().optional().default(false),
   override_reason: z.string().trim().optional().default(''),
@@ -34,6 +38,15 @@ function textToHtml(value: string) {
   return escapeHtml(value).replace(/\n/g, '<br/>');
 }
 
+function isEligibleFunderPackageDocument(doc: any) {
+  if (!doc?.id || !doc.storage_path) return false;
+  if (EXCLUDED_PACKAGE_DOCUMENT_STATUSES.has(String(doc.status || '').toLowerCase())) return false;
+  if (doc.document_type === 'completed_application') return false;
+  if (ORIGINAL_PARTNER_APPLICATION_TYPES.has(String(doc.document_type || '').toLowerCase())) return false;
+  if (ORIGINAL_PARTNER_APPLICATION_VARIANTS.has(String(doc.application_variant || '').toLowerCase())) return false;
+  return true;
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -44,7 +57,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const parsed = submissionSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ success: false, error: 'Invalid lender submission.', issues: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid funder submission.', issues: parsed.error.flatten() }, { status: 400 });
   }
 
   const { data: deal } = await supabase
@@ -68,15 +81,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!readiness.canSubmitToLender) {
     return NextResponse.json({
       success: false,
-      error: 'Deal is blocked by the underwriting readiness gate. Complete checklist/review items before lender submission.',
+      error: 'Deal is blocked by the underwriting readiness gate. Complete checklist/review items before funder submission.',
       readiness: readiness.checks,
     }, { status: 409 });
   }
   if (parsed.data.override_readiness_gate && !allowAdminOverride) {
-    return NextResponse.json({ success: false, error: 'Only admins can override the lender readiness gate.' }, { status: 403 });
+    return NextResponse.json({ success: false, error: 'Only admins can override the funder readiness gate.' }, { status: 403 });
   }
   if (allowAdminOverride && !parsed.data.override_reason.trim()) {
-    return NextResponse.json({ success: false, error: 'Admin override reason is required when bypassing lender readiness gate.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Admin override reason is required when bypassing funder readiness gate.' }, { status: 400 });
   }
 
   const { data: partner } = await supabase
@@ -104,7 +117,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const { data: selectedDocuments, error: docError } = selectedDocumentIds.length
     ? await supabase
       .from('documents')
-      .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size')
+      .select(DOCUMENT_PACKAGE_SELECT)
       .eq('organization_id', profile.organization_id)
       .in('id', selectedDocumentIds)
     : { data: [], error: null };
@@ -117,7 +130,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: latestConvertedApplication } = await supabase
     .from('documents')
-    .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size,application_variant,application_source,created_at')
+    .select(DOCUMENT_PACKAGE_SELECT)
     .eq('organization_id', profile.organization_id)
     .eq('deal_id', deal.id)
     .eq('document_type', 'completed_application')
@@ -196,7 +209,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .upload(generatedApplicationPath, applicationPdf, { contentType: 'application/pdf', upsert: false });
 
     if (applicationUploadError) {
-      return NextResponse.json({ success: false, error: `Unable to generate lender application PDF: ${applicationUploadError.message}` }, { status: 500 });
+      return NextResponse.json({ success: false, error: `Unable to generate funder application PDF: ${applicationUploadError.message}` }, { status: 500 });
     }
 
     const { data: createdApplicationDocument, error: applicationDocError } = await supabase
@@ -207,7 +220,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         application_id: deal.application_id,
         uploaded_by_user_id: user.id,
         document_type: 'completed_application',
-        label: latestPartnerApplication ? 'Elite Funding Solutions converted application' : 'Completed lender application',
+        label: latestPartnerApplication ? 'Elite Funding Solutions converted application' : 'Completed funder application',
         file_name: latestPartnerApplication ? `${safeDealName}-elite-application.pdf` : `${safeDealName}-application.pdf`,
         file_size: applicationPdf.length,
         mime_type: 'application/pdf',
@@ -216,13 +229,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
         application_source: latestPartnerApplication ? 'partner_upload' : 'crm_manual',
         application_variant: latestPartnerApplication ? 'elite_converted_partner' : 'elite_generated',
         related_partner_application_upload_id: (latestPartnerApplication as any)?.id || null,
-        review_notes: latestPartnerApplication ? `Generated from partner application for lender submission to ${partner.name}.` : `Generated automatically for lender submission to ${partner.name}.`,
+        review_notes: latestPartnerApplication ? `Generated from partner application for funder submission to ${partner.name}.` : `Generated automatically for funder submission to ${partner.name}.`,
       })
-      .select('id,file_name,document_type,label,status,deal_id,application_id,storage_path,mime_type,file_size,application_variant,application_source,created_at')
+      .select(DOCUMENT_PACKAGE_SELECT)
       .single();
 
     if (applicationDocError) {
-      return NextResponse.json({ success: false, error: `Unable to record lender application PDF: ${applicationDocError.message}` }, { status: 500 });
+      return NextResponse.json({ success: false, error: `Unable to record funder application PDF: ${applicationDocError.message}` }, { status: 500 });
     }
     generatedApplicationDocument = createdApplicationDocument;
 
@@ -235,8 +248,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
+  const documentQuery = supabase
+    .from('documents')
+    .select(DOCUMENT_PACKAGE_SELECT)
+    .eq('organization_id', profile.organization_id)
+    .order('created_at', { ascending: false });
+  const { data: dealPackageDocuments, error: packageDocsError } = deal.application_id
+    ? await documentQuery.or(`deal_id.eq.${deal.id},application_id.eq.${deal.application_id}`)
+    : await documentQuery.eq('deal_id', deal.id);
+
+  if (packageDocsError) return NextResponse.json({ success: false, error: packageDocsError.message }, { status: 500 });
+
   const documentMap = new Map<string, any>();
-  [generatedApplicationDocument, ...(selectedDocuments || [])].forEach((doc: any) => {
+  [generatedApplicationDocument, ...(dealPackageDocuments || []).filter(isEligibleFunderPackageDocument), ...(selectedDocuments || [])].forEach((doc: any) => {
     if (doc?.id && !documentMap.has(doc.id)) documentMap.set(doc.id, doc);
   });
   const documents = Array.from(documentMap.values());
@@ -251,7 +275,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq('event_type', 'defaulted')
     .limit(10);
 
-  const emailSubject = `${deal.title || 'Funding package'} - lender review`;
+  const emailSubject = `${deal.title || 'Funding package'} - funder review`;
   const selectedAttachmentLine = (documents || []).map((doc: any) => doc.file_name).join(', ') || 'None selected';
   const generatedEmailBody = [
     parsed.data.custom_message,
@@ -383,13 +407,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
       emailDeliveryStatus = 'sent';
       emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: gmailTokens.email };
     } catch (error: any) {
-      emailProviderError = error?.message || 'Unable to send lender email through Google Workspace. The submission was logged and a manual draft was prepared.';
+      emailProviderError = error?.message || 'Unable to send funder email through Google Workspace. The submission was logged and a manual draft was prepared.';
     }
   }
 
   const warnings = [
     ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
-    ...(emailDeliveryStatus === 'sent' ? [] : [emailProviderError || 'Lender submission was logged, but email delivery needs manual follow-up.']),
+    ...(emailDeliveryStatus === 'sent' ? [] : [emailProviderError || 'Funder submission was logged, but email delivery needs manual follow-up.']),
     ...attachmentWarnings,
   ];
 
@@ -401,7 +425,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       business_id: deal.business_id,
       lead_id: deal.lead_id,
       activity_type: 'partner_submission',
-      title: `Submitted to lender: ${partner.name}`,
+      title: `Submitted to funder: ${partner.name}`,
       body: generatedEmailBody,
       performed_by: profile.id,
     }),

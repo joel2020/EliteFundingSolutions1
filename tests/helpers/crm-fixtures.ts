@@ -682,15 +682,15 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       notes: payload.custom_message,
       custom_message: payload.custom_message,
       attachment_document_ids: payload.attachment_document_ids || [],
-      email_subject: 'Mock lender package',
+      email_subject: 'Mock funder package',
       generated_email_body: payload.custom_message,
       created_at: now,
       updated_at: now,
     };
     state.partner_submissions.unshift(submission);
-    state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'partner_submission', title: `Submitted to lender: ${partner?.name || 'Funding partner'}`, body: payload.custom_message, created_at: now });
+    state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'partner_submission', title: `Submitted to funder: ${partner?.name || 'Funding partner'}`, body: payload.custom_message, created_at: now });
     calls.push({ method: route.request().method(), table: 'partner_submissions', body: payload });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, submissionId: submission.id, emailDeliveryStatus: 'sent', emailProviderConfigured: true, emailProvider: 'gmail', senderEmail: 'admin@elitefunding.test', storageAccessMode: 'server_service_role_private_bucket', warnings: [], emailDraft: { to: partner?.submission_email || partner?.email || '', subject: 'Mock lender package', body: payload.custom_message, attachmentDocumentIds: payload.attachment_document_ids || [] } }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, submissionId: submission.id, emailDeliveryStatus: 'sent', emailProviderConfigured: true, emailProvider: 'gmail', senderEmail: 'admin@elitefunding.test', storageAccessMode: 'server_service_role_private_bucket', warnings: [], emailDraft: { to: partner?.submission_email || partner?.email || '', subject: 'Mock funder package', body: payload.custom_message, attachmentDocumentIds: payload.attachment_document_ids || [] } }) });
   });
 
   await page.route('**/api/crm/partner-submissions/*/offer', async (route) => {
