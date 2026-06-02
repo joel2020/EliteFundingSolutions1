@@ -73,7 +73,7 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [aiProvider, setAiProvider] = useState<'openai' | 'rules' | null>(null);
+  const [aiProvider, setAiProvider] = useState<'azure-openai' | 'openai' | 'rules' | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [state, setState] = useState<LoadState>({
     deal: null,
@@ -219,8 +219,8 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <Sparkles className="h-4 w-4 text-[#0F2B5B]" />
               <h2 className="text-sm font-semibold text-[#0F172A]">AI Analysis</h2>
-              <span className={`rounded-[6px] border px-2 py-0.5 text-[11px] font-semibold ${aiProvider === 'openai' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#F59E0B33] bg-[#FFFBEB] text-[#B45309]'}`}>
-                {aiProvider === 'openai' ? 'OpenAI connected' : aiAnalysis ? 'Rules fallback' : 'Ready to generate'}
+              <span className={`rounded-[6px] border px-2 py-0.5 text-[11px] font-semibold ${aiProvider === 'azure-openai' || aiProvider === 'openai' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-[#F59E0B33] bg-[#FFFBEB] text-[#B45309]'}`}>
+                {aiProvider === 'azure-openai' ? 'Azure OpenAI connected' : aiProvider === 'openai' ? 'OpenAI connected' : aiAnalysis ? 'Rules fallback' : 'Ready to generate'}
               </span>
             </div>
             <p className="mt-1 text-sm text-[#475569]">Generate a staff-only deal summary, risk scan, missing items, next actions, and a funder email draft from live CRM records.</p>

@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 const AI_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'];
 
 type RecordMap = Record<string, any>;
+type AiProvider = 'azure-openai' | 'openai' | 'rules';
 
 const analysisSchema = {
   type: 'object',
@@ -111,6 +112,27 @@ function fallbackAnalysis(context: RecordMap) {
   };
 }
 
+function stringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item || '').trim()).filter(Boolean);
+}
+
+function normalizeAnalysis(value: RecordMap) {
+  return {
+    summary: String(value?.summary || 'AI analysis did not return a summary.'),
+    fundingReadiness: String(value?.fundingReadiness || 'Review the CRM file before funder submission.'),
+    riskFlags: stringList(value?.riskFlags),
+    missingItems: stringList(value?.missingItems),
+    recommendedNextActions: stringList(value?.recommendedNextActions),
+    funderEmailDraft: {
+      subject: String(value?.funderEmailDraft?.subject || 'Funding package for review'),
+      body: String(value?.funderEmailDraft?.body || 'Hi,\n\nPlease review the attached funding package.\n\nThank you,'),
+    },
+    questionsForMerchant: stringList(value?.questionsForMerchant),
+    confidence: ['low', 'medium', 'high'].includes(value?.confidence) ? value.confidence : 'medium',
+  };
+}
+
 function extractOutputText(response: RecordMap) {
   if (typeof response.output_text === 'string') return response.output_text;
 
@@ -181,7 +203,7 @@ async function generateOpenAiAnalysis(context: RecordMap) {
   const data = await response.json();
   const outputText = extractOutputText(data);
   if (!outputText) throw new Error('AI provider returned an empty analysis.');
-  return JSON.parse(outputText);
+  return normalizeAnalysis(JSON.parse(outputText));
 }
 
 async function generateAzureOpenAiAnalysis(context: RecordMap) {
@@ -211,7 +233,58 @@ async function generateAzureOpenAiAnalysis(context: RecordMap) {
   const data = await response.json();
   const outputText = data.choices?.[0]?.message?.content;
   if (!outputText) throw new Error('Azure AI provider returned an empty analysis.');
-  return JSON.parse(outputText);
+  return normalizeAnalysis(JSON.parse(outputText));
+}
+
+async function generateAzureOpenAiResponsesAnalysis(context: RecordMap) {
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const responsesUrl = process.env.AZURE_OPENAI_RESPONSES_URL;
+  if (!apiKey || !responsesUrl) return null;
+
+  const messages = buildAiMessages(context);
+  const response = await fetch(responsesUrl, {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: process.env.AZURE_OPENAI_MODEL || 'gpt-5.5',
+      input: messages.map((message) => ({
+        role: message.role,
+        content: [{ type: 'input_text', text: message.content }],
+      })),
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'elite_crm_deal_analysis',
+          schema: analysisSchema,
+          strict: true,
+        },
+      },
+      max_output_tokens: 1800,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Azure Responses provider error (${response.status}): ${detail.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const outputText = extractOutputText(data);
+  if (!outputText) throw new Error('Azure Responses provider returned an empty analysis.');
+  return normalizeAnalysis(JSON.parse(outputText));
+}
+
+async function generateAiAnalysis(context: RecordMap): Promise<{ provider: AiProvider; analysis: ReturnType<typeof normalizeAnalysis> } | null> {
+  const azureAnalysis = await generateAzureOpenAiResponsesAnalysis(context) || await generateAzureOpenAiAnalysis(context);
+  if (azureAnalysis) return { provider: 'azure-openai', analysis: azureAnalysis };
+
+  const openAiAnalysis = await generateOpenAiAnalysis(context);
+  if (openAiAnalysis) return { provider: 'openai', analysis: openAiAnalysis };
+
+  return null;
 }
 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
@@ -246,7 +319,10 @@ export async function POST(_request: Request, { params }: { params: { id: string
   ]);
 
   const context = {
-    aiConfigured: Boolean(process.env.OPENAI_API_KEY || (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_CHAT_COMPLETIONS_URL)),
+    aiConfigured: Boolean(
+      process.env.OPENAI_API_KEY ||
+      (process.env.AZURE_OPENAI_API_KEY && (process.env.AZURE_OPENAI_RESPONSES_URL || process.env.AZURE_OPENAI_CHAT_COMPLETIONS_URL))
+    ),
     deal: redactSensitiveFields(deal),
     business: redactSensitiveFields((businessResult as any).data || null),
     application: redactSensitiveFields((applicationResult as any).data || null),
@@ -259,12 +335,12 @@ export async function POST(_request: Request, { params }: { params: { id: string
   };
 
   try {
-    const analysis = await generateOpenAiAnalysis(context) || await generateAzureOpenAiAnalysis(context);
+    const generated = await generateAiAnalysis(context);
     return NextResponse.json({
       success: true,
-      provider: analysis ? 'openai' : 'rules',
-      configured: Boolean(analysis),
-      analysis: analysis || fallbackAnalysis(context),
+      provider: generated?.provider || 'rules',
+      configured: Boolean(generated),
+      analysis: generated?.analysis || fallbackAnalysis(context),
     });
   } catch (error) {
     console.error('[crm-ai] AI analysis failed:', error);
