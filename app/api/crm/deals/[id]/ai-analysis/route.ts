@@ -123,9 +123,31 @@ function extractOutputText(response: RecordMap) {
   return '';
 }
 
+function buildAiMessages(context: RecordMap) {
+  return [
+    {
+      role: 'system',
+      content: [
+        'You are an internal CRM funding package assistant for Elite Funding Solutions.',
+        'Use only the CRM context provided.',
+        'Do not make credit, underwriting, legal, or approval decisions.',
+        'Use the word funder, not lender.',
+        'Keep recommendations operational, concise, and ready for staff review.',
+        'Return only valid JSON matching the requested schema.',
+        `JSON schema: ${JSON.stringify(analysisSchema)}`,
+      ].join(' '),
+    },
+    {
+      role: 'user',
+      content: JSON.stringify(redactSensitiveFields(context)),
+    },
+  ];
+}
+
 async function generateOpenAiAnalysis(context: RecordMap) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
+  const messages = buildAiMessages(context);
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -135,27 +157,10 @@ async function generateOpenAiAnalysis(context: RecordMap) {
     },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-      input: [
-        {
-          role: 'system',
-          content: [
-            {
-              type: 'input_text',
-              text: [
-                'You are an internal CRM funding package assistant for Elite Funding Solutions.',
-                'Use only the CRM context provided.',
-                'Do not make credit, underwriting, legal, or approval decisions.',
-                'Use the word funder, not lender.',
-                'Keep recommendations operational, concise, and ready for staff review.',
-              ].join(' '),
-            },
-          ],
-        },
-        {
-          role: 'user',
-          content: [{ type: 'input_text', text: JSON.stringify(redactSensitiveFields(context)) }],
-        },
-      ],
+      input: messages.map((message) => ({
+        role: message.role,
+        content: [{ type: 'input_text', text: message.content }],
+      })),
       text: {
         format: {
           type: 'json_schema',
@@ -176,6 +181,36 @@ async function generateOpenAiAnalysis(context: RecordMap) {
   const data = await response.json();
   const outputText = extractOutputText(data);
   if (!outputText) throw new Error('AI provider returned an empty analysis.');
+  return JSON.parse(outputText);
+}
+
+async function generateAzureOpenAiAnalysis(context: RecordMap) {
+  const apiKey = process.env.AZURE_OPENAI_API_KEY;
+  const completionsUrl = process.env.AZURE_OPENAI_CHAT_COMPLETIONS_URL;
+  if (!apiKey || !completionsUrl) return null;
+
+  const response = await fetch(completionsUrl, {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messages: buildAiMessages(context),
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+      max_tokens: 1800,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Azure AI provider error (${response.status}): ${detail.slice(0, 240)}`);
+  }
+
+  const data = await response.json();
+  const outputText = data.choices?.[0]?.message?.content;
+  if (!outputText) throw new Error('Azure AI provider returned an empty analysis.');
   return JSON.parse(outputText);
 }
 
@@ -211,7 +246,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   ]);
 
   const context = {
-    aiConfigured: Boolean(process.env.OPENAI_API_KEY),
+    aiConfigured: Boolean(process.env.OPENAI_API_KEY || (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_CHAT_COMPLETIONS_URL)),
     deal: redactSensitiveFields(deal),
     business: redactSensitiveFields((businessResult as any).data || null),
     application: redactSensitiveFields((applicationResult as any).data || null),
@@ -224,7 +259,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   };
 
   try {
-    const analysis = await generateOpenAiAnalysis(context);
+    const analysis = await generateOpenAiAnalysis(context) || await generateAzureOpenAiAnalysis(context);
     return NextResponse.json({
       success: true,
       provider: analysis ? 'openai' : 'rules',
