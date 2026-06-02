@@ -49,6 +49,13 @@ const fieldGroups = [
       ['SSN', 'owner1.ssn'],
     ],
   },
+  {
+    title: 'Signature',
+    fields: [
+      ['Signer name', 'signature'],
+      ['Signature date', 'signature_date'],
+    ],
+  },
 ] as const;
 
 function getPath(row: RecordMap, path: string) {

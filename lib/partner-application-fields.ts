@@ -23,6 +23,8 @@ export function buildPartnerApplicationPayload(input: PartnerApplicationPayload 
     requested_amount: text(input.requested_amount),
     products_services: text(input.products_services || input.industry),
     industry: text(input.industry || input.products_services),
+    signature: text(input.signature || input.signed_name || input.owner_name || input.owner_full_name),
+    signature_date: text(input.signature_date || input.signed_date),
     owner1: {
       ...owner1,
       first_name: text(owner1.first_name),
@@ -73,7 +75,7 @@ function splitOwnerName(value: string) {
   return { first_name: parts[0] || '', last_name: parts.slice(1).join(' ') };
 }
 
-export function parsePartnerApplicationCsv(csv: string) {
+export function parsePartnerApplicationCsv(csv: string): PartnerApplicationPayload {
   const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length < 2) return {};
 
@@ -97,6 +99,8 @@ export function parsePartnerApplicationCsv(csv: string) {
     start_date: row.business_start_date || row.start_date || row.date_started,
     requested_amount: row.requested_amount || row.amount_requested || row.funding_amount,
     products_services: row.industry || row.products_services || row.business_type,
+    signature: row.signature || row.signed_name || row.applicant_signature || ownerFullName,
+    signature_date: row.signature_date || row.signed_date || row.application_date,
     owner1: {
       first_name: row.owner_first_name || ownerName.first_name,
       last_name: row.owner_last_name || ownerName.last_name,

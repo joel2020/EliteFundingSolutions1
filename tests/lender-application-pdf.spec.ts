@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
 import { generateLenderApplicationPdf, resolveLenderApplicationPdfFields } from '../lib/lender-application-pdf';
+import { parsePartnerApplicationCsv } from '../lib/partner-application-fields';
 
 const sampleApplicationData = {
   deal: {
@@ -128,6 +129,36 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner1.name).toBe('Reviewed Owner');
     expect(fields.owner1.street).toBe('44 Owner Way');
     expect(fields.owner1.cityLine).toBe('Orlando, FL 32803');
+  });
+
+  test('uses reviewed partner signature fields when converting to Elite PDF', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      application: {
+        application_payload: {
+          legal_name: 'Partner Signed Merchant LLC',
+          signature: 'Partner Signed Owner',
+          signature_date: '2026-06-01',
+          owner1: {
+            first_name: 'Partner',
+            last_name: 'Owner',
+          },
+        },
+      },
+    });
+
+    expect(fields.signer).toBe('Partner Signed Owner');
+    expect(fields.signatureDate).toBe('6/1/2026');
+  });
+
+  test('maps partner CSV signature fields for PDF review', () => {
+    const payload = parsePartnerApplicationCsv(
+      'business_name,owner_name,signature,signature_date,requested_amount\nPartner Merchant LLC,Pat Owner,Pat Owner,2026-06-01,50000',
+    );
+
+    expect(payload.legal_name).toBe('Partner Merchant LLC');
+    expect(payload.signature).toBe('Pat Owner');
+    expect(payload.signature_date).toBe('2026-06-01');
   });
 
   test('accepts stored signature PNG bytes for regenerated PDFs', () => {
