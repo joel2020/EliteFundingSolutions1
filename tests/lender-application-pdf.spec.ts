@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
 import { generateLenderApplicationPdf, resolveLenderApplicationPdfFields } from '../lib/lender-application-pdf';
+import { extractPartnerApplicationPayloadFromUpload } from '../lib/partner-application-extraction';
 import { parsePartnerApplicationCsv } from '../lib/partner-application-fields';
 
 const sampleApplicationData = {
@@ -159,6 +160,46 @@ test.describe('lender application PDF data mapping', () => {
     expect(payload.legal_name).toBe('Partner Merchant LLC');
     expect(payload.signature).toBe('Pat Owner');
     expect(payload.signature_date).toBe('2026-06-01');
+  });
+
+  test('extracts partner PDF form fields before converting to Elite PDF', async () => {
+    const pdf = await PDFDocument.create();
+    pdf.addPage([612, 792]);
+    const form = pdf.getForm();
+    form.createTextField('business_name').setText('Form Partner LLC');
+    form.createTextField('owner_name').setText('Jordan Partner');
+    form.createTextField('signature').setText('Jordan Partner');
+    form.createTextField('signature_date').setText('2026-06-02');
+    form.createTextField('requested_amount').setText('$88,000');
+    const bytes = Buffer.from(await pdf.save());
+
+    const payload = await extractPartnerApplicationPayloadFromUpload({
+      fileName: 'partner-application.pdf',
+      mimeType: 'application/pdf',
+      bytes,
+      fallback: { company_name: 'Fallback LLC' },
+    });
+
+    expect(payload.legal_name).toBe('Form Partner LLC');
+    expect(payload.signature).toBe('Jordan Partner');
+    expect(payload.signature_date).toBe('2026-06-02');
+    expect(payload.requested_amount).toBe('$88,000');
+    expect(payload.owner1.first_name).toBe('Jordan');
+    expect(payload.owner1.last_name).toBe('Partner');
+  });
+
+  test('uses inline drawn signature PNG data from partner payloads', () => {
+    const signatureDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      application: {
+        application_payload: {
+          signature_data_url: signatureDataUrl,
+        },
+      },
+    });
+
+    expect(fields.drawnSignaturePng?.length).toBeGreaterThan(0);
   });
 
   test('accepts stored signature PNG bytes for regenerated PDFs', () => {

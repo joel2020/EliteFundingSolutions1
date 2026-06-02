@@ -4,6 +4,11 @@ import { mockCrmApis } from './helpers/crm-fixtures';
 test.describe('public funding application', () => {
   test('submits the simplified funding-options application', async ({ page }) => {
     await mockCrmApis(page);
+    await page.route('**/api/applications/*/signature', async (route) => {
+      const payload = route.request().postDataJSON() as any;
+      expect(payload.signature_data_url).toContain('data:image/png;base64,');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, documentId: 'signed-doc-1' }) });
+    });
 
     await page.goto('/apply');
 
@@ -29,11 +34,17 @@ test.describe('public funding application', () => {
     const disclosureText = page.getByText('I authorize Elite Funding Solutions and its funding partners to review my business').first();
     await expect(disclosureText).toHaveCSS('color', 'rgb(17, 24, 39)');
     await expect(disclosureText).toHaveCSS('font-size', '14px');
+    const signaturePad = page.getByTestId('application-signature-pad');
+    await signaturePad.dragTo(signaturePad, {
+      sourcePosition: { x: 40, y: 95 },
+      targetPosition: { x: 260, y: 105 },
+    });
+    await expect(page.getByText('Signature captured.')).toBeVisible();
     await page.getByLabel(/I have read and agree to the Authorization/).check();
     await page.getByRole('button', { name: /Get My Funding Options/i }).click();
 
     await expect(page.getByText('Application Received')).toBeVisible();
-    await expect(page.getByText('Thank you. Your application has been received. An Elite Funding Solutions funding specialist will review your information and contact you shortly.')).toBeVisible();
+    await expect(page.getByText('Thank you. Your signed application has been received. An Elite Funding Solutions funding specialist will review your information and contact you shortly.')).toBeVisible();
   });
 
   test('requires the minimum identity and business fields', async ({ page }) => {

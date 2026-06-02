@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
-import { buildPartnerApplicationPayload, parsePartnerApplicationCsv } from '@/lib/partner-application-fields';
+import { extractPartnerApplicationPayloadFromUpload } from '@/lib/partner-application-extraction';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -121,11 +121,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const sourcePartnerName = text(formData.get('source_partner_name'));
   const notes = text(formData.get('notes'));
-  const csvPayload = extension === 'csv' ? parsePartnerApplicationCsv(await file.text()) : {};
+  const fileBytes = Buffer.from(await file.arrayBuffer());
   const originalPath = `${profile.organization_id}/${deal.id}/partner-applications/${Date.now()}-${safeName(file.name)}`;
   const { error: uploadError } = await supabase.storage
     .from('application-documents')
-    .upload(originalPath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+    .upload(originalPath, fileBytes, { contentType: file.type || 'application/octet-stream', upsert: false });
 
   if (uploadError) return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
 
@@ -152,7 +152,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
 
-  const extractedPayload = buildPartnerApplicationPayload({
+  const extractedPayload = await extractPartnerApplicationPayloadFromUpload({
+    fileName: file.name,
+    mimeType: file.type || null,
+    bytes: fileBytes,
+    fallback: {
     company_name: (dealBusiness as any)?.legal_name || deal.title || '',
     legal_name: (dealBusiness as any)?.legal_name || deal.title || '',
     business_address: (dealBusiness as any)?.address || '',
@@ -161,9 +165,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     business_email: (dealBusiness as any)?.email || '',
     start_date: (dealBusiness as any)?.start_date || '',
     requested_amount: deal.requested_amount || '',
-    ...csvPayload,
     source_partner_name: sourcePartnerName,
     extraction_note: extension === 'csv' ? 'CSV uploaded and mapped from the first data row. Review/edit fields before sending if the partner file has multiple merchants or unusual headers.' : 'Elite PDF generated from current CRM fields. Review and edit fields if the partner file has newer data.',
+    },
   });
 
   const { data: upload, error: uploadRecordError } = await supabase

@@ -128,17 +128,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const invalidDocument = (selectedDocuments || []).find((doc: any) => doc.deal_id !== deal.id && doc.application_id !== deal.application_id);
   if (invalidDocument) return NextResponse.json({ success: false, error: 'Selected attachments must belong to this deal.' }, { status: 400 });
 
-  const { data: latestConvertedApplication } = await supabase
-    .from('documents')
-    .select(DOCUMENT_PACKAGE_SELECT)
-    .eq('organization_id', profile.organization_id)
-    .eq('deal_id', deal.id)
-    .eq('document_type', 'completed_application')
-    .eq('application_variant', 'elite_converted_partner')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
   const [{ data: application }, { data: business }, { data: latestPartnerApplication }] = await Promise.all([
     deal.application_id
       ? supabase
@@ -183,8 +172,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }));
   }
 
-  let generatedApplicationDocument = latestConvertedApplication;
-  if (!generatedApplicationDocument) {
+  let generatedApplicationDocument: any = null;
+  {
     const editedPayload = (latestPartnerApplication as any)?.edited_payload || {};
     const applicationForPdf = {
       ...(application || {}),
