@@ -12,6 +12,7 @@ export function GmailConnection() {
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     checkConnection();
@@ -67,6 +68,30 @@ export function GmailConnection() {
     }
   };
 
+  const handleSendTest = async () => {
+    if (!connectedEmail) return;
+    setSendingTest(true);
+
+    try {
+      const response = await fetch('/api/gmail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: connectedEmail,
+          subject: 'Elite Funding CRM Gmail test',
+          body: 'This test confirms the CRM can send email through the connected Google Workspace account.',
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to send test email');
+      toast.success('Test email sent');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to send test email');
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -89,7 +114,7 @@ export function GmailConnection() {
               <CardTitle>Gmail Integration</CardTitle>
               <CardDescription>
                 {isConnected 
-                  ? 'Send lender emails from your Google Workspace account'
+                  ? 'Send funder emails from your Google Workspace account'
                   : 'Connect your Google Workspace email'}
               </CardDescription>
             </div>
@@ -115,13 +140,28 @@ export function GmailConnection() {
               <div className="font-medium text-[#09090B]">{connectedEmail}</div>
             </div>
             <div className="text-sm text-[#71717A]">
-              Send lender submissions from your connected account<br />
-              Keep lender replies routed to the same inbox<br />
+              Send funder submissions from your connected account<br />
+              Keep funder replies routed to the same inbox<br />
               CRM logs sends that you initiate
             </div>
-            <Button variant="outline" onClick={handleDisconnect}>
-              Disconnect Gmail
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={handleSendTest} disabled={sendingTest}>
+                {sendingTest ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4 mr-2" />
+                    Send Test Email
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" onClick={handleDisconnect}>
+                Disconnect Gmail
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -131,11 +171,11 @@ export function GmailConnection() {
             <ul className="text-sm text-[#71717A] space-y-2">
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                Send lender submissions directly from your work email
+                Send funder submissions directly from your work email
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-                Route lender replies back to the same inbox
+                Route funder replies back to the same inbox
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
