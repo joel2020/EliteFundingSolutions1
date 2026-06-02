@@ -78,15 +78,24 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: 'Supported partner applications: PDF, image, DOC/DOCX, or CSV up to 15MB.' }, { status: 400 });
   }
 
-  const { data: deal } = await supabase
+  const { data: deal, error: dealError } = await supabase
     .from('deals')
-    .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount,businesses(legal_name,address,phone,email,start_date,ein_last4)')
+    .select('id,organization_id,business_id,application_id,lead_id,title,requested_amount')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .is('deleted_at', null)
     .single();
 
-  if (!deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+  if (dealError || !deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+
+  const { data: dealBusiness } = deal.business_id
+    ? await supabase
+      .from('businesses')
+      .select('*')
+      .eq('id', deal.business_id)
+      .eq('organization_id', profile.organization_id)
+      .maybeSingle()
+    : { data: null };
 
   let applicationId = deal.application_id as string | null;
   if (!applicationId) {
@@ -144,13 +153,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
 
   const extractedPayload = buildPartnerApplicationPayload({
-    company_name: (deal as any).businesses?.legal_name || deal.title || '',
-    legal_name: (deal as any).businesses?.legal_name || deal.title || '',
-    business_address: (deal as any).businesses?.address || '',
-    address: (deal as any).businesses?.address || '',
-    business_phone: (deal as any).businesses?.phone || '',
-    business_email: (deal as any).businesses?.email || '',
-    start_date: (deal as any).businesses?.start_date || '',
+    company_name: (dealBusiness as any)?.legal_name || deal.title || '',
+    legal_name: (dealBusiness as any)?.legal_name || deal.title || '',
+    business_address: (dealBusiness as any)?.address || '',
+    address: (dealBusiness as any)?.address || '',
+    business_phone: (dealBusiness as any)?.phone || '',
+    business_email: (dealBusiness as any)?.email || '',
+    start_date: (dealBusiness as any)?.start_date || '',
     requested_amount: deal.requested_amount || '',
     ...csvPayload,
     source_partner_name: sourcePartnerName,
@@ -186,14 +195,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .eq('id', applicationId)
       .eq('organization_id', profile.organization_id)
       .maybeSingle(),
-    deal.business_id
-      ? supabase
-        .from('businesses')
-        .select('*')
-        .eq('id', deal.business_id)
-        .eq('organization_id', profile.organization_id)
-        .maybeSingle()
-      : Promise.resolve({ data: null }),
+    Promise.resolve({ data: dealBusiness }),
     deal.business_id
       ? supabase
         .from('business_owners')
@@ -218,12 +220,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const pdf = await generateLenderApplicationPdf({
     deal,
     application: applicationForPdf,
-    business: { ...(business || {}), legal_name: extractedPayload.company_name || (business as any)?.legal_name || (deal as any).businesses?.legal_name },
+    business: { ...(business || {}), legal_name: extractedPayload.company_name || (business as any)?.legal_name },
     owners,
-    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || (deal as any).businesses?.ein_last4 || null,
+    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
     drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
   });
-  const fileBase = safeDealName((business as any)?.legal_name || (deal as any).businesses?.legal_name || deal.title);
+  const fileBase = safeDealName((business as any)?.legal_name || deal.title);
   const convertedPath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-elite-application.pdf`;
   const { error: convertedUploadError } = await supabase.storage
     .from('application-documents')
