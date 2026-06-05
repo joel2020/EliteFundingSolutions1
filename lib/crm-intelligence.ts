@@ -35,6 +35,26 @@ function monthsSince(value?: string | null) {
   return Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth());
 }
 
+function daysSince(value?: string | null) {
+  if (!value) return null;
+  const start = new Date(value);
+  if (Number.isNaN(start.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - start.getTime()) / 86400000));
+}
+
+const STAGE_SLA_DAYS: Record<string, number> = {
+  lead_captured: 1,
+  documents_requested: 2,
+  application_submitted: 1,
+  underwriting_review: 2,
+  submitted_to_partners: 1,
+  offers_received: 1,
+  offer_presented: 2,
+  contract_sent: 1,
+  contract_signed: 1,
+  renewal_eligible: 5,
+};
+
 export function getMissingDocuments(deal: RecordMap, documents: RecordMap[]) {
   const stage = normalize(deal.stage_slug);
   const required = REQUIRED_MCA_DOCUMENTS.filter((doc) => {
@@ -144,6 +164,172 @@ export function getDealScore(deal: RecordMap, documents: RecordMap[], positions:
     monthlyRevenue,
     timeInBusiness,
     activePositionCount: activePositions.length,
+  };
+}
+
+export function getStageAgeDays(deal: RecordMap) {
+  return daysSince(deal.stage_changed_at || deal.updated_at || deal.created_at) ?? 0;
+}
+
+export function getDealOperatingSignals(deal: RecordMap, documents: RecordMap[], positions: RecordMap[] = [], offers: RecordMap[] = [], tasks: RecordMap[] = []) {
+  const score = getDealScore(deal, documents, positions);
+  const stage = normalize(deal.stage_slug || 'lead_captured');
+  const stageAgeDays = getStageAgeDays(deal);
+  const slaDays = STAGE_SLA_DAYS[stage] ?? 3;
+  const missingDocs = getMissingDocuments(deal, documents);
+  const openTasks = tasks.filter((task) => normalize(task.status) !== 'completed');
+  const overdueTasks = openTasks.filter((task) => {
+    if (!task.due_date) return false;
+    const due = new Date(task.due_date);
+    return !Number.isNaN(due.getTime()) && due.getTime() < Date.now();
+  });
+  const acceptedOffer = offers.find((offer) => normalize(offer.status) === 'accepted');
+  const activeOffer = offers.find((offer) => ['received', 'presented', 'approved'].includes(normalize(offer.status)));
+  const complianceBlocks = getComplianceBlocks(deal, documents);
+  const blocked = Boolean(missingDocs.length || complianceBlocks.length || overdueTasks.length);
+
+  let healthScore = score.score;
+  if (stageAgeDays > slaDays) healthScore -= Math.min(24, (stageAgeDays - slaDays) * 6);
+  if (missingDocs.length) healthScore -= Math.min(18, missingDocs.length * 4);
+  if (overdueTasks.length) healthScore -= Math.min(18, overdueTasks.length * 6);
+  if (complianceBlocks.length) healthScore -= 14;
+  if (acceptedOffer) healthScore += 8;
+  else if (activeOffer) healthScore += 4;
+  healthScore = Math.max(0, Math.min(100, Math.round(healthScore)));
+
+  const status = healthScore >= 80 ? 'healthy' : healthScore >= 60 ? 'watch' : healthScore >= 40 ? 'at_risk' : 'blocked';
+  const nextAction = missingDocs.length
+    ? `Request ${missingDocs[0].label}`
+    : overdueTasks.length
+      ? `Clear overdue task: ${overdueTasks[0].title || 'follow up'}`
+    : complianceBlocks.length
+      ? complianceBlocks[0]
+      : stageAgeDays > slaDays
+        ? `Review stale ${stage.replaceAll('_', ' ')} stage`
+      : !offers.length && ['underwriting_review', 'submitted_to_partners'].includes(stage)
+        ? 'Submit package or follow up with funders'
+          : offers.length && !acceptedOffer
+            ? 'Present the best offer and capture merchant decision'
+            : acceptedOffer && !['contract_signed', 'funded'].includes(stage)
+              ? 'Send contract and collect final stips'
+              : stage === 'funded'
+                ? 'Monitor paydown for renewal timing'
+                : 'Move to the next pipeline stage';
+
+  return {
+    healthScore,
+    status,
+    stageAgeDays,
+    slaDays,
+    stale: stageAgeDays > slaDays,
+    blocked,
+    missingDocs,
+    openTasks,
+    overdueTasks,
+    complianceBlocks,
+    nextAction,
+  };
+}
+
+export function getManagerCockpit(args: {
+  deals: RecordMap[];
+  documents: RecordMap[];
+  offers: RecordMap[];
+  tasks: RecordMap[];
+  positions?: RecordMap[];
+  users?: RecordMap[];
+}) {
+  const { deals, documents, offers, tasks, positions = [], users = [] } = args;
+  const activeDeals = deals.filter((deal) => !['funded', 'declined', 'lost_unresponsive', 'withdrawn'].includes(normalize(deal.stage_slug)));
+  const signals = activeDeals.map((deal) => {
+    const dealDocs = documents.filter((doc) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
+    const dealOffers = offers.filter((offer) => offer.deal_id === deal.id);
+    const dealTasks = tasks.filter((task) => task.deal_id === deal.id || task.application_id === deal.application_id);
+    const dealPositions = positions.filter((position) => position.deal_id === deal.id || position.business_id === deal.business_id);
+    return { deal, ...getDealOperatingSignals(deal, dealDocs, dealPositions, dealOffers, dealTasks) };
+  });
+  const stalledDeals = signals.filter((row) => row.stale).sort((a, b) => b.stageAgeDays - a.stageAgeDays);
+  const blockedDeals = signals.filter((row) => row.status === 'blocked' || row.status === 'at_risk').sort((a, b) => a.healthScore - b.healthScore);
+  const readyToSubmit = signals.filter((row) => !row.missingDocs.length && ['application_submitted', 'underwriting_review'].includes(normalize(row.deal.stage_slug)));
+  const offerPending = signals.filter((row) => offers.some((offer) => offer.deal_id === row.deal.id && ['received', 'presented', 'approved'].includes(normalize(offer.status))));
+  const repRows = users
+    .filter((user) => user.role !== 'client')
+    .map((user) => {
+      const ownedDeals = deals.filter((deal) => deal.assigned_user_id === user.id);
+      const fundedDeals = ownedDeals.filter((deal) => deal.stage_slug === 'funded' || deal.funded_at);
+      const fundedVolume = fundedDeals.reduce((sum, deal) => sum + numberValue(deal.funded_amount), 0);
+      const blockedCount = blockedDeals.filter((row) => row.deal.assigned_user_id === user.id).length;
+      return { user, ownedDeals, fundedDeals, fundedVolume, blockedCount };
+    })
+    .sort((a, b) => b.fundedVolume - a.fundedVolume || b.ownedDeals.length - a.ownedDeals.length);
+
+  return {
+    activeDeals,
+    signals,
+    stalledDeals,
+    blockedDeals,
+    readyToSubmit,
+    offerPending,
+    repRows,
+    averageHealth: signals.length ? Math.round(signals.reduce((sum, row) => sum + row.healthScore, 0) / signals.length) : 100,
+  };
+}
+
+export function getCrmReportSourceOfTruth(args: {
+  leads: RecordMap[];
+  deals: RecordMap[];
+  offers: RecordMap[];
+  commissions: RecordMap[];
+  partners: RecordMap[];
+  users: RecordMap[];
+}) {
+  const { leads, deals, offers, commissions, partners, users } = args;
+  const fundedDeals = deals.filter((deal) => deal.stage_slug === 'funded' || deal.funded_at);
+  const offerOrBetterStages = new Set(['offers_received', 'offer_presented', 'contract_sent', 'contract_signed', 'funded']);
+  const sourceRows = Array.from(new Set([...leads.map((lead) => lead.lead_source || 'unknown'), ...deals.map((deal) => deal.lead_source || 'unknown')])).map((source) => {
+    const sourceLeads = leads.filter((lead) => (lead.lead_source || 'unknown') === source);
+    const sourceDeals = deals.filter((deal) => (deal.lead_source || 'unknown') === source);
+    const sourceFunded = sourceDeals.filter((deal) => deal.stage_slug === 'funded' || deal.funded_at);
+    return {
+      source,
+      leads: sourceLeads.length,
+      deals: sourceDeals.length,
+      funded: sourceFunded.length,
+      funded_volume: sourceFunded.reduce((sum, deal) => sum + numberValue(deal.funded_amount), 0),
+      conversion_rate: sourceDeals.length ? Math.round((sourceFunded.length / sourceDeals.length) * 100) : 0,
+    };
+  });
+
+  return {
+    fundedDeals,
+    pipelineValue: deals.filter((deal) => !['funded', 'declined', 'lost_unresponsive', 'withdrawn'].includes(normalize(deal.stage_slug))).reduce((sum, deal) => sum + numberValue(deal.requested_amount), 0),
+    fundedVolume: fundedDeals.reduce((sum, deal) => sum + numberValue(deal.funded_amount), 0),
+    offerConversionRate: deals.length ? Math.round((deals.filter((deal) => offerOrBetterStages.has(deal.stage_slug)).length / deals.length) * 100) : 0,
+    sourceRows,
+    repRows: users.map((user) => {
+      const repDeals = deals.filter((deal) => deal.assigned_user_id === user.id);
+      const repFunded = repDeals.filter((deal) => deal.stage_slug === 'funded' || deal.funded_at);
+      return {
+        rep: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email || 'Unassigned',
+        role: user.role,
+        deals: repDeals.length,
+        funded: repFunded.length,
+        funded_volume: repFunded.reduce((sum, deal) => sum + numberValue(deal.funded_amount), 0),
+        conversion_rate: repDeals.length ? Math.round((repFunded.length / repDeals.length) * 100) : 0,
+      };
+    }),
+    partnerRows: partners.map((partner) => {
+      const partnerOffers = offers.filter((offer) => offer.funding_partner_id === partner.id);
+      const accepted = partnerOffers.filter((offer) => ['accepted', 'funded'].includes(normalize(offer.status)));
+      return {
+        partner: partner.name,
+        offers: partnerOffers.length,
+        accepted: accepted.length,
+        approved_amount: partnerOffers.reduce((sum, offer) => sum + numberValue(offer.approved_amount), 0),
+        acceptance_rate: partnerOffers.length ? Math.round((accepted.length / partnerOffers.length) * 100) : 0,
+      };
+    }),
+    commissionForecast: commissions.reduce((sum, row) => sum + numberValue(row.commission_amount), 0),
   };
 }
 

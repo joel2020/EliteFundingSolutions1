@@ -67,9 +67,12 @@ import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
 import { APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 import {
   getComplianceBlocks,
+  getCrmReportSourceOfTruth,
   getDealScore,
+  getDealOperatingSignals,
   getDisclosureState,
   getIsoQuality,
+  getManagerCockpit,
   getMissingDocuments,
   getPartnerMatches,
   getRenewalSignal,
@@ -636,7 +639,7 @@ function PageFrame({ title, subtitle, actions, children }: { title: string; subt
 }
 
 export function CrmDashboardExperience() {
-  const { leads, deals, offers, renewals, commissions, partners, users, activities, documents, partnerSubmissions, isoBrokers, profile, loading, error } = useCrmDataset();
+  const { leads, deals, offers, renewals, commissions, partners, users, activities, documents, partnerSubmissions, isoBrokers, tasks, currentPositions, profile, loading, error } = useCrmDataset();
   const { profile: directProfile, loading: directProfileLoading } = useCrmUser();
   const fallbackExternalProfile = !directProfile && !profile ? users.find((user: RecordMap) => ['funder', 'iso_broker', 'broker', 'referral_partner', 'viewer'].includes(user.role)) : null;
   const activeProfile = directProfile || profile || fallbackExternalProfile;
@@ -660,6 +663,7 @@ export function CrmDashboardExperience() {
     funded: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0),
   }));
   const attention = deals.filter((deal: RecordMap) => ['documents_requested', 'underwriting_review', 'contract_sent'].includes(deal.stage_slug)).slice(0, 6);
+  const cockpit = getManagerCockpit({ deals, documents, offers, tasks, positions: currentPositions, users });
 
   return (
     <PageFrame title="Executive Dashboard" subtitle="MCA pipeline, production, renewals, and earnings at a glance">
@@ -675,6 +679,14 @@ export function CrmDashboardExperience() {
         <MetricCard title="Estimated Earnings" value={currency(estimatedEarnings)} subtitle="Gross commission booked" icon={<WalletCards className="h-4 w-4" />} tone="#C9A84C" href="/crm/earnings" />
         <MetricCard title="Paid Earnings" value={currency(paidEarnings)} subtitle="Commission received" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/earnings" />
         <MetricCard title="Needs Attention" value={attention.length} subtitle="Docs, UW, or contracts" icon={<AlertTriangle className="h-4 w-4" />} tone="#DC2626" href="/crm/deals" />
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard title="Avg Deal Health" value={`${cockpit.averageHealth}%`} subtitle="Open pipeline quality" icon={<Target className="h-4 w-4" />} tone={cockpit.averageHealth >= 75 ? '#059669' : cockpit.averageHealth >= 55 ? '#D97706' : '#DC2626'} href="/crm/deals" />
+        <MetricCard title="Stalled Deals" value={cockpit.stalledDeals.length} subtitle="Past stage SLA" icon={<CalendarClock className="h-4 w-4" />} tone="#DC2626" href="/crm/pipeline" />
+        <MetricCard title="Blocked Files" value={cockpit.blockedDeals.length} subtitle="Health below target" icon={<AlertTriangle className="h-4 w-4" />} tone="#B91C1C" href="/crm/deals" />
+        <MetricCard title="Ready to Submit" value={cockpit.readyToSubmit.length} subtitle="Packageable files" icon={<Send className="h-4 w-4" />} tone="#2563EB" href="/crm/deals" />
+        <MetricCard title="Offer Follow-up" value={cockpit.offerPending.length} subtitle="Merchant decision needed" icon={<Mail className="h-4 w-4" />} tone="#C9A84C" href="/crm/offers" />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
@@ -711,6 +723,52 @@ export function CrmDashboardExperience() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
+        <CrmCard className="xl:col-span-3">
+          <div className="border-b border-[#E2E8F0] p-4">
+            <h2 className="text-sm font-semibold text-[#0F172A]">Manager Cockpit</h2>
+            <p className="text-xs text-[#64748B]">SLA misses, blockers, and files ready for action</p>
+          </div>
+          <div className="grid gap-0 divide-y divide-[#E2E8F0] xl:grid-cols-3 xl:divide-x xl:divide-y-0">
+            <div className="p-4">
+              <p className="text-[11px] font-semibold uppercase text-[#64748B]">Stalled</p>
+              <div className="mt-3 space-y-3">
+                {cockpit.stalledDeals.slice(0, 4).map((row) => (
+                  <Link key={row.deal.id} href={`/crm/deals/${row.deal.id}`} className="block rounded-[7px] border border-[#E2E8F0] p-3 hover:border-[#C9A84C]">
+                    <p className="truncate text-sm font-semibold text-[#0F172A]">{businessName(row.deal)}</p>
+                    <p className="mt-1 text-xs text-[#64748B]">{stageLabel(row.deal.stage_slug)} · {row.stageAgeDays}d in stage · SLA {row.slaDays}d</p>
+                  </Link>
+                ))}
+                {!cockpit.stalledDeals.length && <p className="text-sm text-[#64748B]">No open deal is past its stage SLA.</p>}
+              </div>
+            </div>
+            <div className="p-4">
+              <p className="text-[11px] font-semibold uppercase text-[#64748B]">Blocked</p>
+              <div className="mt-3 space-y-3">
+                {cockpit.blockedDeals.slice(0, 4).map((row) => (
+                  <Link key={row.deal.id} href={`/crm/deals/${row.deal.id}`} className="block rounded-[7px] border border-[#E2E8F0] p-3 hover:border-[#C9A84C]">
+                    <p className="truncate text-sm font-semibold text-[#0F172A]">{businessName(row.deal)}</p>
+                    <p className="mt-1 text-xs text-[#64748B]">{row.healthScore}% health · {row.nextAction}</p>
+                  </Link>
+                ))}
+                {!cockpit.blockedDeals.length && <p className="text-sm text-[#64748B]">No blocked open files.</p>}
+              </div>
+            </div>
+            <div className="p-4">
+              <p className="text-[11px] font-semibold uppercase text-[#64748B]">Rep Load</p>
+              <div className="mt-3 space-y-3">
+                {cockpit.repRows.slice(0, 5).map((row) => (
+                  <div key={row.user.id} className="grid grid-cols-[1fr_64px_92px] gap-2 text-sm">
+                    <span className="truncate font-medium text-[#0F172A]">{userDisplayName(row.user)}</span>
+                    <span className="text-right text-[#64748B]">{row.ownedDeals.length} deals</span>
+                    <span className="text-right font-semibold text-[#0F172A]">{currency(row.fundedVolume)}</span>
+                  </div>
+                ))}
+                {!cockpit.repRows.length && <p className="text-sm text-[#64748B]">No rep records loaded.</p>}
+              </div>
+            </div>
+          </div>
+        </CrmCard>
+
         <CrmCard className="xl:col-span-2">
           <div className="border-b border-[#E2E8F0] p-4">
             <h2 className="text-sm font-semibold text-[#0F172A]">Deals Requiring Attention</h2>
@@ -1083,10 +1141,10 @@ export function CrmLeadsExperience() {
 function DealTable({ rows, documents, currentPositions }: { rows: RecordMap[]; documents: RecordMap[]; currentPositions: RecordMap[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1560px] text-left text-sm">
+      <table className="w-full min-w-[1840px] text-left text-sm">
         <thead className="bg-[#F8FAFC] text-[11px] uppercase tracking-normal text-[#64748B]">
           <tr>
-            {['Deal ID', 'Business', 'Score', 'Missing Docs', 'Requested', 'Offered', 'Funded', 'Stage', 'Offer', 'Funded Status', 'Renewal', 'Current Balance', '% Paid', 'Assigned Rep', 'Funding Partner', 'Last Activity', 'Created'].map((head) => <th key={head} className="px-4 py-3 font-semibold">{head}</th>)}
+            {['Deal ID', 'Business', 'Health', 'SLA', 'Next Action', 'Score', 'Missing Docs', 'Requested', 'Offered', 'Funded', 'Stage', 'Offer', 'Funded Status', 'Renewal', 'Current Balance', '% Paid', 'Assigned Rep', 'Funding Partner', 'Last Activity', 'Created'].map((head) => <th key={head} className="px-4 py-3 font-semibold">{head}</th>)}
           </tr>
         </thead>
         <tbody className="divide-y divide-[#E2E8F0]">
@@ -1096,12 +1154,16 @@ function DealTable({ rows, documents, currentPositions }: { rows: RecordMap[]; d
             const dealDocs = documents.filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id);
             const positions = currentPositions.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
             const score = getDealScore(deal, dealDocs, positions);
+            const operatingSignals = getDealOperatingSignals(deal, dealDocs, positions, Array.isArray(deal.offers) ? deal.offers : [], []);
             const currentBalance = renewal?.current_balance || Math.max(Number(offer?.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
             const percentPaid = renewal?.percent_paid_down || (deal.stage_slug === 'funded' ? 55 : 0);
             return (
               <tr key={deal.id} className="hover:bg-[#F8FAFC]" data-testid={`deal-row-${deal.id}`}>
                 <td className="px-4 py-3"><Link href={`/crm/deals/${deal.id}`} className="font-semibold text-[#0F2B5B]">{shortId(deal.id)}</Link></td>
                 <td className="px-4 py-3 font-semibold text-[#0F172A]">{businessName(deal)}</td>
+                <td className="px-4 py-3"><span className={`font-semibold ${operatingSignals.healthScore >= 75 ? 'text-[#059669]' : operatingSignals.healthScore >= 55 ? 'text-[#D97706]' : 'text-[#DC2626]'}`}>{operatingSignals.healthScore}%</span><div className="mt-1"><StatusBadge value={operatingSignals.status} /></div></td>
+                <td className="px-4 py-3"><span className={operatingSignals.stale ? 'font-semibold text-[#DC2626]' : 'text-[#64748B]'}>{operatingSignals.stageAgeDays}d</span><p className="text-xs text-[#64748B]">SLA {operatingSignals.slaDays}d</p></td>
+                <td className="px-4 py-3 max-w-[220px] text-[#334155]">{operatingSignals.nextAction}</td>
                 <td className="px-4 py-3"><span className={`font-semibold ${score.score >= 70 ? 'text-[#059669]' : score.score >= 50 ? 'text-[#D97706]' : 'text-[#DC2626]'}`}>{score.score}</span><span className="ml-1 text-xs text-[#64748B]">{score.tier}</span></td>
                 <td className="px-4 py-3">{score.missingDocs.length ? <span className="font-semibold text-[#D97706]">{score.missingDocs.length}</span> : <span className="text-[#059669]">Clear</span>}</td>
                 <td className="px-4 py-3 font-semibold">{currency(deal.requested_amount)}</td>
@@ -1531,6 +1593,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const dealActivity = [...activities.filter((row: RecordMap) => row.deal_id === deal.id || row.resource_id === deal.id || row.application_id === deal.application_id), ...noteEvents, ...documentEvents, ...lenderEvents, ...taskEvents].sort((a: RecordMap, b: RecordMap) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 60);
   const openTasks = dealTasks.filter((task: RecordMap) => task.status !== 'completed');
   const overdueTasks = openTasks.filter((task: RecordMap) => task.due_date && new Date(task.due_date).getTime() < Date.now());
+  const operatingSignals = getDealOperatingSignals(deal, dealDocs, positions, dealOffers, dealTasks);
   const nextAction = !internalUser ? (missingDocItems.length ? `Upload ${missingDocItems[0]?.name || 'missing documents'}` : 'Monitor status') : submissionReadiness.score < 90 ? `Request ${submissionReadiness.missing[0]?.name || 'missing documents'}` : dealSubmissions.length === 0 ? 'Submit to funders' : dealOffers.length === 0 ? `Follow up with ${partnerName(dealSubmissions[0])}` : !dealOffers.some((row: RecordMap) => row.status === 'accepted') ? 'Present offer to merchant' : fundingReadiness.score < 90 ? `Collect ${fundingReadiness.missing[0]?.name || 'remaining funding stips'}` : deal.stage_slug !== 'funded' ? 'Mark deal funded' : 'Monitor renewal eligibility';
 
   const logActivity = async (activity_type: string, title: string, body?: string | null) => {
@@ -1858,20 +1921,21 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
 
   return (
     <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
-      <div className="mb-4 grid gap-3 md:grid-cols-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-5">
         <MetricCard title="Requested" value={currency(deal.requested_amount)} subtitle="Merchant ask" icon={<Target className="h-4 w-4" />} />
+        <MetricCard title="Deal Health" value={`${operatingSignals.healthScore}%`} subtitle={operatingSignals.status.replaceAll('_', ' ')} icon={<BarChart3 className="h-4 w-4" />} tone={operatingSignals.healthScore >= 75 ? '#059669' : operatingSignals.healthScore >= 55 ? '#D97706' : '#DC2626'} />
         <MetricCard title="Submission Ready" value={`${submissionReadiness.score}%`} subtitle={submissionReadiness.status} icon={<ClipboardList className="h-4 w-4" />} tone={submissionReadiness.score >= 90 ? '#059669' : submissionReadiness.score >= 65 ? '#D97706' : '#DC2626'} />
         <MetricCard title="Funders / Offers" value={`${dealSubmissions.length} / ${dealOffers.length}`} subtitle="Submissions and responses" icon={<Building2 className="h-4 w-4" />} tone="#2563EB" />
         <MetricCard title="Next Best Action" value={nextAction} subtitle={overdueTasks.length ? `${overdueTasks.length} overdue task(s)` : 'Current operational priority'} icon={<Sparkles className="h-4 w-4" />} tone="#C9A84C" />
       </div>
       <div className="mb-4 grid gap-3 lg:grid-cols-[1.3fr_0.7fr]">
         <CrmCard className="p-4"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Next best action</p><h2 className="mt-2 text-xl font-semibold text-[#0F172A]">{nextAction}</h2><p className="mt-2 text-sm text-[#64748B]">Critical missing items: {missingDocItems.slice(0, 4).map((item) => item.name).join(', ') || 'None'}.</p></CrmCard>
-        <CrmCard className="p-4"><InfoGrid rows={[["Current stage", stageLabel(deal.stage_slug)], ["Assigned owner", repName(deal)], ["Recent activity", date(dealActivity[0]?.created_at)], ["Open tasks", openTasks.length]]} /></CrmCard>
+        <CrmCard className="p-4"><InfoGrid rows={[["Current stage", stageLabel(deal.stage_slug)], ["Assigned owner", repName(deal)], ["Stage age", `${operatingSignals.stageAgeDays} day(s) / ${operatingSignals.slaDays} SLA`], ["Recent activity", date(dealActivity[0]?.created_at)], ["Open tasks", openTasks.length], ["Health status", <StatusBadge key="health" value={operatingSignals.status} />]]} /></CrmCard>
       </div>
       <CrmCard className="p-4">
         <div className="mb-4 flex flex-col gap-2 border-b border-[#E2E8F0] pb-4 md:flex-row md:items-center md:justify-between"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Current stage</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p></div>{internalUser ? <Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px] md:w-[220px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select> : <StatusBadge value={deal.stage_slug} />}</div>
         <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['applications','Applications'],['documents','Documents'],['notes','Notes'],['lenders','Funders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
-          <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2">{repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. Current version: #{deal.submission_sequence || repeatDeals.length + 1}. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}<InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]}/><div className="grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
+          <TabsContent value="overview"><div className="grid gap-4 lg:grid-cols-2">{repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. Current version: #{deal.submission_sequence || repeatDeals.length + 1}. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}<InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["Phone", deal.businesses?.phone || 'Unknown'], ["Email", deal.businesses?.email || 'Unknown'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Compliance gate", complianceBlocks.length ? complianceBlocks.join(' ') : 'Clear']]}/><div className="grid gap-3"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><CrmCard className="p-4 lg:col-span-2"><h3 className="text-sm font-semibold text-[#0F172A]">Operating Signals</h3><InfoGrid rows={[["Health score", `${operatingSignals.healthScore}%`], ["SLA status", operatingSignals.stale ? `${operatingSignals.stageAgeDays - operatingSignals.slaDays} day(s) past SLA` : 'On track'], ["Open blockers", operatingSignals.complianceBlocks.length + operatingSignals.missingDocs.length + operatingSignals.overdueTasks.length], ["Underwriting tier", intelligence.tier], ["Max estimated funding", currency(intelligence.maxFunding)], ["Max daily payment", currency(intelligence.maxDailyPayment)]]} /><div className="mt-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#334155]"><b className="text-[#0F172A]">AI review queue:</b> {operatingSignals.nextAction}. Risk flags: {intelligence.flags.join(', ')}.</div></CrmCard><div className="lg:col-span-2"><SimpleRows rows={dealActivity.slice(0, 5)} empty="No recent activity yet." render={(row) => <div><b>{row.title || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} /></div></div></TabsContent>
           <TabsContent value="readiness"><div className="mb-4 grid gap-3 md:grid-cols-2"><ReadinessCard title="Submission readiness" readiness={submissionReadiness} tone="#0F2B5B" /><ReadinessCard title="Funding readiness" readiness={fundingReadiness} tone="#059669" /></div><ChecklistTable rows={checklist} /></TabsContent>
           <TabsContent value="applications">
             <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -2070,6 +2134,7 @@ export function CrmReportsExperience() {
     return { month, funded: rangedDeals.filter((deal: RecordMap) => new Date(deal.funded_at || deal.created_at).getMonth() === d.getMonth()).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0) };
   });
   const fundedDeals = rangedDeals.filter((row: RecordMap) => row.stage_slug === 'funded' || row.funded_at);
+  const trustedReports = getCrmReportSourceOfTruth({ leads: rangedLeads, deals: rangedDeals, offers: rangedOffers, commissions: rangedCommissions, partners, users });
   const reportRows = [
     { name: 'Deals', value: rangedDeals.length, rows: rangedDeals },
     { name: 'Funding', value: currency(fundedDeals.reduce((sum: number, row: RecordMap) => sum + Number(row.funded_amount || 0), 0)), rows: fundedDeals },
@@ -2077,6 +2142,9 @@ export function CrmReportsExperience() {
     { name: 'Earnings', value: currency(rangedCommissions.reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0)), rows: rangedCommissions },
     { name: 'User performance', value: users.length, rows: users.map((user: RecordMap) => ({ email: user.email, role: user.role, active: user.is_active, deals: rangedDeals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).length, earnings: rangedCommissions.filter((row: RecordMap) => row.rep_id === user.id).reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0) })) },
     { name: 'Funding partner performance', value: partners.length, rows: partners.map((partner: RecordMap) => ({ name: partner.name, offers: rangedOffers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).length, approved_amount: rangedOffers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).reduce((sum: number, offer: RecordMap) => sum + Number(offer.approved_amount || 0), 0) })) },
+    { name: 'Lead source conversion', value: trustedReports.sourceRows.length, rows: trustedReports.sourceRows },
+    { name: 'Rep funded performance', value: trustedReports.repRows.length, rows: trustedReports.repRows },
+    { name: 'Partner acceptance', value: trustedReports.partnerRows.length, rows: trustedReports.partnerRows },
     { name: 'Approved but not accepted', value: rangedOffers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)).length, rows: rangedOffers.filter((offer: RecordMap) => ['received', 'presented', 'approved'].includes(offer.status)) },
   ];
   const exportPack = () => {
@@ -2084,10 +2152,24 @@ export function CrmReportsExperience() {
   };
   return (
     <PageFrame title="Reports" subtitle="Date-filtered MCA production, rep, partner, renewal, and earnings reports" actions={<div className="flex gap-2"><Select value={dateRange} onValueChange={setDateRange}><SelectTrigger className="h-9 w-[130px] rounded-[7px]"><Filter className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="30d">Last 30 days</SelectItem><SelectItem value="90d">Last 90 days</SelectItem><SelectItem value="all">All time</SelectItem></SelectContent></Select><Button className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={exportPack}><Download className="mr-2 h-4 w-4" />Export pack</Button></div>}>
+      <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard title="Pipeline Value" value={currency(trustedReports.pipelineValue)} subtitle="Open requested amount" icon={<Briefcase className="h-4 w-4" />} tone="#2563EB" />
+        <MetricCard title="Funded Volume" value={currency(trustedReports.fundedVolume)} subtitle="Closed funding" icon={<TrendingUp className="h-4 w-4" />} tone="#059669" />
+        <MetricCard title="Offer Conversion" value={pct(trustedReports.offerConversionRate)} subtitle="Deals reaching offer stage" icon={<Percent className="h-4 w-4" />} tone="#7C3AED" />
+        <MetricCard title="Commission Forecast" value={currency(trustedReports.commissionForecast)} subtitle="Booked gross commissions" icon={<WalletCards className="h-4 w-4" />} tone="#C9A84C" />
+        <MetricCard title="Source Channels" value={trustedReports.sourceRows.length} subtitle="Tracked lead origins" icon={<Database className="h-4 w-4" />} tone="#0F2B5B" />
+      </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <CrmCard className="p-4"><h2 className="text-sm font-semibold">Pipeline Conversion</h2><ResponsiveContainer width="100%" height={290}><BarChart data={conversion}><CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="value" fill="#0F2B5B" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></CrmCard>
         <CrmCard className="p-4"><h2 className="text-sm font-semibold">Funded Volume Trend</h2><ResponsiveContainer width="100%" height={290}><LineChart data={monthly}><CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip formatter={(value) => currency(value)} /><Line type="monotone" dataKey="funded" stroke="#C9A84C" strokeWidth={3} dot={{ r: 4 }} /></LineChart></ResponsiveContainer></CrmCard>
       </div>
+      <CrmCard className="mt-4 overflow-x-auto">
+        <div className="border-b border-[#E2E8F0] p-4">
+          <h2 className="text-sm font-semibold text-[#0F172A]">Lead Source Conversion</h2>
+          <p className="text-xs text-[#64748B]">Shared reporting dataset for source quality, funded volume, and conversion rate</p>
+        </div>
+        <table className="w-full min-w-[840px] text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr>{['Source', 'Leads', 'Deals', 'Funded', 'Funded Volume', 'Conversion'].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr></thead><tbody className="divide-y divide-[#E2E8F0]">{trustedReports.sourceRows.map((row) => <tr key={row.source}><td className="px-4 py-3 font-semibold capitalize">{row.source.replaceAll('_', ' ')}</td><td className="px-4 py-3">{row.leads}</td><td className="px-4 py-3">{row.deals}</td><td className="px-4 py-3">{row.funded}</td><td className="px-4 py-3">{currency(row.funded_volume)}</td><td className="px-4 py-3">{pct(row.conversion_rate)}</td></tr>)}</tbody></table>
+      </CrmCard>
       <CrmCard className="mt-4 overflow-hidden">
         <table className="w-full text-left text-sm"><thead className="bg-[#F8FAFC] text-[11px] uppercase text-[#64748B]"><tr><th className="px-4 py-3">Report</th><th className="px-4 py-3">Current value</th><th className="px-4 py-3">Exports</th><th className="px-4 py-3">Action</th></tr></thead><tbody className="divide-y divide-[#E2E8F0]">{reportRows.map((report) => <tr key={report.name}><td className="px-4 py-3 font-semibold">{report.name}</td><td className="px-4 py-3">{report.value}</td><td className="px-4 py-3">CSV</td><td className="px-4 py-3"><Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => exportCsv(`crm-${report.name.toLowerCase().replaceAll(' ', '-')}`, report.rows)}>Export</Button></td></tr>)}</tbody></table>
       </CrmCard>

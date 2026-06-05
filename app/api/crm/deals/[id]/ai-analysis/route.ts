@@ -8,6 +8,9 @@ const AI_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', '
 type RecordMap = Record<string, any>;
 type AiProvider = 'azure-openai' | 'openai' | 'rules';
 
+const AI_PROVIDER = (process.env.AI_PROVIDER || 'azure').toLowerCase();
+const ALLOW_OPENAI_FALLBACK = process.env.ALLOW_OPENAI_FALLBACK === 'true';
+
 const analysisSchema = {
   type: 'object',
   additionalProperties: false,
@@ -249,7 +252,7 @@ async function generateAzureOpenAiResponsesAnalysis(context: RecordMap) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: process.env.AZURE_OPENAI_MODEL || 'gpt-5.5',
+      model: process.env.AZURE_OPENAI_MODEL || 'gpt-4.1-mini',
       input: messages.map((message) => ({
         role: message.role,
         content: [{ type: 'input_text', text: message.content }],
@@ -281,8 +284,10 @@ async function generateAiAnalysis(context: RecordMap): Promise<{ provider: AiPro
   const azureAnalysis = await generateAzureOpenAiResponsesAnalysis(context) || await generateAzureOpenAiAnalysis(context);
   if (azureAnalysis) return { provider: 'azure-openai', analysis: azureAnalysis };
 
-  const openAiAnalysis = await generateOpenAiAnalysis(context);
-  if (openAiAnalysis) return { provider: 'openai', analysis: openAiAnalysis };
+  if (AI_PROVIDER === 'openai' || ALLOW_OPENAI_FALLBACK) {
+    const openAiAnalysis = await generateOpenAiAnalysis(context);
+    if (openAiAnalysis) return { provider: 'openai', analysis: openAiAnalysis };
+  }
 
   return null;
 }
@@ -320,9 +325,9 @@ export async function POST(_request: Request, { params }: { params: { id: string
 
   const context = {
     aiConfigured: Boolean(
-      process.env.OPENAI_API_KEY ||
-      (process.env.AZURE_OPENAI_API_KEY && (process.env.AZURE_OPENAI_RESPONSES_URL || process.env.AZURE_OPENAI_CHAT_COMPLETIONS_URL))
+      process.env.AZURE_OPENAI_API_KEY && (process.env.AZURE_OPENAI_RESPONSES_URL || process.env.AZURE_OPENAI_CHAT_COMPLETIONS_URL)
     ),
+    aiProvider: 'azure-openai',
     deal: redactSensitiveFields(deal),
     business: redactSensitiveFields((businessResult as any).data || null),
     application: redactSensitiveFields((applicationResult as any).data || null),
