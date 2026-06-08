@@ -265,7 +265,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     document.cookie = `sb-mdrrcrmowurbrwvdsgnq-auth-token=base64-${encodedSession}; path=/; SameSite=Lax`;
   });
 
-  await page.route('**/auth/v1/token?grant_type=password', async (route) => {
+  await page.route('**/auth/v1/token**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -304,6 +304,48 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.user_profiles = state.user_profiles.map((profile) => profile.user_id === 'auth-user-1' ? { ...profile, last_login_at: now } : profile);
     calls.push({ method: route.request().method(), table: 'login_event_api', body: { user_id: 'auth-user-1' } });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, last_login_at: now }) });
+  });
+
+  await page.route('**/api/crm/dashboard/summary', async (route) => {
+    const businessById = Object.fromEntries(state.businesses.map((business) => [business.id, business]));
+    const userById = Object.fromEntries(state.user_profiles.map((user) => [user.id, user]));
+    const deals = state.deals.map((deal) => ({ ...deal, businesses: businessById[deal.business_id], user_profiles: userById[deal.assigned_user_id], display_name: businessById[deal.business_id]?.dba || deal.title }));
+    const activeDeals = deals.filter((deal) => !['funded', 'declined', 'lost_unresponsive'].includes(deal.stage_slug));
+    const fundedDeals = deals.filter((deal) => deal.stage_slug === 'funded' || deal.funded_at);
+    const attention = deals.filter((deal) => ['documents_requested', 'underwriting_review', 'contract_sent'].includes(deal.stage_slug)).slice(0, 6);
+    calls.push({ method: route.request().method(), table: 'dashboard_summary_api', body: null });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        metrics: {
+          totalLeads: state.leads.length,
+          activeDeals: activeDeals.length,
+          fundedDeals: fundedDeals.length,
+          totalFunded: fundedDeals.reduce((sum, deal) => sum + Number(deal.funded_amount || 0), 0),
+          pendingOffers: state.offers.filter((offer) => ['received', 'presented'].includes(offer.status)).length,
+          approvalRate: 0,
+          renewalOpportunities: state.renewals.length,
+          estimatedEarnings: state.commissions.reduce((sum, row) => sum + Number(row.commission_amount || 0), 0),
+          paidEarnings: state.commissions.filter((row) => row.payment_status === 'paid').reduce((sum, row) => sum + Number(row.commission_amount || 0), 0),
+          needsAttention: attention.length,
+        },
+        stageData: [['New', 0], ['Docs Needed', 0], ['Submitted', 0], ['Under Review', deals.length], ['Offer Received', 0]].map(([name, value]) => ({ name, value })),
+        partnerData: state.funding_partners.map((partner) => ({ name: partner.name, value: state.offers.filter((offer) => offer.funding_partner_id === partner.id).length || 1 })),
+        repData: state.user_profiles.map((user) => ({ name: `${user.first_name} ${user.last_name}`.trim(), deals: deals.filter((deal) => deal.assigned_user_id === user.id).length, funded: 0 })),
+        attention,
+        activities: state.activities.slice(0, 6),
+        cockpit: {
+          averageHealth: 72,
+          stalledDeals: deals.slice(0, 1).map((deal) => ({ deal, healthScore: 72, status: 'watch', stageAgeDays: 3, slaDays: 2, nextAction: 'Follow up with funder' })),
+          blockedDeals: deals.slice(0, 1).map((deal) => ({ deal, healthScore: 48, status: 'at_risk', stageAgeDays: 3, slaDays: 2, nextAction: 'Request documents' })),
+          readyToSubmit: deals.slice(0, 1).map((deal) => ({ deal, healthScore: 72, status: 'watch', stageAgeDays: 3, slaDays: 2, nextAction: 'Prepare package' })),
+          offerPending: [],
+          repRows: state.user_profiles.map((user) => ({ user, ownedDealCount: deals.filter((deal) => deal.assigned_user_id === user.id).length, fundedVolume: 0 })),
+        },
+      }),
+    });
   });
 
   await page.route('**/api/crm/archive', async (route) => {

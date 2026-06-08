@@ -4,8 +4,8 @@ import { DEFAULT_ORG_ID, createServiceSupabaseClient } from '@/lib/server-supaba
 
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
 function safeRedirectPath(path: string | null) {
   if (!path || !path.startsWith('/') || path.startsWith('//')) return '/crm';

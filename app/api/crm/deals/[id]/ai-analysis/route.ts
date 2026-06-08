@@ -73,13 +73,16 @@ function compactRows(rows: RecordMap[] | null | undefined, limit = 12) {
 
 function fallbackAnalysis(context: RecordMap) {
   const documents = context.documents || [];
+  const documentRequests = context.documentRequests || [];
   const notes = context.notes || [];
   const riskEvents = context.riskEvents || [];
   const submissions = context.submissions || [];
   const application = context.application || {};
   const business = context.business || {};
   const deal = context.deal || {};
+  const openRequests = documentRequests.filter((request: RecordMap) => request.required !== false && !['approved', 'waived'].includes(request.status));
   const missingItems = [
+    ...openRequests.slice(0, 5).map((request: RecordMap) => request.label || request.document_type),
     documents.some((document: RecordMap) => /application/i.test(String(document.document_type || document.label || document.file_name || '')))
       ? ''
       : 'Completed signed application',
@@ -87,7 +90,7 @@ function fallbackAnalysis(context: RecordMap) {
       ? ''
       : 'Recent business bank statements',
     application.signature_status === 'signed' ? '' : 'Confirmed borrower signature',
-  ].filter(Boolean);
+  ].filter(Boolean).filter((item, index, list) => list.indexOf(item) === index);
   const riskFlags = [
     ...riskEvents.slice(0, 4).map((event: RecordMap) => event.title || event.event_type || event.risk_type || event.notes || 'Risk event recorded'),
     Number(application.nsf_count || 0) > 0 ? `${application.nsf_count} NSF item(s) recorded` : '',
@@ -308,7 +311,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
     return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
   }
 
-  const [businessResult, applicationResult, documentsResult, notesResult, riskEventsResult, submissionsResult, offersResult, positionsResult] = await Promise.all([
+  const [businessResult, applicationResult, documentsResult, documentRequestsResult, notesResult, riskEventsResult, submissionsResult, offersResult, positionsResult, tasksResult, stipulationsResult, partnerApplicationsResult] = await Promise.all([
     deal.business_id
       ? supabase.from('businesses').select('*').eq('id', deal.business_id).eq('organization_id', profile.organization_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -316,11 +319,15 @@ export async function POST(_request: Request, { params }: { params: { id: string
       ? supabase.from('applications').select('*').eq('id', deal.application_id).eq('organization_id', profile.organization_id).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from('documents').select('id,label,file_name,document_type,status,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(25),
+    supabase.from('document_requests').select('id,label,document_type,category,status,required,due_date,notes,updated_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(25),
     supabase.from('notes').select('id,title,body,note,content,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('deal_risk_events').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('partner_submissions').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(15),
     supabase.from('offers').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(10),
     supabase.from('current_positions').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).limit(10),
+    supabase.from('tasks').select('id,title,status,priority,due_date,description,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('due_date', { ascending: true }).limit(15),
+    supabase.from('stipulations').select('id,name,status,required_by_partner,due_date,notes,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(15),
+    supabase.from('partner_applications').select('id,status,source_partner_name,original_file_name,created_at,notes,extracted_payload,edited_payload').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(10),
   ]);
 
   const context = {
@@ -332,11 +339,15 @@ export async function POST(_request: Request, { params }: { params: { id: string
     business: redactSensitiveFields((businessResult as any).data || null),
     application: redactSensitiveFields((applicationResult as any).data || null),
     documents: compactRows((documentsResult as any).data),
+    documentRequests: compactRows((documentRequestsResult as any).data),
     notes: compactRows((notesResult as any).data),
     riskEvents: compactRows((riskEventsResult as any).data),
     submissions: compactRows((submissionsResult as any).data),
     offers: compactRows((offersResult as any).data),
     currentPositions: compactRows((positionsResult as any).data),
+    tasks: compactRows((tasksResult as any).data),
+    stipulations: compactRows((stipulationsResult as any).data),
+    partnerApplications: compactRows((partnerApplicationsResult as any).data),
   };
 
   try {

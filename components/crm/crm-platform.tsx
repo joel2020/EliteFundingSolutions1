@@ -106,6 +106,34 @@ type CrmDataset = {
   partnerApplications: RecordMap[];
 };
 
+type DashboardSummary = {
+  metrics: {
+    totalLeads: number;
+    activeDeals: number;
+    fundedDeals: number;
+    totalFunded: number;
+    pendingOffers: number;
+    approvalRate: number;
+    renewalOpportunities: number;
+    estimatedEarnings: number;
+    paidEarnings: number;
+    needsAttention: number;
+  };
+  stageData: RecordMap[];
+  partnerData: RecordMap[];
+  repData: RecordMap[];
+  attention: RecordMap[];
+  activities: RecordMap[];
+  cockpit: {
+    averageHealth: number;
+    stalledDeals: RecordMap[];
+    blockedDeals: RecordMap[];
+    readyToSubmit: RecordMap[];
+    offerPending: RecordMap[];
+    repRows: RecordMap[];
+  };
+};
+
 const STAGES = [
   ['lead_captured', 'New'],
   ['documents_requested', 'Docs Needed'],
@@ -277,6 +305,31 @@ function defaultFunderPackageDocumentIds(docs: RecordMap[], partner?: RecordMap 
     .filter(Boolean) as string[];
   const eligibleIds = docs.filter(isFunderPackageDocument).map((doc) => doc.id);
   return Array.from(new Set([...requiredIds, ...eligibleIds]));
+}
+
+function packageDocLabel(doc: RecordMap) {
+  if (doc.document_type === 'completed_application' || doc.application_variant === 'elite_converted_partner' || doc.application_variant === 'elite_generated') return 'Elite application';
+  return detailDocTypeLabel(doc.document_type || doc.application_variant || 'other');
+}
+
+function buildDefaultFunderMessage(deal: RecordMap, docs: RecordMap[], readiness: ReturnType<typeof calculateReadiness>, partner?: RecordMap | null) {
+  const business = deal.businesses || {};
+  const missing = readiness.missing.slice(0, 4).map((item) => item.name);
+  const docTypes = Array.from(new Set(docs.map(packageDocLabel))).slice(0, 6);
+  return [
+    `Hi${partner?.name ? ` ${partner.name} team` : ''},`,
+    '',
+    `Please review the attached funding package for ${business.legal_name || business.dba || businessName(deal)}.`,
+    '',
+    `Requested amount: ${deal.requested_amount ? currency(deal.requested_amount) : 'See application'}`,
+    `Monthly revenue: ${business.monthly_gross_revenue ? currency(business.monthly_gross_revenue) : 'See file'}`,
+    docTypes.length ? `Included package: ${docTypes.join(', ')}.` : '',
+    missing.length ? `Open items we are tracking: ${missing.join(', ')}.` : '',
+    '',
+    'Please confirm receipt and let us know if you need any additional stips.',
+    '',
+    'Thank you,',
+  ].filter((line) => line !== '').join('\n');
 }
 
 function repReferralDisplayUrl(slug?: string | null) {
@@ -639,46 +692,92 @@ function PageFrame({ title, subtitle, actions, children }: { title: string; subt
 }
 
 export function CrmDashboardExperience() {
-  const { leads, deals, offers, renewals, commissions, partners, users, activities, documents, partnerSubmissions, isoBrokers, tasks, currentPositions, profile, loading, error } = useCrmDataset();
-  const { profile: directProfile, loading: directProfileLoading } = useCrmUser();
-  const fallbackExternalProfile = !directProfile && !profile ? users.find((user: RecordMap) => ['funder', 'iso_broker', 'broker', 'referral_partner', 'viewer'].includes(user.role)) : null;
-  const activeProfile = directProfile || profile || fallbackExternalProfile;
-  if (loading || directProfileLoading) return <LoadingScreen title="Dashboard" />;
-  if (activeProfile && !isInternalCrmRole(activeProfile.role)) {
-    return <PartnerDashboardExperience deals={deals} offers={offers} documents={documents} partnerSubmissions={partnerSubmissions} isoBrokers={isoBrokers} profile={activeProfile} error={error} />;
-  }
+  const { profile, loading, error } = useCrmUser();
 
-  const fundedDeals = deals.filter((deal: RecordMap) => deal.stage_slug === 'funded' || deal.funded_at);
-  const activeDeals = deals.filter((deal: RecordMap) => !['funded', 'declined', 'lost_unresponsive'].includes(deal.stage_slug));
-  const totalFunded = fundedDeals.reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0);
-  const pendingOffers = offers.filter((offer: RecordMap) => ['received', 'presented'].includes(offer.status)).length;
-  const approvalRate = deals.length ? Math.round((deals.filter((deal: RecordMap) => ['offers_received', 'offer_presented', 'contract_sent', 'contract_signed', 'funded'].includes(deal.stage_slug)).length / deals.length) * 100) : 0;
-  const estimatedEarnings = commissions.reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0);
-  const paidEarnings = commissions.filter((row: RecordMap) => row.payment_status === 'paid').reduce((sum: number, row: RecordMap) => sum + Number(row.commission_amount || 0), 0);
-  const stageData = STAGE_OPTIONS.map((stage) => ({ name: stage.label, value: deals.filter((deal: RecordMap) => deal.stage_slug === stage.value).length }));
-  const partnerData = partners.slice(0, 5).map((partner: RecordMap) => ({ name: partner.name, value: offers.filter((offer: RecordMap) => offer.funding_partner_id === partner.id).length || 1 }));
-  const repData = users.filter((user: RecordMap) => user.role !== 'client').slice(0, 6).map((user: RecordMap) => ({
-    name: userDisplayName(user),
-    deals: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).length,
-    funded: deals.filter((deal: RecordMap) => deal.assigned_user_id === user.id).reduce((sum: number, deal: RecordMap) => sum + Number(deal.funded_amount || 0), 0),
-  }));
-  const attention = deals.filter((deal: RecordMap) => ['documents_requested', 'underwriting_review', 'contract_sent'].includes(deal.stage_slug)).slice(0, 6);
-  const cockpit = getManagerCockpit({ deals, documents, offers, tasks, positions: currentPositions, users });
+  if (loading) return <LoadingScreen title="Dashboard" />;
+  if (profile && !isInternalCrmRole(profile.role)) return <PartnerDashboardContainer profile={profile} />;
+  return <InternalDashboard profileError={error} />;
+}
+
+function useCrmDashboardSummary() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/crm/dashboard/summary', { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Unable to load dashboard summary.');
+      setSummary(result as DashboardSummary);
+    } catch (err: any) {
+      setError(err.message || 'Unable to load dashboard summary.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { summary, loading, error, reload: load };
+}
+
+function PartnerDashboardContainer({ profile }: { profile: RecordMap }) {
+  const { deals, offers, documents, partnerSubmissions, isoBrokers, loading, error } = useCrmDataset();
+  if (loading) return <LoadingScreen title="Dashboard" />;
+  return <PartnerDashboardExperience deals={deals} offers={offers} documents={documents} partnerSubmissions={partnerSubmissions} isoBrokers={isoBrokers} profile={profile} error={error} />;
+}
+
+function InternalDashboard({ profileError }: { profileError: string | null }) {
+  const { summary, loading, error, reload } = useCrmDashboardSummary();
+
+  if (loading) return <LoadingScreen title="Dashboard" />;
+  const metrics = summary?.metrics || {
+    totalLeads: 0,
+    activeDeals: 0,
+    fundedDeals: 0,
+    totalFunded: 0,
+    pendingOffers: 0,
+    approvalRate: 0,
+    renewalOpportunities: 0,
+    estimatedEarnings: 0,
+    paidEarnings: 0,
+    needsAttention: 0,
+  };
+  const stageData = summary?.stageData || [];
+  const partnerData = summary?.partnerData || [];
+  const repData = summary?.repData || [];
+  const attention = summary?.attention || [];
+  const activities = summary?.activities || [];
+  const cockpit = summary?.cockpit || { averageHealth: 100, stalledDeals: [], blockedDeals: [], readyToSubmit: [], offerPending: [], repRows: [] };
 
   return (
-    <PageFrame title="Executive Dashboard" subtitle="MCA pipeline, production, renewals, and earnings at a glance">
-      {error && <div className="mb-4 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    <PageFrame title="Executive Dashboard" subtitle="MCA pipeline, production, renewals, and earnings at a glance" actions={<Button variant="outline" className="h-9 rounded-[7px]" onClick={reload}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>}>
+      {(error || profileError) && <div className="mb-4 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error || profileError}</div>}
+      <CrmCard className="mb-4 p-3">
+        <div className="flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between">
+          <div>
+            <b className="text-[#0F172A]">Production mode:</b>
+            <span className="ml-2 text-[#64748B]">Dashboard now loads from one server-side Supabase summary instead of 30+ browser queries.</span>
+          </div>
+          <StatusBadge value={error ? 'Needs review' : 'Fast summary active'} />
+        </div>
+      </CrmCard>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard title="Total Leads" value={leads.length} subtitle="All active lead records" icon={<Users className="h-4 w-4" />} href="/crm/leads" />
-        <MetricCard title="Active Deals" value={activeDeals.length} subtitle="Open funding pipeline" icon={<Briefcase className="h-4 w-4" />} tone="#2563EB" href="/crm/deals" />
-        <MetricCard title="Deals Funded" value={fundedDeals.length} subtitle="Closed funded deals" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/deals" />
-        <MetricCard title="Total Funded Volume" value={currency(totalFunded)} subtitle="Lifetime funded volume" icon={<TrendingUp className="h-4 w-4" />} tone="#0F766E" href="/crm/reports" />
-        <MetricCard title="Pending Offers" value={pendingOffers} subtitle="Received or presented" icon={<FileText className="h-4 w-4" />} tone="#D97706" href="/crm/offers" />
-        <MetricCard title="Approval Rate" value={pct(approvalRate)} subtitle="Offer-or-better conversion" icon={<Percent className="h-4 w-4" />} tone="#7C3AED" href="/crm/reports" />
-        <MetricCard title="Renewal Opportunities" value={renewals.length} subtitle="Tracked renewal records" icon={<RefreshCw className="h-4 w-4" />} tone="#0891B2" href="/crm/renewals" />
-        <MetricCard title="Estimated Earnings" value={currency(estimatedEarnings)} subtitle="Gross commission booked" icon={<WalletCards className="h-4 w-4" />} tone="#C9A84C" href="/crm/earnings" />
-        <MetricCard title="Paid Earnings" value={currency(paidEarnings)} subtitle="Commission received" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/earnings" />
-        <MetricCard title="Needs Attention" value={attention.length} subtitle="Docs, UW, or contracts" icon={<AlertTriangle className="h-4 w-4" />} tone="#DC2626" href="/crm/deals" />
+        <MetricCard title="Total Leads" value={metrics.totalLeads} subtitle="All active lead records" icon={<Users className="h-4 w-4" />} href="/crm/leads" />
+        <MetricCard title="Active Deals" value={metrics.activeDeals} subtitle="Open funding pipeline" icon={<Briefcase className="h-4 w-4" />} tone="#2563EB" href="/crm/deals" />
+        <MetricCard title="Deals Funded" value={metrics.fundedDeals} subtitle="Closed funded deals" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/deals" />
+        <MetricCard title="Total Funded Volume" value={currency(metrics.totalFunded)} subtitle="Lifetime funded volume" icon={<TrendingUp className="h-4 w-4" />} tone="#0F766E" href="/crm/reports" />
+        <MetricCard title="Pending Offers" value={metrics.pendingOffers} subtitle="Received or presented" icon={<FileText className="h-4 w-4" />} tone="#D97706" href="/crm/offers" />
+        <MetricCard title="Approval Rate" value={pct(metrics.approvalRate)} subtitle="Offer-or-better conversion" icon={<Percent className="h-4 w-4" />} tone="#7C3AED" href="/crm/reports" />
+        <MetricCard title="Renewal Opportunities" value={metrics.renewalOpportunities} subtitle="Tracked renewal records" icon={<RefreshCw className="h-4 w-4" />} tone="#0891B2" href="/crm/renewals" />
+        <MetricCard title="Estimated Earnings" value={currency(metrics.estimatedEarnings)} subtitle="Gross commission booked" icon={<WalletCards className="h-4 w-4" />} tone="#C9A84C" href="/crm/earnings" />
+        <MetricCard title="Paid Earnings" value={currency(metrics.paidEarnings)} subtitle="Commission received" icon={<CheckCircle2 className="h-4 w-4" />} tone="#059669" href="/crm/earnings" />
+        <MetricCard title="Needs Attention" value={metrics.needsAttention} subtitle="Docs, UW, or contracts" icon={<AlertTriangle className="h-4 w-4" />} tone="#DC2626" href="/crm/deals" />
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -734,7 +833,7 @@ export function CrmDashboardExperience() {
               <div className="mt-3 space-y-3">
                 {cockpit.stalledDeals.slice(0, 4).map((row) => (
                   <Link key={row.deal.id} href={`/crm/deals/${row.deal.id}`} className="block rounded-[7px] border border-[#E2E8F0] p-3 hover:border-[#C9A84C]">
-                    <p className="truncate text-sm font-semibold text-[#0F172A]">{businessName(row.deal)}</p>
+                    <p className="truncate text-sm font-semibold text-[#0F172A]">{row.deal.display_name || businessName(row.deal)}</p>
                     <p className="mt-1 text-xs text-[#64748B]">{stageLabel(row.deal.stage_slug)} · {row.stageAgeDays}d in stage · SLA {row.slaDays}d</p>
                   </Link>
                 ))}
@@ -746,7 +845,7 @@ export function CrmDashboardExperience() {
               <div className="mt-3 space-y-3">
                 {cockpit.blockedDeals.slice(0, 4).map((row) => (
                   <Link key={row.deal.id} href={`/crm/deals/${row.deal.id}`} className="block rounded-[7px] border border-[#E2E8F0] p-3 hover:border-[#C9A84C]">
-                    <p className="truncate text-sm font-semibold text-[#0F172A]">{businessName(row.deal)}</p>
+                    <p className="truncate text-sm font-semibold text-[#0F172A]">{row.deal.display_name || businessName(row.deal)}</p>
                     <p className="mt-1 text-xs text-[#64748B]">{row.healthScore}% health · {row.nextAction}</p>
                   </Link>
                 ))}
@@ -759,7 +858,7 @@ export function CrmDashboardExperience() {
                 {cockpit.repRows.slice(0, 5).map((row) => (
                   <div key={row.user.id} className="grid grid-cols-[1fr_64px_92px] gap-2 text-sm">
                     <span className="truncate font-medium text-[#0F172A]">{userDisplayName(row.user)}</span>
-                    <span className="text-right text-[#64748B]">{row.ownedDeals.length} deals</span>
+                    <span className="text-right text-[#64748B]">{row.ownedDealCount || row.ownedDeals?.length || 0} deals</span>
                     <span className="text-right font-semibold text-[#0F172A]">{currency(row.fundedVolume)}</span>
                   </div>
                 ))}
@@ -777,7 +876,7 @@ export function CrmDashboardExperience() {
           <div className="divide-y divide-[#E2E8F0]">
             {attention.length ? attention.map((deal: RecordMap) => (
               <Link key={deal.id} href={`/crm/deals/${deal.id}`} className="grid gap-3 p-4 text-sm hover:bg-[#F8FAFC] md:grid-cols-[1fr_140px_130px_110px] md:items-center">
-                <div><p className="font-semibold text-[#0F172A]">{businessName(deal)}</p><p className="text-xs text-[#64748B]">Deal {shortId(deal.id)} · {repName(deal)}</p></div>
+                <div><p className="font-semibold text-[#0F172A]">{deal.display_name || businessName(deal)}</p><p className="text-xs text-[#64748B]">Deal {shortId(deal.id)} · {repName(deal)}</p></div>
                 <div className="font-semibold text-[#0F172A]">{currency(deal.requested_amount)}</div>
                 <StatusBadge value={deal.stage_slug} />
                 <div className="text-xs text-[#64748B]">{date(deal.updated_at)}</div>
@@ -792,12 +891,13 @@ export function CrmDashboardExperience() {
             <p className="text-xs text-[#64748B]">Latest CRM movement</p>
           </div>
           <div className="divide-y divide-[#E2E8F0]">
-            {(activities.length ? activities : deals.slice(0, 6)).slice(0, 6).map((item: RecordMap) => (
+            {activities.slice(0, 6).map((item: RecordMap) => (
               <div key={item.id} className="p-4 text-sm">
-                <p className="font-medium text-[#0F172A]">{item.title || item.action || `${businessName(item)} updated`}</p>
+                <p className="font-medium text-[#0F172A]">{item.title || item.action || 'Activity'}</p>
                 <p className="mt-1 text-xs text-[#64748B]">{date(item.created_at || item.updated_at)}</p>
               </div>
             ))}
+            {!activities.length && <EmptyState title="No recent activity" body="New CRM movement will appear here." />}
           </div>
         </CrmCard>
       </div>
@@ -1594,6 +1694,27 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const openTasks = dealTasks.filter((task: RecordMap) => task.status !== 'completed');
   const overdueTasks = openTasks.filter((task: RecordMap) => task.due_date && new Date(task.due_date).getTime() < Date.now());
   const operatingSignals = getDealOperatingSignals(deal, dealDocs, positions, dealOffers, dealTasks);
+  const recommendedSubmissionPartner = partnerMatches[0]?.partner || partners[0] || null;
+  const recommendedPackageDocumentIds = defaultFunderPackageDocumentIds(dealDocs, recommendedSubmissionPartner);
+  const recommendedPackageDocs = recommendedPackageDocumentIds.map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[];
+  const completedEliteApplication = recommendedPackageDocs.find((doc) => doc.document_type === 'completed_application' || doc.application_variant === 'elite_converted_partner' || doc.application_variant === 'elite_generated') || convertedApplicationDocs[0];
+  const requiredFunderDocTypes = lenderRequiredDocTypes(recommendedSubmissionPartner);
+  const missingFunderDocTypes = recommendedSubmissionPartner ? requiredFunderDocTypes.filter((type) => !bestDocumentForType(dealDocs, type)) : [];
+  const packageBytes = recommendedPackageDocs.reduce((sum, doc) => sum + Number(doc.file_size || 0), 0);
+  const submissionBlockers = [
+    ...submissionReadiness.missing.slice(0, 6).map((item) => item.name),
+    ...submissionReadiness.rejected.slice(0, 4).map((item) => `${item.name} rejected`),
+    !completedEliteApplication ? 'Completed Elite application PDF' : '',
+    !recommendedPackageDocs.length ? 'No sendable package documents' : '',
+    recommendedSubmissionPartner && !(recommendedSubmissionPartner.submission_email || recommendedSubmissionPartner.email) ? 'Recommended funder has no submission email' : '',
+  ].filter(Boolean);
+  const submissionWarnings = [
+    ...missingFunderDocTypes.slice(0, 5).map((type) => `${detailDocTypeLabel(type)} missing for ${recommendedSubmissionPartner?.name || 'selected funder'}`),
+    packageBytes > 22 * 1024 * 1024 ? 'Package is near Gmail attachment size limits' : '',
+    dealSubmissions.length ? `${dealSubmissions.length} funder submission(s) already logged` : '',
+    selectedPartnerDefaultEvents.length ? 'Prior default risk exists for selected funder' : '',
+  ].filter(Boolean);
+  const submissionCockpitStatus = submissionBlockers.length ? 'Needs work' : submissionWarnings.length ? 'Review before send' : 'Ready to send';
   const nextAction = !internalUser ? (missingDocItems.length ? `Upload ${missingDocItems[0]?.name || 'missing documents'}` : 'Monitor status') : submissionReadiness.score < 90 ? `Request ${submissionReadiness.missing[0]?.name || 'missing documents'}` : dealSubmissions.length === 0 ? 'Submit to funders' : dealOffers.length === 0 ? `Follow up with ${partnerName(dealSubmissions[0])}` : !dealOffers.some((row: RecordMap) => row.status === 'accepted') ? 'Present offer to merchant' : fundingReadiness.score < 90 ? `Collect ${fundingReadiness.missing[0]?.name || 'remaining funding stips'}` : deal.stage_slug !== 'funded' ? 'Mark deal funded' : 'Monitor renewal eligibility';
 
   const logActivity = async (activity_type: string, title: string, body?: string | null) => {
@@ -1737,17 +1858,20 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   };
 
   const openLenderSubmission = () => {
-    const partnerId = partnerMatches[0]?.partner?.id || partners[0]?.id || '';
+    const partnerId = recommendedSubmissionPartner?.id || '';
     const partner = partners.find((row: RecordMap) => row.id === partnerId);
     setSubmissionPartnerId(partnerId);
     setSubmissionDocumentIds(defaultFunderPackageDocumentIds(dealDocs, partner));
+    setSubmissionNotes(buildDefaultFunderMessage(deal, defaultFunderPackageDocumentIds(dealDocs, partner).map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[], submissionReadiness, partner));
     setSubmissionDialogOpen(true);
   };
 
   const selectSubmissionPartner = (partnerId: string) => {
     const partner = partners.find((row: RecordMap) => row.id === partnerId);
+    const nextDocumentIds = defaultFunderPackageDocumentIds(dealDocs, partner);
     setSubmissionPartnerId(partnerId);
-    setSubmissionDocumentIds(defaultFunderPackageDocumentIds(dealDocs, partner));
+    setSubmissionDocumentIds(nextDocumentIds);
+    setSubmissionNotes(buildDefaultFunderMessage(deal, nextDocumentIds.map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[], submissionReadiness, partner));
   };
 
   const revealSensitiveApplicationData = async () => {
@@ -1932,6 +2056,43 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         <CrmCard className="p-4"><p className="text-[11px] font-semibold uppercase text-[#64748B]">Next best action</p><h2 className="mt-2 text-xl font-semibold text-[#0F172A]">{nextAction}</h2><p className="mt-2 text-sm text-[#64748B]">Critical missing items: {missingDocItems.slice(0, 4).map((item) => item.name).join(', ') || 'None'}.</p></CrmCard>
         <CrmCard className="p-4"><InfoGrid rows={[["Current stage", stageLabel(deal.stage_slug)], ["Assigned owner", repName(deal)], ["Stage age", `${operatingSignals.stageAgeDays} day(s) / ${operatingSignals.slaDays} SLA`], ["Recent activity", date(dealActivity[0]?.created_at)], ["Open tasks", openTasks.length], ["Health status", <StatusBadge key="health" value={operatingSignals.status} />]]} /></CrmCard>
       </div>
+      <CrmCard className="mb-4 p-4" data-testid="submission-cockpit">
+        <div className="flex flex-col gap-3 border-b border-[#E2E8F0] pb-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-[#0F172A]">Submission Cockpit</h2>
+              <StatusBadge value={submissionCockpitStatus} />
+            </div>
+            <p className="mt-1 text-sm text-[#64748B]">One place to confirm the package, AI next step, funder match, and Gmail send path before a file goes out.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {canUploadDocuments && <Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-1 h-3 w-3" />Upload doc</Button>}
+            {canManageApplications && <Button size="sm" variant="outline" className="h-8 rounded-[7px]" onClick={() => setPartnerApplicationDialogOpen(true)}><FileText className="mr-1 h-3 w-3" />Partner app</Button>}
+            {canSendToLenders && <Button size="sm" className="h-8 rounded-[7px] bg-[#0F2B5B]" onClick={openLenderSubmission}><Send className="mr-1 h-3 w-3" />Prepare send</Button>}
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr]">
+          <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+            <p className="text-[11px] font-semibold uppercase text-[#64748B]">Sendability</p>
+            <p className="mt-1 text-xl font-semibold text-[#0F172A]">{submissionReadiness.score}%</p>
+            <p className="mt-1 text-xs text-[#64748B]">{submissionBlockers.length ? `${submissionBlockers.length} blocker(s) before clean send.` : 'No hard blockers detected in CRM readiness.'}</p>
+            <div className="mt-3 flex flex-wrap gap-1">{submissionBlockers.slice(0, 4).map((item) => <span key={item} className="rounded-[6px] border border-red-200 bg-white px-2 py-1 text-xs text-red-800">{item}</span>)}{!submissionBlockers.length && <span className="rounded-[6px] border border-emerald-200 bg-white px-2 py-1 text-xs text-emerald-800">Ready for staff-reviewed send</span>}</div>
+          </div>
+          <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+            <p className="text-[11px] font-semibold uppercase text-[#64748B]">Recommended funder</p>
+            <p className="mt-1 text-xl font-semibold text-[#0F172A]">{recommendedSubmissionPartner?.name || 'No funder configured'}</p>
+            <p className="mt-1 text-xs text-[#64748B]">{recommendedSubmissionPartner?.submission_email || recommendedSubmissionPartner?.email || recommendedSubmissionPartner?.portal_url || 'Add an email or portal route on the funder profile.'}</p>
+            <div className="mt-3 flex flex-wrap gap-1">{partnerMatches.slice(0, 3).map((match: RecordMap) => <span key={match.partner.id} className="rounded-[6px] border border-[#DBEAFE] bg-white px-2 py-1 text-xs text-[#1D4ED8]">{match.partner.name}: {match.score}%</span>)}</div>
+          </div>
+          <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+            <p className="text-[11px] font-semibold uppercase text-[#64748B]">Package snapshot</p>
+            <p className="mt-1 text-xl font-semibold text-[#0F172A]">{recommendedPackageDocs.length} docs · {formatBytes(packageBytes)}</p>
+            <p className="mt-1 text-xs text-[#64748B]">{completedEliteApplication ? 'Elite application included.' : 'Elite application will be generated or must be attached before final send.'}</p>
+            <div className="mt-3 flex flex-wrap gap-1">{recommendedPackageDocs.slice(0, 5).map((doc) => <span key={doc.id} className="rounded-[6px] border border-[#E2E8F0] bg-white px-2 py-1 text-xs text-[#334155]">{packageDocLabel(doc)}</span>)}</div>
+          </div>
+        </div>
+        {(submissionWarnings.length > 0 || submissionBlockers.length > 0) && <div className="mt-4 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Review before sending:</b> {[...submissionBlockers, ...submissionWarnings].slice(0, 6).join(' · ')}</div>}
+      </CrmCard>
       <CrmCard className="p-4">
         <div className="mb-4 flex flex-col gap-2 border-b border-[#E2E8F0] pb-4 md:flex-row md:items-center md:justify-between"><div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Current stage</p><p className="text-sm font-semibold text-[#0F172A]">{stageLabel(deal.stage_slug)}</p></div>{internalUser ? <Select value={deal.stage_slug || 'lead_captured'} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px] md:w-[220px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select> : <StatusBadge value={deal.stage_slug} />}</div>
         <Tabs defaultValue="overview"><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['readiness','Readiness'],['applications','Applications'],['documents','Documents'],['notes','Notes'],['lenders','Funders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['tasks','Tasks'],['activity','Activity']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
@@ -2045,6 +2206,11 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           <DialogHeader><DialogTitle>Submit deal to funder</DialogTitle></DialogHeader>
           <div className="grid gap-4 overflow-y-auto pr-1">
             <div><Label className="text-xs text-[#64748B]">Funding partner</Label><Select value={submissionPartnerId} onValueChange={selectSubmissionPartner}><SelectTrigger data-testid="deal-submission-partner" className="mt-1 rounded-[7px]"><SelectValue placeholder="Select a funder" /></SelectTrigger><SelectContent>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="grid gap-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm md:grid-cols-3">
+              <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Readiness</p><p className="mt-1 font-semibold text-[#0F172A]">{submissionReadiness.score}% · {submissionReadiness.status}</p></div>
+              <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Selected package</p><p className="mt-1 font-semibold text-[#0F172A]">{submissionDocumentIds.length} attachment(s)</p></div>
+              <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Elite app</p><p className="mt-1 font-semibold text-[#0F172A]">{completedEliteApplication ? 'Included' : 'Generated if needed'}</p></div>
+            </div>
             {selectedSubmissionPartner && !(selectedSubmissionPartner.submission_email || selectedSubmissionPartner.email) && <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No submission email is saved for this funder. Add one on the funding partner profile before expecting direct email delivery.</div>}
             {selectedSubmissionPartner && <div data-testid="lender-preset-summary" className={`rounded-[8px] border p-3 text-sm ${selectedPartnerMissingDocTypes.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-950'}`}><b>Funder package preset:</b> {submissionDocumentIds.length} attachment(s) preselected. The completed Elite application is mandatory and all eligible deal documents are included by default. {selectedPartnerMissingDocTypes.length ? `Missing: ${selectedPartnerMissingDocTypes.map(detailDocTypeLabel).join(', ')}.` : 'Required package looks complete.'}</div>}
             {selectedPartnerDefaultEvents.length > 0 && <div data-testid="lender-default-warning" className="rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-900"><b>Prior default with this funder.</b><p className="mt-1">This merchant has {selectedPartnerDefaultEvents.length} default event(s) tied to {partners.find((partner: RecordMap) => partner.id === submissionPartnerId)?.name || 'this funder'}. Review history before sending.</p></div>}
