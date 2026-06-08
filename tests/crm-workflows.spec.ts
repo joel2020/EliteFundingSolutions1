@@ -13,7 +13,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page).toHaveURL(/\/crm$/);
     await expect(page.getByTestId('crm-page-executive-dashboard')).toBeVisible();
     await expect(page.getByText('Fast summary active')).toBeVisible();
-    expect(calls.some((call) => call.table === 'login_event_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'password_login_api')).toBe(true);
     expect(calls.some((call) => call.table === 'dashboard_summary_api')).toBe(true);
 
     await page.getByTestId('crm-sign-out').click();

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { CRM_ACCESS_ROLES, type InternalCrmRole } from '@/lib/access-control';
 
 export type CrmProfile = {
@@ -19,20 +18,14 @@ export type CrmProfile = {
 };
 
 export async function getCrmProfile(): Promise<{ profile: CrmProfile | null; error: string | null }> {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const response = await fetch('/api/crm/me', { cache: 'no-store' });
+  const result = await response.json().catch(() => null);
+  const profile = result?.profile;
 
-  if (userError) return { profile: null, error: userError.message };
-  if (!user) return { profile: null, error: 'Please sign in to access the CRM.' };
+  if (!response.ok || !result?.success) {
+    return { profile: null, error: result?.error || 'Please sign in to access the CRM.' };
+  }
 
-  const { data: profile, error } = await supabase
-    .from('user_profiles')
-    .select('id,user_id,organization_id,email,first_name,last_name,role,permissions,access_entity_type,access_entity_id,is_active')
-    .eq('user_id', user.id)
-    .is('deleted_at', null)
-    .maybeSingle();
-
-  if (error) return { profile: null, error: error.message };
-  if (!profile) return { profile: null, error: 'No CRM profile is linked to this user. Contact an administrator.' };
   if (!profile.is_active) return { profile: null, error: 'Your CRM profile is inactive. Contact an administrator.' };
   if (!CRM_ACCESS_ROLES.includes(profile.role as any)) return { profile: null, error: 'Your role is not allowed to access the CRM.' };
 

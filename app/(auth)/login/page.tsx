@@ -1,29 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'sonner';
-import { CRM_ACCESS_ROLES } from '@/lib/access-control';
-
-type UserProfile = {
-  role: string;
-  is_active: boolean;
-  deleted_at: string | null;
-};
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = useMemo(
-    () => (supabaseUrl && supabaseAnonKey ? createBrowserClient(supabaseUrl, supabaseAnonKey) : null),
-    []
-  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -33,19 +18,7 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      if (!supabase) throw new Error('Authentication is not configured. Missing Supabase public environment variables.');
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/crm`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'select_account',
-          },
-        },
-      });
-
-      if (error) throw error;
+      window.location.href = '/api/auth/google';
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google login failed';
       toast.error(msg);
@@ -57,42 +30,14 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (!supabase) throw new Error('Authentication is not configured. Missing Supabase public environment variables.');
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (!data.user) throw new Error('Login failed');
-
-      // Check profile and route accordingly
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('role,is_active,deleted_at')
-        .eq('user_id', data.user.id)
-        .maybeSingle() as { data: UserProfile | null; error: Error | null };
-
-      if (profileError) throw profileError;
-
-      if (!profile) {
-        await supabase.auth.signOut();
-        toast.error('No CRM profile found. Contact admin.');
-        return;
-      }
-
-      if (!profile.is_active || profile.deleted_at) {
-        await supabase.auth.signOut();
-        toast.error('This account is inactive.');
-        return;
-      }
-
-      await fetch('/api/auth/login-event', { method: 'POST' }).catch(() => null);
-
-      if (profile.role === 'client') {
-        router.replace('/portal');
-      } else if (CRM_ACCESS_ROLES.includes(profile.role as any)) {
-        router.replace('/crm');
-      } else {
-        await supabase.auth.signOut();
-        toast.error('This account is not authorized for CRM access.');
-      }
+      const response = await fetch('/api/auth/password-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error || 'Login failed');
+      router.replace(result.redirectTo || '/crm');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       toast.error(msg);

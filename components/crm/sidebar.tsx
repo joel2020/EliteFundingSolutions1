@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   ChartBar as BarChart3,
   Building2,
@@ -23,8 +23,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
+import { useEffect, useState } from 'react';
 import { useCrmUser } from '@/lib/crm-auth';
 
 const staffRoles = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer'];
@@ -53,13 +52,8 @@ const navItems = [
 
 export function CrmSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { profile } = useCrmUser();
   const [collapsed, setCollapsed] = useState(false);
-  const authClient = useMemo(() => createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build'
-  ), []);
 
   useEffect(() => {
     setCollapsed(window.localStorage.getItem('elite-crm-sidebar-collapsed') === 'true');
@@ -77,8 +71,10 @@ export function CrmSidebar() {
   const isActive = (href: string) => href === '/crm' ? pathname === '/crm' : pathname.startsWith(href);
 
   const handleLogout = async () => {
-    await authClient.auth.signOut();
-    router.push('/login');
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => null);
+    window.localStorage.removeItem('sb-mdrrcrmowurbrwvdsgnq-auth-token');
+    document.cookie = 'sb-mdrrcrmowurbrwvdsgnq-auth-token=; path=/; max-age=0; SameSite=Lax';
+    window.location.href = '/login';
   };
 
   return (

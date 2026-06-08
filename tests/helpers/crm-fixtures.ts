@@ -287,6 +287,25 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 204, body: '' });
   });
 
+  await page.route('**/api/auth/password-login', async (route) => {
+    state.user_profiles = state.user_profiles.map((profile) => profile.user_id === 'auth-user-1' ? { ...profile, last_login_at: now } : profile);
+    calls.push({ method: route.request().method(), table: 'password_login_api', body: route.request().postDataJSON() });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        redirectTo: role === 'client' ? '/portal' : '/crm',
+        profile: state.user_profiles.find((profile) => profile.user_id === 'auth-user-1'),
+      }),
+    });
+  });
+
+  await page.route('**/api/auth/logout', async (route) => {
+    calls.push({ method: route.request().method(), table: 'logout_api', body: null });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+
   await page.route('**/storage/v1/object/application-documents/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ Key: 'mock-uploaded-file' }) });
   });
@@ -304,6 +323,15 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     state.user_profiles = state.user_profiles.map((profile) => profile.user_id === 'auth-user-1' ? { ...profile, last_login_at: now } : profile);
     calls.push({ method: route.request().method(), table: 'login_event_api', body: { user_id: 'auth-user-1' } });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, last_login_at: now }) });
+  });
+
+  await page.route('**/api/crm/me', async (route) => {
+    calls.push({ method: route.request().method(), table: 'crm_me_api', body: null });
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, profile: state.user_profiles.find((profile) => profile.user_id === 'auth-user-1') }),
+    });
   });
 
   await page.route('**/api/crm/dashboard/summary', async (route) => {
