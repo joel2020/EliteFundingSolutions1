@@ -66,6 +66,7 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner1.name).toBe('PDF Address Tester');
     expect(fields.owner1.street).toBe('123 Owner Lane');
     expect(fields.owner1.cityLine).toBe('Tampa, FL 33602');
+    expect(fields.owner1.ownershipPercentage).toBe('100%');
     expect(fields.owner1.ssn).toBe('123-45-6789');
     expect(fields.owner1.dob).toBe('4/12/1985');
     expect(fields.signer).toBe('PDF Address Tester');
@@ -130,6 +131,7 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner1.name).toBe('Reviewed Owner');
     expect(fields.owner1.street).toBe('44 Owner Way');
     expect(fields.owner1.cityLine).toBe('Orlando, FL 32803');
+    expect(fields.owner1.ownershipPercentage).toBe('80%');
   });
 
   test('uses reviewed partner signature fields when converting to Elite PDF', () => {
@@ -160,6 +162,26 @@ test.describe('lender application PDF data mapping', () => {
     expect(payload.legal_name).toBe('Partner Merchant LLC');
     expect(payload.signature).toBe('Pat Owner');
     expect(payload.signature_date).toBe('2026-06-01');
+  });
+
+  test('maps partner CSV address, DOB, SSN, and ownership aliases', () => {
+    const payload = parsePartnerApplicationCsv(
+      'legal_business_name,company_address,owner_name,home_address,percent_of_ownership,owner_date_of_birth,owner_ssn,tax_id\nAlias Merchant LLC,\"700 Main St, Dallas, TX 75201\",Dana Owner,\"99 Owner Rd, Austin, TX 78701\",75,02/03/1980,111223333,987654321',
+    );
+
+    expect(payload.legal_name).toBe('Alias Merchant LLC');
+    expect(payload.address).toBe('700 Main St');
+    expect(payload.city).toBe('Dallas');
+    expect(payload.state).toBe('TX');
+    expect(payload.zip).toBe('75201');
+    expect(payload.ein).toBe('987654321');
+    expect(payload.owner1.address).toBe('99 Owner Rd');
+    expect(payload.owner1.city).toBe('Austin');
+    expect(payload.owner1.state).toBe('TX');
+    expect(payload.owner1.zip).toBe('78701');
+    expect(payload.owner1.ownership_percentage).toBe('75');
+    expect(payload.owner1.dob).toBe('02/03/1980');
+    expect(payload.owner1.ssn).toBe('111223333');
   });
 
   test('extracts partner PDF form fields before converting to Elite PDF', async () => {

@@ -34,7 +34,7 @@ async function extractPdfFormPayload(bytes: Buffer) {
       business_address: values.business_address || values.company_address || values.physical_address || values.address,
       city: values.business_city || values.city,
       state: values.business_state || values.state,
-      zip: values.business_zip || values.zip || values.zip_code,
+      zip: values.business_zip || values.company_zip || values.zip || values.zip_code || values.postal_code,
       business_phone: values.business_phone || values.company_phone || values.phone,
       business_email: values.business_email || values.company_email || values.email,
       ein: values.ein || values.tax_id || values.federal_tax_id,
@@ -52,9 +52,9 @@ async function extractPdfFormPayload(bytes: Buffer) {
         zip: values.owner_zip || values.home_zip,
         phone: values.owner_phone || values.cell_phone || values.mobile_phone,
         email: values.owner_email || values.applicant_email || values.email,
-        ownership_percentage: values.ownership_percentage || values.ownership_percent || values.ownership,
-        dob: values.dob || values.date_of_birth,
-        ssn: values.ssn || values.social_security_number,
+        ownership_percentage: values.ownership_percentage || values.ownership_percent || values.percent_ownership || values.percent_of_ownership || values.ownership,
+        dob: values.dob || values.date_of_birth || values.owner_dob || values.owner_date_of_birth,
+        ssn: values.ssn || values.social_security_number || values.owner_ssn,
       },
     });
   } catch {

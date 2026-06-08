@@ -105,6 +105,12 @@ function formatSsn(value: unknown) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
 }
 
+function formatOwnership(value: unknown) {
+  const raw = text(value);
+  if (!raw) return '';
+  return raw.endsWith('%') ? raw : `${raw}%`;
+}
+
 function splitAddress(value: unknown) {
   const raw = text(value);
   if (!raw) return { address: '', city: '', state: '', zip: '' };
@@ -202,6 +208,14 @@ function pngDataFromUrl(value: unknown) {
   return Buffer.from(match[1], 'base64');
 }
 
+function mergeWithNonEmptyOverride(base: Owner, override: Owner) {
+  const next = { ...base };
+  Object.entries(override || {}).forEach(([key, value]) => {
+    if (text(value)) next[key] = value;
+  });
+  return next;
+}
+
 function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: Record<string, any>): ResolvedOwnerPdfFields {
   const ownerCity = fieldWithAddressFallback(owner.city, combinedAddress, 'city');
   const ownerState = fieldWithAddressFallback(owner.state, combinedAddress, 'state');
@@ -213,7 +227,7 @@ function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: R
     cityLine: cityStateZip(ownerCity, ownerState, ownerZip),
     phone: firstText(owner.phone, owner.mobile, payload.cell_phone),
     email: firstText(owner.email, payload.business_email),
-    ownershipPercentage: text(owner.ownership_percentage || owner.ownership_pct),
+    ownershipPercentage: formatOwnership(owner.ownership_percentage || owner.ownership_pct),
     dob: dateValue(owner.dob || owner.dob_decrypted),
     ssn: formatSsn(owner.ssn || owner.ssn_decrypted || owner.ssn_last4),
     driversLicense: text(owner.drivers_license),
@@ -226,8 +240,8 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
   const application = data.application || {};
   const deal = data.deal || {};
   const owners = data.owners || [];
-  const owner1 = { ...(owners[0] || {}), ...(payload.owner1 || {}) };
-  const owner2 = { ...(owners[1] || {}), ...(payload.owner2 || {}) };
+  const owner1 = mergeWithNonEmptyOverride(owners[0] || {}, payload.owner1 || {});
+  const owner2 = mergeWithNonEmptyOverride(owners[1] || {}, payload.owner2 || {});
   const existingAdvance = Array.isArray(payload.existing_advances) ? payload.existing_advances[0] : null;
   const businessAddress = firstText(payload.address, payload.business_address, business.address);
   const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address);
@@ -295,6 +309,12 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     if (!enabled) return;
     page.drawText('X', { x, y, size: 15, font: boldFont, color: rgb(0.02, 0.09, 0.25) });
   };
+  const drawReadable = (value: unknown, x: number, y: number, size = 10.5, max = 18) => {
+    const cleaned = text(value);
+    if (!cleaned) return;
+    page.drawRectangle({ x: x - 3, y: y - 3, width: Math.max(55, Math.min(150, cleaned.length * size * 0.62 + 8)), height: size + 7, color: rgb(1, 1, 1), opacity: 0.92 });
+    draw(cleaned, x, y, size, max);
+  };
 
   void logo;
 
@@ -310,7 +330,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   draw(fields.businessFax, 925, 1413, 12, 20);
   draw(fields.businessWebsite, 118, 1378, 12, 34);
   draw(fields.businessEmail, 925, 1378, 12, 34);
-  draw(fields.ein, 1080, 1346, 12, 18);
+  drawReadable(fields.ein, 1080, 1346, 11, 18);
   draw(fields.businessStartDate, 1115, 1312, 12, 16);
   draw(fields.productsServices, 1120, 1278, 12, 22);
   draw(fields.posContact, 260, 1245, 12, 30);
@@ -343,9 +363,9 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     draw(owner.cityLine, x + 165, 802, 11, 30);
     draw(owner.phone, x + 105, 767, 11, 22);
     draw(owner.email, x + 105, 733, 11, 34);
-    draw(owner.ownershipPercentage, x + 160, 698, 11, 10);
-    draw(owner.dob, x + 135, 664, 11, 16);
-    draw(owner.ssn, x + 105, 630, 11, 18);
+    drawReadable(owner.ownershipPercentage, x + 160, 698, 10, 10);
+    drawReadable(owner.dob, x + 135, 664, 10, 16);
+    drawReadable(owner.ssn, x + 105, 630, 10, 18);
     draw(owner.driversLicense, x + 195, 595, 11, 18);
   };
   drawOwner(fields.owner1, 0);
