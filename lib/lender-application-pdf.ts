@@ -42,10 +42,19 @@ export type ResolvedLenderApplicationPdfFields = {
   owner2: ResolvedOwnerPdfFields;
   hasExistingAdvance: boolean;
   existingAdvanceFunder: string;
+  existingAdvanceOriginalAmount: string;
   existingAdvanceBalance: string;
+  existingAdvanceDailyPayment: string;
+  existingAdvancePaymentFrequency: string;
   requestedAmount: string;
+  useOfFunds: string;
+  desiredTimeline: string;
   averageMonthlySales: string;
   averageVisaMcSales: string;
+  bankName: string;
+  bankContact: string;
+  bankPhone: string;
+  accountType: string;
   signer: string;
   signatureDate: string;
   drawnSignaturePng: Buffer | null;
@@ -291,10 +300,19 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     owner2: resolveOwnerPdfFields(owner2, owner2Address, payload),
     hasExistingAdvance: Boolean(application.has_existing_advances || payload.has_existing_advances),
     existingAdvanceFunder: text(existingAdvance?.funder_name),
+    existingAdvanceOriginalAmount: money(existingAdvance?.original_amount || existingAdvance?.original_funded_amount),
     existingAdvanceBalance: money(existingAdvance?.current_balance),
+    existingAdvanceDailyPayment: money(existingAdvance?.daily_payment),
+    existingAdvancePaymentFrequency: text(existingAdvance?.payment_frequency),
     requestedAmount: money(deal.requested_amount || application.requested_amount || payload.requested_amount),
+    useOfFunds: firstText(application.use_of_funds, payload.use_of_funds),
+    desiredTimeline: firstText(application.desired_timeline, payload.timeline, payload.desired_timeline),
     averageMonthlySales: money(payload.average_monthly_sales || business.monthly_gross_revenue),
     averageVisaMcSales: money(payload.average_visa_mc_sales),
+    bankName: firstText(application.bank_name, payload.bank_name),
+    bankContact: text(payload.bank_contact),
+    bankPhone: text(payload.bank_phone),
+    accountType: firstText(application.account_type, payload.account_type),
     signer: text(application.signed_name || payload.signature || ownerName(owner1)),
     signatureDate,
     drawnSignaturePng: data.drawnSignaturePng || pngDataFromUrl(payload.signature_data_url),
@@ -433,7 +451,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   );
 
   const firstPageSize = page.getSize();
-  const summaryPage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
+  const summaryPage = pdfDoc.insertPage(0, [firstPageSize.width, firstPageSize.height]);
   const summaryMargin = 72;
   const summaryNavy = rgb(0.06, 0.17, 0.36);
   const summaryText = rgb(0.05, 0.08, 0.12);
@@ -475,10 +493,10 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   };
 
   summaryPage.drawImage(logo, { x: summaryMargin, y: firstPageSize.height - 150, width: 135, height: 75 });
-  drawSummaryText('Underwriter Application Summary', summaryMargin + 160, firstPageSize.height - 100, 26, true, summaryNavy);
-  drawSummaryText('Elite Funding Solutions - clear review copy generated from the completed application record.', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
+  drawSummaryText('Complete Application - Underwriter Review Copy', summaryMargin + 160, firstPageSize.height - 100, 25, true, summaryNavy);
+  drawSummaryText('Elite Funding Solutions - clear, legible application data generated from the completed record.', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
   summaryPage.drawRectangle({ x: summaryMargin, y: firstPageSize.height - 188, width: firstPageSize.width - summaryMargin * 2, height: 42, color: summaryFill, borderColor: summaryBorder, borderWidth: 1 });
-  drawSummaryText('Use this page for fast underwriting review. The branded application appears before this page; consent pages follow.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
+  drawSummaryText('Use this first page for underwriting review. The branded application and consent pages follow in this same PDF.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
   summaryY = firstPageSize.height - 226;
 
   drawSummarySection('Business Information');
@@ -505,8 +523,12 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   drawSummarySection('Funding And Signature');
   drawSummaryRow('Requested amount', fields.requestedAmount, 'Average monthly sales', fields.averageMonthlySales);
-  drawSummaryRow('Average Visa/MC sales', fields.averageVisaMcSales, 'Existing advance', fields.hasExistingAdvance ? 'Yes' : 'No');
-  drawSummaryRow('Existing advance funder', fields.existingAdvanceFunder, 'Existing advance balance', fields.existingAdvanceBalance);
+  drawSummaryRow('Use of funds', fields.useOfFunds, 'Desired timeline', fields.desiredTimeline);
+  drawSummaryRow('Average Visa/MC sales', fields.averageVisaMcSales, 'Bank / account type', [fields.bankName, fields.accountType].filter(Boolean).join(' / '));
+  drawSummaryRow('Bank contact', fields.bankContact, 'Bank phone', fields.bankPhone);
+  drawSummaryRow('Existing advance', fields.hasExistingAdvance ? 'Yes' : 'No', 'Existing advance funder', fields.existingAdvanceFunder);
+  drawSummaryRow('Advance original amount', fields.existingAdvanceOriginalAmount, 'Advance balance', fields.existingAdvanceBalance);
+  drawSummaryRow('Advance daily payment', fields.existingAdvanceDailyPayment, 'Payment frequency', fields.existingAdvancePaymentFrequency);
   drawSummaryRow('Risk / seasonal', `${fields.hasRisk ? 'Risk items reported' : 'No risk items reported'} / ${fields.isSeasonal ? 'Seasonal' : 'Not seasonal'}`, 'Risk notes', fields.riskNotes);
   drawSummaryRow('Signer', fields.signer, 'Signature date', fields.signatureDate);
 
