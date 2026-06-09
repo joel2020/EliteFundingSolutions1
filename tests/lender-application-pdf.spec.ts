@@ -154,6 +154,35 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.signatureDate).toBe('6/1/2026');
   });
 
+  test('prints the full SSN from decrypted owner or application payload sources only', () => {
+    const decryptedFields = resolveLenderApplicationPdfFields({
+      application: { application_payload: {} },
+      owners: [{ first_name: 'Secure', last_name: 'Owner', ssn_last4: '6789', ssn_decrypted: '123456789' }],
+    });
+    expect(decryptedFields.owner1.ssn).toBe('123-45-6789');
+
+    const topLevelPayloadFields = resolveLenderApplicationPdfFields({
+      application: {
+        application_payload: {
+          full_name: 'Payload Owner',
+          ssn: '987654321',
+          dob: '1980-01-02',
+          ownership_pct: '100',
+        },
+      },
+      owners: [],
+    });
+    expect(topLevelPayloadFields.owner1.ssn).toBe('987-65-4321');
+    expect(topLevelPayloadFields.owner1.dob).toBe('1/2/1980');
+    expect(topLevelPayloadFields.owner1.ownershipPercentage).toBe('100%');
+
+    const last4OnlyFields = resolveLenderApplicationPdfFields({
+      application: { application_payload: {} },
+      owners: [{ first_name: 'Partial', last_name: 'Owner', ssn_last4: '6789' }],
+    });
+    expect(last4OnlyFields.owner1.ssn).toBe('');
+  });
+
   test('does not leak business contact data into a blank second-owner column', () => {
     const fields = resolveLenderApplicationPdfFields({
       ...sampleApplicationData,

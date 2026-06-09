@@ -105,6 +105,12 @@ function formatSsn(value: unknown) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
 }
 
+function formatFullSsn(value: unknown) {
+  const digits = digitsOnly(value);
+  if (digits.length !== 9) return '';
+  return formatSsn(digits);
+}
+
 function formatOwnership(value: unknown) {
   const raw = text(value);
   if (!raw) return '';
@@ -227,9 +233,9 @@ function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: R
     cityLine: cityStateZip(ownerCity, ownerState, ownerZip),
     phone: firstText(owner.phone, owner.mobile, allowPayloadFallback ? payload.cell_phone : ''),
     email: firstText(owner.email, allowPayloadFallback ? payload.business_email : ''),
-    ownershipPercentage: formatOwnership(owner.ownership_percentage || owner.ownership_pct),
-    dob: dateValue(owner.dob || owner.dob_decrypted),
-    ssn: formatSsn(owner.ssn || owner.ssn_decrypted || owner.ssn_last4),
+    ownershipPercentage: formatOwnership(firstText(owner.ownership_percentage, owner.ownership_pct, allowPayloadFallback ? payload.ownership_pct || payload.ownership_percentage : '')),
+    dob: dateValue(firstText(owner.dob_decrypted, owner.dob, allowPayloadFallback ? payload.dob : '')),
+    ssn: formatFullSsn(firstText(owner.ssn_decrypted, owner.ssn, allowPayloadFallback ? payload.ssn : '')),
     driversLicense: text(owner.drivers_license),
   };
 }
