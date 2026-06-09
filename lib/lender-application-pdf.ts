@@ -216,7 +216,7 @@ function mergeWithNonEmptyOverride(base: Owner, override: Owner) {
   return next;
 }
 
-function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: Record<string, any>): ResolvedOwnerPdfFields {
+function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: Record<string, any>, allowPayloadFallback = false): ResolvedOwnerPdfFields {
   const ownerCity = fieldWithAddressFallback(owner.city, combinedAddress, 'city');
   const ownerState = fieldWithAddressFallback(owner.state, combinedAddress, 'state');
   const ownerZip = fieldWithAddressFallback(owner.zip, combinedAddress, 'zip');
@@ -225,8 +225,8 @@ function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: R
     name: ownerName(owner),
     street: fieldWithAddressFallback(owner.address, combinedAddress, 'address'),
     cityLine: cityStateZip(ownerCity, ownerState, ownerZip),
-    phone: firstText(owner.phone, owner.mobile, payload.cell_phone),
-    email: firstText(owner.email, payload.business_email),
+    phone: firstText(owner.phone, owner.mobile, allowPayloadFallback ? payload.cell_phone : ''),
+    email: firstText(owner.email, allowPayloadFallback ? payload.business_email : ''),
     ownershipPercentage: formatOwnership(owner.ownership_percentage || owner.ownership_pct),
     dob: dateValue(owner.dob || owner.dob_decrypted),
     ssn: formatSsn(owner.ssn || owner.ssn_decrypted || owner.ssn_last4),
@@ -275,7 +275,7 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     hasRisk: Boolean(payload.has_judgments || payload.has_tax_lien || payload.has_bankruptcy || business.has_tax_lien || business.has_bankruptcy),
     riskNotes: text(payload.notes),
     isSeasonal: Boolean(payload.is_seasonal),
-    owner1: resolveOwnerPdfFields(owner1, owner1Address, payload),
+    owner1: resolveOwnerPdfFields(owner1, owner1Address, payload, true),
     owner2: resolveOwnerPdfFields(owner2, owner2Address, payload),
     hasExistingAdvance: Boolean(application.has_existing_advances || payload.has_existing_advances),
     existingAdvanceFunder: text(existingAdvance?.funder_name),
@@ -312,8 +312,14 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   const drawReadable = (value: unknown, x: number, y: number, size = 10.5, max = 18) => {
     const cleaned = text(value);
     if (!cleaned) return;
-    page.drawRectangle({ x: x - 3, y: y - 3, width: Math.max(55, Math.min(150, cleaned.length * size * 0.62 + 8)), height: size + 7, color: rgb(1, 1, 1), opacity: 0.92 });
+    page.drawRectangle({ x: x - 4, y: y - 4, width: Math.max(72, Math.min(190, cleaned.length * size * 0.62 + 12)), height: size + 8, color: rgb(1, 1, 1), opacity: 0.97 });
     draw(cleaned, x, y, size, max);
+  };
+  const drawTemplateCorrection = (paragraph: string, x: number, y: number, width: number, height: number, size = 12, max = 170) => {
+    page.drawRectangle({ x, y, width, height, color: rgb(1, 1, 1), opacity: 1 });
+    wrapPdfText(paragraph, max).slice(0, Math.floor(height / (size + 3))).forEach((line, index) => {
+      page.drawText(line, { x: x + 4, y: y + height - size - 4 - index * (size + 3), size, font, color: rgb(0.05, 0.08, 0.12) });
+    });
   };
 
   void logo;
@@ -358,15 +364,15 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   check(!fields.isSeasonal, 1210, 1207);
 
   const drawOwner = (owner: ResolvedOwnerPdfFields, x: number) => {
-    draw(owner.name, x + 125, 871, 11, 34);
-    draw(owner.street, x + 125, 836, 11, 34);
-    draw(owner.cityLine, x + 165, 802, 11, 30);
-    draw(owner.phone, x + 105, 767, 11, 22);
-    draw(owner.email, x + 105, 733, 11, 34);
-    drawReadable(owner.ownershipPercentage, x + 160, 698, 10, 10);
-    drawReadable(owner.dob, x + 135, 664, 10, 16);
-    drawReadable(owner.ssn, x + 105, 630, 10, 18);
-    draw(owner.driversLicense, x + 195, 595, 11, 18);
+    draw(owner.name, x + 160, 906, 11.5, 32);
+    draw(owner.street, x + 160, 871, 11.5, 32);
+    draw(owner.cityLine, x + 225, 837, 11.5, 26);
+    draw(owner.phone, x + 155, 802, 11.5, 22);
+    draw(owner.email, x + 155, 768, 11, 32);
+    drawReadable(owner.ownershipPercentage, x + 245, 733, 11, 10);
+    drawReadable(owner.dob, x + 230, 699, 11, 16);
+    drawReadable(owner.ssn, x + 155, 665, 11, 18);
+    draw(owner.driversLicense, x + 210, 630, 11, 18);
   };
   drawOwner(fields.owner1, 0);
   drawOwner(fields.owner2, 755);
@@ -378,6 +384,16 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   draw(fields.requestedAmount, 975, 508, 12, 18);
   draw(fields.averageMonthlySales, 305, 458, 12, 18);
   draw(fields.averageVisaMcSales, 1040, 458, 12, 18);
+
+  drawTemplateCorrection(
+    'By signing below, the Merchant and its owners/principals: (1) certify that all information and documents submitted in connection with this Application are true, correct and complete; and (2) authorize Elite Funding Solutions, its funding partners, representatives, successors, assigns, designees, agents, partners, and funders to receive credit reports and any other information regarding the Merchant and its owners and principals from third parties.',
+    70,
+    318,
+    1355,
+    86,
+    13,
+    155,
+  );
 
   if (fields.drawnSignaturePng) {
     const signatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
@@ -393,6 +409,16 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     draw(fields.owner2.name, 655, 251, 13, 28);
     draw(fields.signatureDate, 980, 251, 13, 18);
   }
+
+  drawTemplateCorrection(
+    'This Funding Application must include a copy of a voided check. By signing before submission, you certify that all information and documents provided are accurate, true, correct and complete. You authorize Elite Funding Solutions and its funders, partners, representatives, successors, assigns, designees, agents and affiliates to obtain information about you, your business, its owners, bank statements, processor statements, business credit reports, personal credit reports where authorized, and other information needed to review funding options. You also authorize Elite Funding Solutions to transmit this application and supporting information to its funding partners for review.',
+    62,
+    66,
+    1380,
+    128,
+    10.5,
+    205,
+  );
 
   const firstPageSize = page.getSize();
   let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);

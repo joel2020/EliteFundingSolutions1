@@ -154,6 +154,28 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.signatureDate).toBe('6/1/2026');
   });
 
+  test('does not leak business contact data into a blank second-owner column', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      owners: [{
+        first_name: 'Primary',
+        last_name: 'Owner',
+        email: 'primary-owner@example.test',
+      }],
+      application: {
+        application_payload: {
+          business_email: 'business@example.test',
+          cell_phone: '8135550100',
+        },
+      },
+    });
+
+    expect(fields.owner1.email).toBe('primary-owner@example.test');
+    expect(fields.owner2.name).toBe('');
+    expect(fields.owner2.email).toBe('');
+    expect(fields.owner2.phone).toBe('');
+  });
+
   test('maps partner CSV signature fields for PDF review', () => {
     const payload = parsePartnerApplicationCsv(
       'business_name,owner_name,signature,signature_date,requested_amount\nPartner Merchant LLC,Pat Owner,Pat Owner,2026-06-01,50000',
