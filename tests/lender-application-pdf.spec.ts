@@ -210,6 +210,88 @@ test.describe('lender application PDF data mapping', () => {
     expect(payload.owner1.last_name).toBe('Partner');
   });
 
+  test('uses AI extraction for partner PDFs when form fields are missing', async () => {
+    const originalFetch = global.fetch;
+    process.env.AZURE_OPENAI_API_KEY = 'test-azure-key';
+    process.env.AZURE_OPENAI_RESPONSES_URL = 'https://azure.test/openai/responses';
+    process.env.AI_PROVIDER = 'azure';
+    const calls: any[] = [];
+    global.fetch = (async (url: any, init: any) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return new Response(JSON.stringify({
+        output_text: JSON.stringify({
+          company_name: 'AI Extracted Merchant LLC',
+          legal_name: 'AI Extracted Merchant LLC',
+          dba: 'AI Merchant',
+          business_address: '500 AI Blvd, Phoenix, AZ 85001',
+          address: '500 AI Blvd, Phoenix, AZ 85001',
+          city: 'Phoenix',
+          state: 'AZ',
+          zip: '85001',
+          business_phone: '6025550100',
+          business_email: 'merchant@ai.test',
+          ein: '991112222',
+          start_date: '2021-02-03',
+          requested_amount: '$125,000',
+          products_services: 'Retail',
+          industry: 'Retail',
+          signature: 'Alex AI Owner',
+          signature_date: '2026-06-08',
+          owner1: {
+            first_name: 'Alex',
+            last_name: 'Owner',
+            address: '88 Owner Street, Phoenix, AZ 85002',
+            city: 'Phoenix',
+            state: 'AZ',
+            zip: '85002',
+            phone: '6025550199',
+            mobile: '6025550199',
+            email: 'owner@ai.test',
+            ownership_percentage: '65',
+            dob: '1981-07-04',
+            ssn: '222334444',
+          },
+          confidence: 'high',
+          missing_fields: [],
+          extraction_notes: 'All required fields found.',
+        }),
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as any;
+
+    try {
+      const pdf = await PDFDocument.create();
+      pdf.addPage([612, 792]);
+      const bytes = Buffer.from(await pdf.save());
+      const payload = await extractPartnerApplicationPayloadFromUpload({
+        fileName: 'scanned-partner-application.pdf',
+        mimeType: 'application/pdf',
+        bytes,
+        fallback: { legal_name: 'Fallback Merchant LLC' },
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].body.input[0].content.some((part: any) => part.type === 'input_file')).toBe(true);
+      expect(payload.legal_name).toBe('AI Extracted Merchant LLC');
+      expect(payload.city).toBe('Phoenix');
+      expect(payload.state).toBe('AZ');
+      expect(payload.zip).toBe('85001');
+      expect(payload.ein).toBe('991112222');
+      expect(payload.owner1.address).toBe('88 Owner Street');
+      expect(payload.owner1.city).toBe('Phoenix');
+      expect(payload.owner1.state).toBe('AZ');
+      expect(payload.owner1.zip).toBe('85002');
+      expect(payload.owner1.ownership_percentage).toBe('65');
+      expect(payload.owner1.dob).toBe('1981-07-04');
+      expect(payload.owner1.ssn).toBe('222334444');
+      expect((payload as any).extraction_provider).toBe('azure-openai');
+    } finally {
+      global.fetch = originalFetch;
+      delete process.env.AZURE_OPENAI_API_KEY;
+      delete process.env.AZURE_OPENAI_RESPONSES_URL;
+      delete process.env.AI_PROVIDER;
+    }
+  });
+
   test('uses inline drawn signature PNG data from partner payloads', () => {
     const signatureDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
     const fields = resolveLenderApplicationPdfFields({
