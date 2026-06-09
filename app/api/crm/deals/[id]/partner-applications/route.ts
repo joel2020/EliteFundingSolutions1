@@ -229,7 +229,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     application: applicationForPdf,
     business: { ...(business || {}), legal_name: extractedPayload.company_name || (business as any)?.legal_name },
     owners,
-    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+    ein: decryptSensitiveField((business as any)?.ein_encrypted) || extractedPayload.ein || null,
     drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
   });
   const fileBase = safeDealName((business as any)?.legal_name || deal.title);

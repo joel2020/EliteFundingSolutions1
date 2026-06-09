@@ -134,6 +134,28 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner1.ownershipPercentage).toBe('80%');
   });
 
+  test('prints full EIN only from decrypted or reviewed full Tax ID sources', () => {
+    const decryptedFields = resolveLenderApplicationPdfFields({
+      application: { application_payload: {} },
+      business: { legal_name: 'Secure Merchant LLC', ein_last4: '4321' },
+      ein: '123456789',
+    });
+    expect(decryptedFields.ein).toBe('12-3456789');
+
+    const reviewedFields = resolveLenderApplicationPdfFields({
+      application: { application_payload: { legal_name: 'Reviewed Merchant LLC', ein: '987654321' } },
+      business: { ein_last4: '1111' },
+    });
+    expect(reviewedFields.ein).toBe('98-7654321');
+
+    const last4OnlyFields = resolveLenderApplicationPdfFields({
+      application: { application_payload: {} },
+      business: { legal_name: 'Partial Merchant LLC', ein_last4: '4321' },
+      ein: null,
+    });
+    expect(last4OnlyFields.ein).toBe('');
+  });
+
   test('uses reviewed partner signature fields when converting to Elite PDF', () => {
     const fields = resolveLenderApplicationPdfFields({
       ...sampleApplicationData,

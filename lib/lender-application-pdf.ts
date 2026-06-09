@@ -99,6 +99,12 @@ function formatEin(value: unknown) {
   return `${digits.slice(0, 2)}-${digits.slice(2)}`;
 }
 
+function formatFullEin(value: unknown) {
+  const digits = digitsOnly(value);
+  if (digits.length !== 9) return '';
+  return formatEin(digits);
+}
+
 function formatSsn(value: unknown) {
   const digits = digitsOnly(value);
   if (digits.length !== 9) return text(value);
@@ -270,7 +276,7 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     businessFax: text(payload.fax),
     businessWebsite: firstText(payload.website, business.website),
     businessEmail: firstText(payload.business_email, business.email, owner1.email),
-    ein: formatEin(firstText(payload.ein, data.ein, business.ein_last4)),
+    ein: formatFullEin(firstText(payload.ein, data.ein)),
     businessStartDate: dateValue(firstText(payload.start_date, payload.business_start_date, business.start_date)),
     productsServices: firstText(payload.products_services, payload.industry, business.industry),
     posContact: [payload.pos_contact_name, payload.pos_contact_phone].filter(Boolean).join(' / '),

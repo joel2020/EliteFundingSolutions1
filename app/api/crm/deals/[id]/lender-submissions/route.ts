@@ -184,7 +184,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       application: applicationForPdf,
       business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
       owners,
-      ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+      ein: decryptSensitiveField((business as any)?.ein_encrypted) || editedPayload.ein || null,
       drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
     });
     const safeDealName = (deal.title || (business as any)?.legal_name || 'merchant-application')

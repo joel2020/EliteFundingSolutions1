@@ -137,7 +137,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     application: applicationForPdf,
     business,
     owners,
-    ein: decryptSensitiveField((business as any)?.ein_encrypted) || (business as any)?.ein_last4 || null,
+    ein: decryptSensitiveField((business as any)?.ein_encrypted) || null,
     drawnSignaturePng: signaturePng,
   });
 
