@@ -433,6 +433,92 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   );
 
   const firstPageSize = page.getSize();
+  const summaryPage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
+  const summaryMargin = 72;
+  const summaryNavy = rgb(0.06, 0.17, 0.36);
+  const summaryText = rgb(0.05, 0.08, 0.12);
+  const summaryMuted = rgb(0.36, 0.43, 0.52);
+  const summaryBorder = rgb(0.82, 0.86, 0.91);
+  const summaryFill = rgb(0.96, 0.98, 1);
+  let summaryY = firstPageSize.height - 84;
+
+  const summaryValue = (value: unknown) => text(value) || 'Not provided';
+  const drawSummaryText = (value: string, x: number, y: number, size: number, isBold = false, color = summaryText) => {
+    summaryPage.drawText(value, { x, y, size, font: isBold ? boldFont : font, color });
+  };
+  const drawSummaryLines = (value: string, x: number, y: number, maxChars: number, size = 15, lineHeight = 19, color = summaryText) => {
+    const lines = wrapPdfText(value, maxChars).slice(0, 3);
+    lines.forEach((line, index) => {
+      summaryPage.drawText(line, { x, y: y - index * lineHeight, size, font, color });
+    });
+    return Math.max(lineHeight, lines.length * lineHeight);
+  };
+  const drawSummarySection = (title: string) => {
+    summaryPage.drawRectangle({ x: summaryMargin, y: summaryY - 28, width: firstPageSize.width - summaryMargin * 2, height: 34, color: summaryNavy });
+    drawSummaryText(title, summaryMargin + 14, summaryY - 18, 15, true, rgb(1, 1, 1));
+    summaryY -= 48;
+  };
+  const drawSummaryRow = (leftLabel: string, leftValue: unknown, rightLabel = '', rightValue: unknown = '') => {
+    const rowTop = summaryY;
+    const rowHeight = 66;
+    const usableWidth = firstPageSize.width - summaryMargin * 2;
+    const colWidth = usableWidth / 2;
+    summaryPage.drawRectangle({ x: summaryMargin, y: rowTop - rowHeight + 8, width: usableWidth, height: rowHeight, borderColor: summaryBorder, borderWidth: 1, color: rgb(1, 1, 1) });
+    summaryPage.drawLine({ start: { x: summaryMargin + colWidth, y: rowTop + 8 }, end: { x: summaryMargin + colWidth, y: rowTop - rowHeight + 8 }, thickness: 1, color: summaryBorder });
+    drawSummaryText(leftLabel, summaryMargin + 14, rowTop - 14, 10.5, true, summaryMuted);
+    drawSummaryLines(summaryValue(leftValue), summaryMargin + 14, rowTop - 36, 47);
+    if (rightLabel) {
+      drawSummaryText(rightLabel, summaryMargin + colWidth + 14, rowTop - 14, 10.5, true, summaryMuted);
+      drawSummaryLines(summaryValue(rightValue), summaryMargin + colWidth + 14, rowTop - 36, 47);
+    }
+    summaryY -= rowHeight;
+  };
+
+  summaryPage.drawImage(logo, { x: summaryMargin, y: firstPageSize.height - 150, width: 135, height: 75 });
+  drawSummaryText('Underwriter Application Summary', summaryMargin + 160, firstPageSize.height - 100, 26, true, summaryNavy);
+  drawSummaryText('Elite Funding Solutions - clear review copy generated from the completed application record.', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
+  summaryPage.drawRectangle({ x: summaryMargin, y: firstPageSize.height - 188, width: firstPageSize.width - summaryMargin * 2, height: 42, color: summaryFill, borderColor: summaryBorder, borderWidth: 1 });
+  drawSummaryText('Use this page for fast underwriting review. The branded application appears before this page; consent pages follow.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
+  summaryY = firstPageSize.height - 226;
+
+  drawSummarySection('Business Information');
+  drawSummaryRow('Legal business name', fields.businessLegalName, 'DBA', fields.businessDba);
+  drawSummaryRow('Business address', [fields.businessStreet, fields.businessCityLine].filter(Boolean).join(', '), 'Tax ID / EIN', fields.ein);
+  drawSummaryRow('Business phone', fields.businessPhone, 'Business mobile', fields.businessMobile);
+  drawSummaryRow('Business email', fields.businessEmail, 'Website', fields.businessWebsite);
+  drawSummaryRow('Date business started', fields.businessStartDate, 'Products / services', fields.productsServices);
+  drawSummaryRow('Entity / merchant / location', [fields.entityType, fields.merchantType, fields.businessLocation].filter(Boolean).join(' / '), 'POS contact / system', [fields.posContact, fields.posSystem].filter(Boolean).join(' / '));
+
+  drawSummarySection('Primary Owner');
+  drawSummaryRow('Owner name', fields.owner1.name, 'Ownership %', fields.owner1.ownershipPercentage);
+  drawSummaryRow('Home address', [fields.owner1.street, fields.owner1.cityLine].filter(Boolean).join(', '), 'Date of birth', fields.owner1.dob);
+  drawSummaryRow('Owner phone', fields.owner1.phone, 'Owner email', fields.owner1.email);
+  drawSummaryRow('Full SSN', fields.owner1.ssn, 'Driver license', fields.owner1.driversLicense);
+
+  if (fields.owner2.name || fields.owner2.ssn || fields.owner2.dob) {
+    drawSummarySection('Additional Owner');
+    drawSummaryRow('Owner name', fields.owner2.name, 'Ownership %', fields.owner2.ownershipPercentage);
+    drawSummaryRow('Home address', [fields.owner2.street, fields.owner2.cityLine].filter(Boolean).join(', '), 'Date of birth', fields.owner2.dob);
+    drawSummaryRow('Owner phone', fields.owner2.phone, 'Owner email', fields.owner2.email);
+    drawSummaryRow('Full SSN', fields.owner2.ssn, 'Driver license', fields.owner2.driversLicense);
+  }
+
+  drawSummarySection('Funding And Signature');
+  drawSummaryRow('Requested amount', fields.requestedAmount, 'Average monthly sales', fields.averageMonthlySales);
+  drawSummaryRow('Average Visa/MC sales', fields.averageVisaMcSales, 'Existing advance', fields.hasExistingAdvance ? 'Yes' : 'No');
+  drawSummaryRow('Existing advance funder', fields.existingAdvanceFunder, 'Existing advance balance', fields.existingAdvanceBalance);
+  drawSummaryRow('Risk / seasonal', `${fields.hasRisk ? 'Risk items reported' : 'No risk items reported'} / ${fields.isSeasonal ? 'Seasonal' : 'Not seasonal'}`, 'Risk notes', fields.riskNotes);
+  drawSummaryRow('Signer', fields.signer, 'Signature date', fields.signatureDate);
+
+  if (fields.drawnSignaturePng) {
+    const summarySignatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
+    const imageDims = summarySignatureImage.scale(1);
+    const scale = Math.min(300 / imageDims.width, 70 / imageDims.height, 1);
+    summaryPage.drawText('Drawn signature', { x: summaryMargin + 14, y: summaryY - 10, size: 10.5, font: boldFont, color: summaryMuted });
+    summaryPage.drawRectangle({ x: summaryMargin + 14, y: summaryY - 92, width: 340, height: 74, borderColor: summaryBorder, borderWidth: 1, color: rgb(1, 1, 1) });
+    summaryPage.drawImage(summarySignatureImage, { x: summaryMargin + 30, y: summaryY - 84, width: imageDims.width * scale, height: imageDims.height * scale });
+  }
+
   let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
   const disclosureMargin = 72;
   const disclosureTextColor = rgb(0.06, 0.09, 0.16);

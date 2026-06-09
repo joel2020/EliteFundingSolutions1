@@ -393,7 +393,7 @@ test.describe('lender application PDF data mapping', () => {
     const pdfBuffer = await generateLenderApplicationPdf(sampleApplicationData);
     const pdf = await PDFDocument.load(pdfBuffer);
 
-    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2);
+    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(3);
     expect(pdfBuffer.length).toBeGreaterThan(100_000);
   });
 });
