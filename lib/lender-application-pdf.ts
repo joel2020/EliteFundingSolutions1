@@ -493,10 +493,10 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   };
 
   summaryPage.drawImage(logo, { x: summaryMargin, y: firstPageSize.height - 150, width: 135, height: 75 });
-  drawSummaryText('Complete Application - Underwriter Review Copy', summaryMargin + 160, firstPageSize.height - 100, 25, true, summaryNavy);
+  drawSummaryText('Complete Funding Application', summaryMargin + 160, firstPageSize.height - 100, 25, true, summaryNavy);
   drawSummaryText('Elite Funding Solutions - clear, legible application data generated from the completed record.', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
   summaryPage.drawRectangle({ x: summaryMargin, y: firstPageSize.height - 188, width: firstPageSize.width - summaryMargin * 2, height: 42, color: summaryFill, borderColor: summaryBorder, borderWidth: 1 });
-  drawSummaryText('Use this first page for underwriting review. The branded application and consent pages follow in this same PDF.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
+  drawSummaryText('This page contains the complete application details. The signed application and consent pages follow in this same PDF.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
   summaryY = firstPageSize.height - 226;
 
   drawSummarySection('Business Information');
