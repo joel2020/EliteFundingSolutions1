@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
+import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -157,11 +158,27 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (documentError) return NextResponse.json({ success: false, error: `Unable to record regenerated Elite application PDF: ${documentError.message}` }, { status: 500 });
 
     convertedDocument = document;
-    await supabase
-      .from('partner_application_uploads')
-      .update({ converted_document_id: document.id, status: 'converted', updated_by: profile.id })
-      .eq('id', existing.id)
-      .eq('organization_id', profile.organization_id);
+    await Promise.all([
+      supabase
+        .from('partner_application_uploads')
+        .update({ converted_document_id: document.id, status: 'converted', updated_by: profile.id })
+        .eq('id', existing.id)
+        .eq('organization_id', profile.organization_id),
+      existing.application_id
+        ? supabase
+          .from('applications')
+          .update({
+            ...buildPartnerApplicationSyncUpdate({
+              existingApplicationPayload: (application as any)?.application_payload,
+              editedPayload,
+              convertedDocumentId: document.id,
+            }),
+            converted_from_partner_upload_id: existing.id,
+          })
+          .eq('id', existing.application_id)
+          .eq('organization_id', profile.organization_id)
+        : Promise.resolve(),
+    ]);
   }
 
   await supabase.from('audit_logs').insert({

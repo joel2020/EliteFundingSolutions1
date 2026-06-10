@@ -48,7 +48,7 @@ export function hasApplicationSignatureEvidence(args: {
   );
 
   return Boolean(
-    hasSignedApplicationDocument ||
+    (hasSignedApplicationDocument && hasSignatureNameAndDate) ||
     (hasSignedStatus && hasStoredDrawnSignature) ||
     (hasCompletedApplicationDocument && hasSignatureNameAndDate)
   );

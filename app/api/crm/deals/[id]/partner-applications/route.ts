@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { extractPartnerApplicationPayloadFromUpload } from '@/lib/partner-application-extraction';
+import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -288,7 +289,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   await Promise.allSettled([
     supabase.from('documents').update({ related_partner_application_upload_id: upload.id }).eq('id', document.id),
-    supabase.from('applications').update({ application_source: 'partner_upload', application_review_status: 'converted_from_partner_app', converted_from_partner_upload_id: upload.id }).eq('id', applicationId).eq('organization_id', profile.organization_id),
+    supabase.from('applications').update({
+      ...buildPartnerApplicationSyncUpdate({
+        existingApplicationPayload: (application as any)?.application_payload,
+        editedPayload: extractedPayload,
+        convertedDocumentId: convertedDocument.id,
+      }),
+      converted_from_partner_upload_id: upload.id,
+    }).eq('id', applicationId).eq('organization_id', profile.organization_id),
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { hasApplicationSignatureEvidence, isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
+import { buildPartnerApplicationSyncUpdate } from '../lib/partner-application-sync';
 
 test.describe('deal readiness and funder requirements', () => {
   test('treats uploaded required documents as complete for funder submission', () => {
@@ -60,7 +61,58 @@ test.describe('deal readiness and funder requirements', () => {
         signed_application_document_id: 'doc-application-1',
       },
       completedApplicationDocuments: [],
+    })).toBe(false);
+
+    expect(hasApplicationSignatureEvidence({
+      application: {
+        signed_application_document_id: 'doc-application-1',
+        signed_name: 'Jordan Lee',
+        signature_date: '2026-06-10',
+      },
+      completedApplicationDocuments: [],
     })).toBe(true);
+  });
+
+  test('syncs reviewed partner application signatures onto the CRM application record', () => {
+    const update = buildPartnerApplicationSyncUpdate({
+      existingApplicationPayload: { legal_name: 'Old Merchant LLC', owner1: { first_name: 'Old' } },
+      editedPayload: {
+        legal_name: 'Reviewed Merchant LLC',
+        signature: 'Jordan Partner',
+        signature_date: '2026-06-10',
+        owner1: { first_name: 'Jordan', last_name: 'Partner' },
+      },
+      convertedDocumentId: 'document-converted-1',
+    });
+
+    expect(update).toEqual(expect.objectContaining({
+      application_source: 'partner_upload',
+      application_review_status: 'converted_from_partner_app',
+      signed_name: 'Jordan Partner',
+      e_signature: 'Jordan Partner',
+      signature_date: '2026-06-10',
+      signature_type: 'partner_upload',
+      signature_status: 'converted',
+      signed_application_document_id: 'document-converted-1',
+    }));
+    expect(update.application_payload).toEqual(expect.objectContaining({
+      legal_name: 'Reviewed Merchant LLC',
+      owner1: { first_name: 'Jordan', last_name: 'Partner' },
+    }));
+    expect(hasApplicationSignatureEvidence({
+      application: update,
+      completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
+    })).toBe(true);
+
+    const unsignedUpdate = buildPartnerApplicationSyncUpdate({
+      editedPayload: { legal_name: 'Unsigned Merchant LLC' },
+      convertedDocumentId: 'document-converted-unsigned',
+    });
+    expect(unsignedUpdate.signature_status).toBe('pending_signature');
+    expect(hasApplicationSignatureEvidence({
+      application: unsignedUpdate,
+      completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
+    })).toBe(false);
   });
 
   test('uses saved funder required documents in AI package planning', async () => {
