@@ -11,9 +11,25 @@ const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'ima
 const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
+async function removeUploadedDealDocument(supabase: any, storagePath: string) {
+  if (!storagePath) return;
+  await supabase.storage.from('application-documents').remove([storagePath]).catch(() => null);
+}
+
 function normalizeRequirementList(value: unknown) {
   if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
   return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function classificationReviewNote(classification: Awaited<ReturnType<typeof classifyDealDocumentUpload>>) {
+  const pieces = [
+    `Classified as ${classification.label || classification.document_type}`,
+    `${classification.confidence} confidence`,
+    `via ${classification.provider === 'rules' ? 'document rules' : 'AI document review'}`,
+    classification.reasoning ? `Reason: ${classification.reasoning}` : '',
+    classification.error ? `Fallback note: ${classification.error}` : '',
+  ].filter(Boolean);
+  return `Document classification: ${pieces.join(' | ')}`;
 }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -101,6 +117,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const documentType = classification.document_type;
   const linkedRequestId = documentRequestId || classification.matched_request_id || null;
   const label = explicitLabel || classification.label;
+  const initialReviewNotes = [reviewNotes, classificationReviewNote(classification)].filter(Boolean).join('\n\n') || null;
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `${profile.organization_id}/${deal.id}/${Date.now()}-${safeName}`;
@@ -125,13 +142,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
       storage_path: storagePath,
       status: 'uploaded',
       uploaded_by_user_id: user.id,
-      review_notes: reviewNotes || null,
+      review_notes: initialReviewNotes,
       visibility: isInternalCrmRole(profile.role) ? 'internal' : 'shared',
     })
     .select('id,file_name,label,document_type,status,created_at')
     .single();
 
-  if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
+  if (documentError) {
+    await removeUploadedDealDocument(supabase, storagePath);
+    return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
+  }
 
   let aiExtraction = null;
   if (sameCrmDocumentType(documentType, 'bank_statements') || sameCrmDocumentType(documentType, 'bank_statement')) {
@@ -155,7 +175,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .update({
         ai_extraction: aiExtraction,
         ai_extracted_at: new Date().toISOString(),
-        review_notes: [reviewNotes, extractionSummary].filter(Boolean).join('\n\n') || null,
+        review_notes: [initialReviewNotes, extractionSummary].filter(Boolean).join('\n\n') || null,
       })
       .eq('id', document.id)
       .eq('organization_id', profile.organization_id);
@@ -163,7 +183,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (extractionUpdateError) {
       await supabase
         .from('documents')
-        .update({ review_notes: [reviewNotes, extractionSummary].filter(Boolean).join('\n\n') || null })
+        .update({ review_notes: [initialReviewNotes, extractionSummary].filter(Boolean).join('\n\n') || null })
         .eq('id', document.id)
         .eq('organization_id', profile.organization_id);
     }
