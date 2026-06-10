@@ -1,6 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { buildCompletedApplicationDocumentSyncUpdate } from '../lib/application-document-sync';
-import { hasApplicationSignatureEvidence, hasCompleteSensitiveIdentifier, isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
+import {
+  hasApplicationSignatureEvidence,
+  hasCompleteBusinessLocation,
+  hasCompleteSensitiveIdentifier,
+  hasOwnerDobEvidence,
+  hasOwnerOwnershipEvidence,
+  isRequiredDocumentCompleteStatus,
+  isSubmissionBlockingReadinessCheck,
+} from '../lib/deal-readiness';
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
 import { buildPartnerApplicationSyncUpdate } from '../lib/partner-application-sync';
 import { encryptSensitiveField } from '../lib/security';
@@ -89,6 +97,35 @@ test.describe('deal readiness and funder requirements', () => {
       if (originalKey === undefined) delete process.env.FIELD_ENCRYPTION_KEY;
       else process.env.FIELD_ENCRYPTION_KEY = originalKey;
     }
+  });
+
+  test('requires business location, DOB, and ownership evidence for funder send readiness', () => {
+    expect(hasCompleteBusinessLocation({
+      applicationPayload: { address: '700 Main St Dallas TX 75201' },
+      business: {},
+    })).toBe(true);
+    expect(hasCompleteBusinessLocation({
+      applicationPayload: { address: '700 Main St' },
+      business: {},
+    })).toBe(false);
+
+    expect(hasOwnerDobEvidence({
+      applicationPayload: { owner1: { dob: '1985-04-10' } },
+      owner: {},
+    })).toBe(true);
+    expect(hasOwnerDobEvidence({
+      applicationPayload: {},
+      owner: {},
+    })).toBe(false);
+
+    expect(hasOwnerOwnershipEvidence({
+      partnerPayload: { owner1: { percent_of_ownership: '100' } },
+      owner: {},
+    })).toBe(true);
+    expect(hasOwnerOwnershipEvidence({
+      partnerPayload: {},
+      owner: {},
+    })).toBe(false);
   });
 
   test('treats only active funder submission statuses as duplicate-send blockers', () => {

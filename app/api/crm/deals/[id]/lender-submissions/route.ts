@@ -86,7 +86,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!readiness.canSubmitToLender) {
     return NextResponse.json({
       success: false,
-      error: 'Deal is blocked by the funder package readiness gate. Complete required documents, signature, EIN, and SSN checks before funder submission.',
+      error: 'Deal is blocked by the funder package readiness gate. Complete required documents, signature, EIN, SSN, DOB, ownership, and business location checks before funder submission.',
       readiness: readiness.checks,
     }, { status: 409 });
   }

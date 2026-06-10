@@ -23,6 +23,39 @@ function normalizeDigits(value: string | null | undefined) {
   return (value || '').replace(/\D/g, '');
 }
 
+function text(value: unknown) {
+  return String(value ?? '').trim();
+}
+
+function splitAddress(value: unknown) {
+  const raw = text(value);
+  if (!raw) return { city: '', state: '', zip: '' };
+  const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  const parseStateZip = (part: string) => {
+    const match = part.match(/\b([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/i);
+    return match ? { state: match[1].toUpperCase(), zip: match[2] } : { state: '', zip: '' };
+  };
+
+  if (parts.length >= 3) {
+    const { state, zip } = parseStateZip(parts[parts.length - 1]);
+    return { city: parts[parts.length - 2] || '', state, zip };
+  }
+  if (parts.length === 2) {
+    const { state, zip } = parseStateZip(parts[1]);
+    return { city: state || zip ? '' : parts[1], state, zip };
+  }
+
+  const inline = raw.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (!inline) return { city: '', state: '', zip: '' };
+  const beforeState = inline[1].trim();
+  const streetMatch = beforeState.match(/^(.+\b(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|parkway|pkwy|place|pl|terrace|ter|trail|trl|way|highway|hwy)\b(?:\s+(?:apt|apartment|suite|ste|unit|#)\s*[\w-]+)?)\s+(.+)$/i);
+  return { city: streetMatch?.[2]?.trim() || '', state: inline[2].toUpperCase(), zip: inline[3] };
+}
+
+function firstText(...values: unknown[]) {
+  return values.map(text).find(Boolean) || '';
+}
+
 export function isRequiredDocumentCompleteStatus(status: string | null | undefined) {
   return COMPLETE_REQUIRED_DOCUMENT_STATUSES.has(String(status || '').toLowerCase());
 }
@@ -45,6 +78,85 @@ function hasFullIdentifierValue(value: string | null | undefined) {
 
 export function hasCompleteSensitiveIdentifier(encryptedValue?: string | null) {
   return FULL_IDENTIFIER_PATTERN.test(decryptDigits(encryptedValue));
+}
+
+export function hasCompleteBusinessLocation(args: {
+  applicationPayload?: Record<string, any> | null;
+  partnerPayload?: Record<string, any> | null;
+  business?: Record<string, any> | null;
+}) {
+  const applicationPayload = args.applicationPayload || {};
+  const partnerPayload = args.partnerPayload || {};
+  const business = args.business || {};
+  const combinedAddress = firstText(
+    applicationPayload.business_address,
+    applicationPayload.address,
+    partnerPayload.business_address,
+    partnerPayload.address,
+    business.address,
+  );
+  const parsedAddress = splitAddress(combinedAddress);
+  const city = firstText(applicationPayload.city, partnerPayload.city, business.city, parsedAddress.city);
+  const state = firstText(applicationPayload.state, partnerPayload.state, business.state, parsedAddress.state);
+  const zip = firstText(applicationPayload.zip, applicationPayload.zip_code, partnerPayload.zip, partnerPayload.zip_code, business.zip, parsedAddress.zip);
+  return Boolean(city && state && zip);
+}
+
+export function hasOwnerDobEvidence(args: {
+  applicationPayload?: Record<string, any> | null;
+  partnerPayload?: Record<string, any> | null;
+  owner?: Record<string, any> | null;
+}) {
+  const applicationPayload = args.applicationPayload || {};
+  const partnerPayload = args.partnerPayload || {};
+  const owner = args.owner || {};
+  return Boolean(firstText(
+    owner.dob_decrypted,
+    owner.dob,
+    owner.date_of_birth,
+    applicationPayload.owner1?.dob,
+    applicationPayload.owner1?.date_of_birth,
+    applicationPayload.dob,
+    applicationPayload.date_of_birth,
+    applicationPayload.owner_dob,
+    partnerPayload.owner1?.dob,
+    partnerPayload.owner1?.date_of_birth,
+    partnerPayload.dob,
+    partnerPayload.date_of_birth,
+    partnerPayload.owner_dob,
+  ));
+}
+
+export function hasOwnerOwnershipEvidence(args: {
+  applicationPayload?: Record<string, any> | null;
+  partnerPayload?: Record<string, any> | null;
+  owner?: Record<string, any> | null;
+}) {
+  const applicationPayload = args.applicationPayload || {};
+  const partnerPayload = args.partnerPayload || {};
+  const owner = args.owner || {};
+  return Boolean(firstText(
+    owner.ownership_percentage,
+    owner.ownership_pct,
+    owner.percent_ownership,
+    owner.percent_of_ownership,
+    applicationPayload.owner1?.ownership_percentage,
+    applicationPayload.owner1?.ownership_pct,
+    applicationPayload.owner1?.percent_ownership,
+    applicationPayload.owner1?.percent_of_ownership,
+    applicationPayload.ownership_percentage,
+    applicationPayload.ownership_pct,
+    applicationPayload.percent_ownership,
+    applicationPayload.percent_of_ownership,
+    partnerPayload.owner1?.ownership_percentage,
+    partnerPayload.owner1?.ownership_pct,
+    partnerPayload.owner1?.percent_ownership,
+    partnerPayload.owner1?.percent_of_ownership,
+    partnerPayload.ownership_percentage,
+    partnerPayload.ownership_pct,
+    partnerPayload.percent_ownership,
+    partnerPayload.percent_of_ownership,
+  ));
 }
 
 export function hasApplicationSignatureEvidence(args: {
@@ -117,7 +229,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
     businessId
       ? supabase
         .from('businesses')
-        .select('id,ein_encrypted,ein_last4')
+        .select('id,ein_encrypted,ein_last4,address,city,state,zip')
         .eq('organization_id', organizationId)
         .eq('id', businessId)
         .maybeSingle()
@@ -125,7 +237,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
     businessId
       ? supabase
         .from('business_owners')
-        .select('owners(ssn_encrypted,ssn_last4)')
+        .select('ownership_percentage,owners(ssn_encrypted,ssn_last4,dob_encrypted,ownership_percentage)')
         .eq('organization_id', organizationId)
         .eq('business_id', businessId)
         .limit(1)
@@ -161,6 +273,10 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
   const hasFullEin = hasCompleteSensitiveIdentifier(businessRes.data?.ein_encrypted) ||
     hasFullIdentifierValue(applicationPayload.ein || applicationPayload.tax_id || partnerPayload.ein || partnerPayload.tax_id);
   const owner = (ownerRes.data || [])[0] as any;
+  const primaryOwner = {
+    ownership_percentage: owner?.ownership_percentage || owner?.owners?.ownership_percentage,
+    dob_decrypted: decryptSensitiveField(owner?.owners?.dob_encrypted),
+  };
   const ssnLast4 = normalizeDigits(owner?.owners?.ssn_last4 || '');
   const hasFullSsn = hasCompleteSensitiveIdentifier(owner?.owners?.ssn_encrypted) ||
     hasFullIdentifierValue(
@@ -173,6 +289,9 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       partnerPayload.ssn ||
       partnerPayload.owner_ssn
     );
+  const hasBusinessLocation = hasCompleteBusinessLocation({ applicationPayload, partnerPayload, business: businessRes.data });
+  const hasOwnerDob = hasOwnerDobEvidence({ applicationPayload, partnerPayload, owner: primaryOwner });
+  const hasOwnerOwnership = hasOwnerOwnershipEvidence({ applicationPayload, partnerPayload, owner: primaryOwner });
   const underwritingCompleted = Boolean(uwRes.data?.status === 'completed' && uwRes.data?.decision && uwRes.data.decision !== 'pending');
 
   const checks: ReadinessCheck[] = [
@@ -211,6 +330,27 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
         : LAST4_PATTERN.test(ssnLast4)
           ? 'Only owner SSN last4 is present. Capture the full SSN before funder submission.'
           : 'Owner SSN is missing. Verify the full SSN before funder submission.',
+    },
+    {
+      key: 'business_location_complete',
+      label: 'Business city, state, and ZIP are complete',
+      passed: hasBusinessLocation,
+      blocksSubmission: true,
+      detail: hasBusinessLocation ? 'Business city, state, and ZIP are available for the completed application.' : 'Business city, state, or ZIP is missing. Fix the application before funder submission.',
+    },
+    {
+      key: 'owner_dob_present',
+      label: 'Owner DOB is complete',
+      passed: hasOwnerDob,
+      blocksSubmission: true,
+      detail: hasOwnerDob ? 'Owner DOB is available for the completed application.' : 'Owner DOB is missing. Fix the application before funder submission.',
+    },
+    {
+      key: 'owner_ownership_present',
+      label: 'Owner ownership percentage is complete',
+      passed: hasOwnerOwnership,
+      blocksSubmission: true,
+      detail: hasOwnerOwnership ? 'Owner ownership percentage is available for the completed application.' : 'Owner ownership percentage is missing. Fix the application before funder submission.',
     },
     {
       key: 'underwriting_completed',
