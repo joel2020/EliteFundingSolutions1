@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { buildCompletedApplicationDocumentSyncUpdate } from '@/lib/application-document-sync';
 import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
+import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 import { evaluateDealReadinessForLenderSubmission } from '@/lib/deal-readiness';
@@ -148,7 +150,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       : Promise.resolve({ data: null }),
     supabase
       .from('partner_application_uploads')
-      .select('id,edited_payload,converted_document_id,status')
+      .select('id,application_id,edited_payload,converted_document_id,status')
       .eq('organization_id', profile.organization_id)
       .eq('deal_id', deal.id)
       .is('deleted_at', null)
@@ -176,9 +178,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
   let generatedApplicationDocument: any = null;
   {
     const editedPayload = (latestPartnerApplication as any)?.edited_payload || {};
+    const applicationPayload = (application as any)?.application_payload || {};
+    const targetApplicationId = deal.application_id || (latestPartnerApplication as any)?.application_id || null;
+    if (!targetApplicationId) {
+      return NextResponse.json({ success: false, error: 'No CRM application record is linked to this deal. Complete or convert an application before sending to funders.' }, { status: 400 });
+    }
     const applicationForPdf = {
       ...(application || {}),
-      application_payload: { ...((application as any)?.application_payload || {}), ...editedPayload },
+      application_payload: { ...applicationPayload, ...editedPayload },
     };
     const applicationPdf = await generateLenderApplicationPdf({
       deal,
@@ -207,7 +214,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .insert({
         organization_id: profile.organization_id,
         deal_id: deal.id,
-        application_id: deal.application_id,
+        application_id: targetApplicationId,
         uploaded_by_user_id: user.id,
         document_type: 'completed_application',
         label: latestPartnerApplication ? 'Elite Funding Solutions converted application' : 'Completed funder application',
@@ -230,11 +237,38 @@ export async function POST(request: Request, { params }: { params: { id: string 
     generatedApplicationDocument = createdApplicationDocument;
 
     if (latestPartnerApplication) {
-      await supabase
+      const { error: partnerApplicationUpdateError } = await supabase
         .from('partner_application_uploads')
         .update({ converted_document_id: createdApplicationDocument.id, status: 'converted', updated_by: profile.id })
         .eq('id', (latestPartnerApplication as any).id)
         .eq('organization_id', profile.organization_id);
+      if (partnerApplicationUpdateError) {
+        return NextResponse.json({ success: false, error: `Funder package PDF was generated, but the partner application record could not be finalized: ${partnerApplicationUpdateError.message}` }, { status: 500 });
+      }
+    }
+
+    const applicationUpdate = latestPartnerApplication
+      ? buildPartnerApplicationSyncUpdate({
+        existingApplicationPayload: applicationPayload,
+        editedPayload,
+        convertedDocumentId: createdApplicationDocument.id,
+      })
+      : buildCompletedApplicationDocumentSyncUpdate({
+        existingApplicationPayload: applicationPayload,
+        completedDocumentId: createdApplicationDocument.id,
+        reviewStatus: 'submitted',
+      });
+
+    const { error: applicationSyncError } = await supabase
+      .from('applications')
+      .update({
+        ...applicationUpdate,
+        ...(latestPartnerApplication ? { converted_from_partner_upload_id: (latestPartnerApplication as any).id } : {}),
+      })
+      .eq('id', targetApplicationId)
+      .eq('organization_id', profile.organization_id);
+    if (applicationSyncError) {
+      return NextResponse.json({ success: false, error: `Funder package PDF was generated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
     }
   }
 

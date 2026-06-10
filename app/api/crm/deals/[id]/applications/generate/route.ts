@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { buildCompletedApplicationDocumentSyncUpdate } from '@/lib/application-document-sync';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
+import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -69,6 +71,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       : Promise.resolve({ data: null }),
   ]);
 
+  if (partnerApplicationId && !partnerApplication) {
+    return NextResponse.json({ success: false, error: 'Partner application upload not found for this deal.' }, { status: 404 });
+  }
+
   let owners: any[] = [];
   if (deal.business_id) {
     const { data: ownerLinks } = await supabase
@@ -87,8 +93,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const editedPayload = partnerApplication?.edited_payload || {};
+  const targetApplicationId = deal.application_id || partnerApplication?.application_id || null;
+  if (!targetApplicationId) {
+    return NextResponse.json({ success: false, error: 'No CRM application record is linked to this deal. Upload/review a partner application or complete the deal application before generating the Elite PDF.' }, { status: 400 });
+  }
+  const applicationPayload = application?.application_payload || {};
   const applicationForPdf = application
-    ? { ...application, application_payload: { ...(application.application_payload || {}), ...editedPayload } }
+    ? { ...application, application_payload: { ...applicationPayload, ...editedPayload } }
     : { application_payload: editedPayload, requested_amount: deal.requested_amount };
 
     const pdf = await generateLenderApplicationPdf({
@@ -113,7 +124,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,
-      application_id: deal.application_id,
+      application_id: targetApplicationId,
       uploaded_by_user_id: user.id,
       document_type: 'completed_application',
       label: 'Elite Funding Solutions converted application',
@@ -132,25 +143,46 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     if (documentError) return NextResponse.json({ success: false, error: `Unable to save generated PDF record: ${documentError.message}` }, { status: 500 });
 
-    await Promise.allSettled([
-    partnerApplication
-      ? supabase
+    if (partnerApplication) {
+      const { error: partnerApplicationUpdateError } = await supabase
         .from('partner_application_uploads')
         .update({ converted_document_id: document.id, status: 'converted', updated_by: profile.id })
         .eq('id', partnerApplication.id)
-        .eq('organization_id', profile.organization_id)
-      : Promise.resolve(),
-    deal.application_id
-      ? supabase
-        .from('applications')
-        .update({ application_review_status: partnerApplication ? 'converted_from_partner_app' : 'submitted' })
-        .eq('id', deal.application_id)
-        .eq('organization_id', profile.organization_id)
-      : Promise.resolve(),
+        .eq('organization_id', profile.organization_id);
+      if (partnerApplicationUpdateError) {
+        return NextResponse.json({ success: false, error: `Elite PDF was generated, but the partner application record could not be finalized: ${partnerApplicationUpdateError.message}` }, { status: 500 });
+      }
+    }
+
+    const applicationUpdate = partnerApplication
+      ? buildPartnerApplicationSyncUpdate({
+        existingApplicationPayload: applicationPayload,
+        editedPayload,
+        convertedDocumentId: document.id,
+      })
+      : buildCompletedApplicationDocumentSyncUpdate({
+        existingApplicationPayload: applicationPayload,
+        completedDocumentId: document.id,
+        reviewStatus: 'submitted',
+      });
+
+    const { error: applicationSyncError } = await supabase
+      .from('applications')
+      .update({
+        ...applicationUpdate,
+        ...(partnerApplication ? { converted_from_partner_upload_id: partnerApplication.id } : {}),
+      })
+      .eq('id', targetApplicationId)
+      .eq('organization_id', profile.organization_id);
+    if (applicationSyncError) {
+      return NextResponse.json({ success: false, error: `Elite PDF was generated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
+    }
+
+    await Promise.allSettled([
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,
-      application_id: deal.application_id,
+      application_id: targetApplicationId,
       business_id: deal.business_id,
       lead_id: deal.lead_id,
       activity_type: 'document_event',
@@ -164,7 +196,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       action: 'elite_application_pdf_generated',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { deal_id: deal.id, application_id: deal.application_id, partner_application_upload_id: partnerApplication?.id || null },
+      new_data: { deal_id: deal.id, application_id: targetApplicationId, partner_application_upload_id: partnerApplication?.id || null },
     }),
   ]);
 

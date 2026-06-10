@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { buildCompletedApplicationDocumentSyncUpdate } from '../lib/application-document-sync';
 import { hasApplicationSignatureEvidence, hasCompleteSensitiveIdentifier, isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
 import { buildPartnerApplicationSyncUpdate } from '../lib/partner-application-sync';
@@ -125,6 +126,44 @@ test.describe('deal readiness and funder requirements', () => {
       convertedDocumentId: 'document-converted-unsigned',
     });
     expect(unsignedUpdate.signature_status).toBe('pending_signature');
+    expect(hasApplicationSignatureEvidence({
+      application: unsignedUpdate,
+      completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
+    })).toBe(false);
+  });
+
+  test('syncs generated completed application PDFs onto the CRM application record', () => {
+    const update = buildCompletedApplicationDocumentSyncUpdate({
+      existingApplicationPayload: {
+        legal_name: 'Atlas Retail LLC',
+        signature: 'Jordan Lee',
+        signature_date: '2026-06-10',
+      },
+      completedDocumentId: 'document-generated-1',
+    });
+
+    expect(update).toEqual(expect.objectContaining({
+      application_review_status: 'submitted',
+      signed_application_document_id: 'document-generated-1',
+      signed_name: 'Jordan Lee',
+      e_signature: 'Jordan Lee',
+      signature_date: '2026-06-10',
+      signature_status: 'signed',
+    }));
+    expect(hasApplicationSignatureEvidence({
+      application: update,
+      completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
+    })).toBe(true);
+
+    const unsignedUpdate = buildCompletedApplicationDocumentSyncUpdate({
+      existingApplicationPayload: { legal_name: 'Unsigned Merchant LLC' },
+      completedDocumentId: 'document-generated-unsigned',
+    });
+    expect(unsignedUpdate).toEqual(expect.objectContaining({
+      application_review_status: 'submitted',
+      signed_application_document_id: 'document-generated-unsigned',
+    }));
+    expect(unsignedUpdate).not.toHaveProperty('signature_status');
     expect(hasApplicationSignatureEvidence({
       application: unsignedUpdate,
       completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
