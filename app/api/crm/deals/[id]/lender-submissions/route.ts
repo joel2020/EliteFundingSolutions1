@@ -4,6 +4,7 @@ import { buildCompletedApplicationDocumentSyncUpdate } from '@/lib/application-d
 import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { ACTIVE_FUNDER_SUBMISSION_STATUSES } from '@/lib/lender-submission-duplicates';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
@@ -26,6 +27,7 @@ const submissionSchema = z.object({
   attachment_document_ids: z.array(z.string().uuid()).default([]),
   override_readiness_gate: z.boolean().optional().default(false),
   override_reason: z.string().trim().optional().default(''),
+  confirm_duplicate_send: z.boolean().optional().default(false),
 });
 
 function escapeHtml(value: string) {
@@ -108,6 +110,30 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const recipientEmail = partner.submission_email || partner.email || '';
   if (!recipientEmail) {
     return NextResponse.json({ success: false, error: 'Funding partner has no submission email. Add a submission email before sending this deal.' }, { status: 400 });
+  }
+
+  const { data: activeDuplicateSubmissions, error: duplicateSubmissionError } = await supabase
+    .from('partner_submissions')
+    .select('id,status,submitted_at,created_at')
+    .eq('organization_id', profile.organization_id)
+    .eq('deal_id', deal.id)
+    .eq('funding_partner_id', partner.id)
+    .in('status', ACTIVE_FUNDER_SUBMISSION_STATUSES)
+    .limit(5);
+
+  if (duplicateSubmissionError) {
+    return NextResponse.json({ success: false, error: `Unable to verify duplicate funder submissions: ${duplicateSubmissionError.message}` }, { status: 500 });
+  }
+  if ((activeDuplicateSubmissions || []).length && !parsed.data.confirm_duplicate_send) {
+    return NextResponse.json({
+      success: false,
+      error: `This deal already has an active submission for ${partner.name}. Confirm duplicate send before submitting again.`,
+      duplicateSubmission: {
+        funding_partner_id: partner.id,
+        funding_partner_name: partner.name,
+        existing_submissions: activeDuplicateSubmissions,
+      },
+    }, { status: 409 });
   }
 
   const { data: gmailTokens, error: gmailTokenError } = await supabase
@@ -492,6 +518,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         readiness_gate_checks: readiness.checks,
         readiness_gate_overridden: allowAdminOverride,
         readiness_gate_override_reason: allowAdminOverride ? parsed.data.override_reason.trim() : null,
+        duplicate_send_confirmed: Boolean(activeDuplicateSubmissions?.length && parsed.data.confirm_duplicate_send),
       },
     }),
     emailDeliveryStatus === 'sent'

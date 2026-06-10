@@ -65,6 +65,7 @@ import { supabase } from '@/lib/supabase';
 import { useCrmUser } from '@/lib/crm-auth';
 import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
 import { APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
+import { isActiveFunderSubmissionStatus } from '@/lib/lender-submission-duplicates';
 import {
   getComplianceBlocks,
   getCrmReportSourceOfTruth,
@@ -1953,7 +1954,15 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     if (!canSendToLenders) { toast.error('Only admins and sales reps can send deals to funders.'); return; }
     const fundingPartnerIds = submissionPartnerIds.length ? submissionPartnerIds : [partnerMatches[0]?.partner?.id || partners[0]?.id].filter(Boolean);
     if (!fundingPartnerIds.length) { toast.error('Add a funding partner before submitting.'); return; }
-    if (duplicateSubmissionPartners.length && !window.confirm(`This deal already has active submissions for ${duplicateSubmissionPartners.map((partner: RecordMap) => partner.name).join(', ')}. Send again anyway?`)) return;
+    const selectedDuplicatePartners = partners.filter((partner: RecordMap) =>
+      fundingPartnerIds.includes(partner.id) &&
+      dealSubmissions.some((row: RecordMap) => row.funding_partner_id === partner.id && isActiveFunderSubmissionStatus(row.status))
+    );
+    const duplicatePartnerIds = new Set(selectedDuplicatePartners.map((partner: RecordMap) => partner.id));
+    const confirmedDuplicateSend = selectedDuplicatePartners.length
+      ? window.confirm(`This deal already has active submissions for ${selectedDuplicatePartners.map((partner: RecordMap) => partner.name).join(', ')}. Send again anyway?`)
+      : false;
+    if (selectedDuplicatePartners.length && !confirmedDuplicateSend) return;
     if (!submissionNotes.trim()) { toast.error('Add a funder message before sending.'); return; }
     setSavingSubmission(true);
     try {
@@ -1962,7 +1971,12 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         const response = await fetch(`/api/crm/deals/${deal.id}/lender-submissions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ funding_partner_id: fundingPartnerId, custom_message: submissionNotes, attachment_document_ids: submissionDocumentIds }),
+          body: JSON.stringify({
+            funding_partner_id: fundingPartnerId,
+            custom_message: submissionNotes,
+            attachment_document_ids: submissionDocumentIds,
+            confirm_duplicate_send: confirmedDuplicateSend && duplicatePartnerIds.has(fundingPartnerId),
+          }),
         });
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit deal to funder');

@@ -438,6 +438,8 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     const submissionCalls = calls.filter((call) => call.method === 'POST' && call.table === 'partner_submissions' && call.body.custom_message === 'Strong deposits, explain two negative days from tax payment timing.');
     expect(submissionCalls).toHaveLength(2);
     expect(submissionCalls.map((call) => call.body.funding_partner_id)).toEqual(expect.arrayContaining(['88888888-8888-8888-8888-888888888888', secondFunderId]));
+    expect(submissionCalls.find((call) => call.body.funding_partner_id === '88888888-8888-8888-8888-888888888888')?.body.confirm_duplicate_send).toBe(true);
+    expect(submissionCalls.find((call) => call.body.funding_partner_id === secondFunderId)?.body.confirm_duplicate_send).toBe(false);
     for (const submissionCall of submissionCalls) {
       expect(submissionCall.body.attachment_document_ids).toContain(DOC_ID);
       expect(submissionCall.body.attachment_document_ids).not.toContain('completed-application-old');

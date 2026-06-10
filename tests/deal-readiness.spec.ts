@@ -4,6 +4,7 @@ import { hasApplicationSignatureEvidence, hasCompleteSensitiveIdentifier, isRequ
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
 import { buildPartnerApplicationSyncUpdate } from '../lib/partner-application-sync';
 import { encryptSensitiveField } from '../lib/security';
+import { isActiveFunderSubmissionStatus } from '../lib/lender-submission-duplicates';
 
 test.describe('deal readiness and funder requirements', () => {
   test('treats uploaded required documents as complete for funder submission', () => {
@@ -88,6 +89,17 @@ test.describe('deal readiness and funder requirements', () => {
       if (originalKey === undefined) delete process.env.FIELD_ENCRYPTION_KEY;
       else process.env.FIELD_ENCRYPTION_KEY = originalKey;
     }
+  });
+
+  test('treats only active funder submission statuses as duplicate-send blockers', () => {
+    expect(isActiveFunderSubmissionStatus('draft')).toBe(true);
+    expect(isActiveFunderSubmissionStatus('submitted')).toBe(true);
+    expect(isActiveFunderSubmissionStatus('in_review')).toBe(true);
+    expect(isActiveFunderSubmissionStatus('more_info_needed')).toBe(true);
+    expect(isActiveFunderSubmissionStatus('approved')).toBe(true);
+    expect(isActiveFunderSubmissionStatus('funded')).toBe(true);
+    expect(isActiveFunderSubmissionStatus('declined')).toBe(false);
+    expect(isActiveFunderSubmissionStatus('withdrawn')).toBe(false);
   });
 
   test('syncs reviewed partner application signatures onto the CRM application record', () => {
