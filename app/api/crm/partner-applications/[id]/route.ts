@@ -158,27 +158,34 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (documentError) return NextResponse.json({ success: false, error: `Unable to record regenerated Elite application PDF: ${documentError.message}` }, { status: 500 });
 
     convertedDocument = document;
-    await Promise.all([
-      supabase
-        .from('partner_application_uploads')
-        .update({ converted_document_id: document.id, status: 'converted', updated_by: profile.id })
-        .eq('id', existing.id)
-        .eq('organization_id', profile.organization_id),
-      existing.application_id
-        ? supabase
-          .from('applications')
-          .update({
-            ...buildPartnerApplicationSyncUpdate({
-              existingApplicationPayload: (application as any)?.application_payload,
-              editedPayload,
-              convertedDocumentId: document.id,
-            }),
-            converted_from_partner_upload_id: existing.id,
-          })
-          .eq('id', existing.application_id)
-          .eq('organization_id', profile.organization_id)
-        : Promise.resolve(),
-    ]);
+    const { error: partnerApplicationUpdateError } = await supabase
+      .from('partner_application_uploads')
+      .update({ converted_document_id: document.id, status: 'converted', updated_by: profile.id })
+      .eq('id', existing.id)
+      .eq('organization_id', profile.organization_id);
+    if (partnerApplicationUpdateError) {
+      return NextResponse.json({ success: false, error: `Elite PDF was regenerated, but the partner application record could not be finalized: ${partnerApplicationUpdateError.message}` }, { status: 500 });
+    }
+
+    if (!existing.application_id) {
+      return NextResponse.json({ success: false, error: 'Elite PDF was regenerated, but no CRM application record is linked to this partner upload.' }, { status: 500 });
+    }
+
+    const { error: applicationSyncError } = await supabase
+      .from('applications')
+      .update({
+        ...buildPartnerApplicationSyncUpdate({
+          existingApplicationPayload: (application as any)?.application_payload,
+          editedPayload,
+          convertedDocumentId: document.id,
+        }),
+        converted_from_partner_upload_id: existing.id,
+      })
+      .eq('id', existing.application_id)
+      .eq('organization_id', profile.organization_id);
+    if (applicationSyncError) {
+      return NextResponse.json({ success: false, error: `Elite PDF was regenerated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
+    }
   }
 
   await supabase.from('audit_logs').insert({

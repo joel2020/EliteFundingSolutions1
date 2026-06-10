@@ -287,16 +287,34 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('*')
     .single();
 
+  const applicationSyncPayload = {
+    ...buildPartnerApplicationSyncUpdate({
+      existingApplicationPayload: (application as any)?.application_payload,
+      editedPayload: extractedPayload,
+      convertedDocumentId: convertedDocument.id,
+    }),
+    converted_from_partner_upload_id: upload.id,
+  };
+  const { error: applicationSyncError } = await supabase
+    .from('applications')
+    .update(applicationSyncPayload)
+    .eq('id', applicationId)
+    .eq('organization_id', profile.organization_id);
+
+  if (applicationSyncError) {
+    await supabase
+      .from('partner_application_uploads')
+      .update({ status: 'failed', updated_by: profile.id })
+      .eq('id', upload.id)
+      .eq('organization_id', profile.organization_id);
+    return NextResponse.json({
+      success: false,
+      error: `Partner app was uploaded and converted, but the CRM application record could not be finalized: ${applicationSyncError.message}`,
+    }, { status: 500 });
+  }
+
   await Promise.allSettled([
     supabase.from('documents').update({ related_partner_application_upload_id: upload.id }).eq('id', document.id),
-    supabase.from('applications').update({
-      ...buildPartnerApplicationSyncUpdate({
-        existingApplicationPayload: (application as any)?.application_payload,
-        editedPayload: extractedPayload,
-        convertedDocumentId: convertedDocument.id,
-      }),
-      converted_from_partner_upload_id: upload.id,
-    }).eq('id', applicationId).eq('organization_id', profile.organization_id),
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,
