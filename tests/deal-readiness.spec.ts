@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { isRequiredDocumentCompleteStatus } from '../lib/deal-readiness';
+import { isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
 
 test.describe('deal readiness and funder requirements', () => {
@@ -11,6 +11,22 @@ test.describe('deal readiness and funder requirements', () => {
     expect(isRequiredDocumentCompleteStatus('requested')).toBe(false);
     expect(isRequiredDocumentCompleteStatus('needs_replacement')).toBe(false);
     expect(isRequiredDocumentCompleteStatus('rejected')).toBe(false);
+  });
+
+  test('keeps underwriting review as a warning while package essentials block send', () => {
+    expect(isSubmissionBlockingReadinessCheck({
+      key: 'underwriting_completed',
+      label: 'Underwriting review completed',
+      passed: false,
+      blocksSubmission: false,
+    })).toBe(false);
+
+    expect(isSubmissionBlockingReadinessCheck({
+      key: 'signature_captured',
+      label: 'Application signature captured',
+      passed: false,
+      blocksSubmission: true,
+    })).toBe(true);
   });
 
   test('uses saved funder required documents in AI package planning', async () => {

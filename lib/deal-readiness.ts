@@ -5,6 +5,7 @@ type ReadinessCheck = {
   label: string;
   passed: boolean;
   detail?: string;
+  blocksSubmission?: boolean;
 };
 
 export type DealReadinessResult = {
@@ -21,6 +22,10 @@ function normalizeDigits(value: string | null | undefined) {
 
 export function isRequiredDocumentCompleteStatus(status: string | null | undefined) {
   return COMPLETE_REQUIRED_DOCUMENT_STATUSES.has(String(status || '').toLowerCase());
+}
+
+export function isSubmissionBlockingReadinessCheck(check: ReadinessCheck) {
+  return !check.passed && check.blocksSubmission !== false;
 }
 
 export async function evaluateDealReadinessForLenderSubmission(args: {
@@ -87,38 +92,45 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       key: 'required_documents_complete',
       label: 'Required checklist documents complete',
       passed: openRequired.length === 0,
+      blocksSubmission: true,
       detail: openRequired.length ? `${openRequired.length} required checklist item(s) still missing or needs replacement.` : 'All required checklist items are uploaded, in review, approved, or waived.',
     },
     {
       key: 'signature_captured',
       label: 'Application signature captured',
       passed: hasSignature,
+      blocksSubmission: true,
       detail: hasSignature ? 'Signature metadata is present on the application.' : 'No signature metadata found on the application.',
     },
     {
       key: 'ein_verified',
       label: 'Business EIN appears complete',
       passed: LAST4_PATTERN.test(einLast4),
+      blocksSubmission: true,
       detail: LAST4_PATTERN.test(einLast4) ? 'EIN last4 is present for controlled workflows.' : 'EIN last4 is missing. Verify business EIN before lender submission.',
     },
     {
       key: 'ssn_present',
       label: 'Owner SSN appears present',
       passed: LAST4_PATTERN.test(ssnLast4),
+      blocksSubmission: true,
       detail: LAST4_PATTERN.test(ssnLast4) ? 'Owner SSN last4 is present for controlled workflows.' : 'Owner SSN last4 is missing. Verify owner SSN before lender submission.',
     },
     {
       key: 'underwriting_completed',
       label: 'Underwriting review completed',
       passed: underwritingCompleted,
+      blocksSubmission: false,
       detail: underwritingCompleted ? 'Latest underwriting review is completed with a decision.' : 'Latest underwriting review is missing or incomplete.',
     },
   ];
 
   const failed = checks.filter((check) => !check.passed);
+  const blockingFailed = checks.filter(isSubmissionBlockingReadinessCheck);
   return {
-    canSubmitToLender: failed.length === 0 || Boolean(allowAdminOverride),
+    canSubmitToLender: blockingFailed.length === 0 || Boolean(allowAdminOverride),
     checks,
     failed,
+    blockingFailed,
   };
 }
