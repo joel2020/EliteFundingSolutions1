@@ -16,4 +16,14 @@ test.describe('funder submission hardening', () => {
     expect(uiSource).toContain('confirm_duplicate_send');
     expect(uiSource).toContain('isActiveFunderSubmissionStatus');
   });
+
+  test('logs no-email funder submissions for manual follow-up instead of blocking the package', () => {
+    const routeSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
+
+    expect(routeSource).not.toContain('Funding partner has no submission email. Add a submission email before sending this deal.');
+    expect(routeSource).toContain('const canSendViaGmail = Boolean(recipientEmail && hasGmailConnection)');
+    expect(routeSource).toContain('Funding partner has no submission email. The package was logged for manual follow-up');
+    expect(routeSource).toContain("let emailDeliveryStatus = canSendViaGmail ? 'failed' : 'manual_send_required'");
+    expect(routeSource).toContain('if (canSendViaGmail)');
+  });
 });

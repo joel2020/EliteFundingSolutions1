@@ -109,9 +109,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
 
   const recipientEmail = partner.submission_email || partner.email || '';
-  if (!recipientEmail) {
-    return NextResponse.json({ success: false, error: 'Funding partner has no submission email. Add a submission email before sending this deal.' }, { status: 400 });
-  }
 
   const { data: activeDuplicateSubmissions, error: duplicateSubmissionError } = await supabase
     .from('partner_submissions')
@@ -451,31 +448,34 @@ export async function POST(request: Request, { params }: { params: { id: string 
   `;
 
   const hasGmailConnection = !!gmailTokens?.email && !!gmailTokens?.access_token && hasRequiredGmailSendScope(gmailTokens.scope);
-  let emailDeliveryStatus = hasGmailConnection ? 'failed' : 'manual_send_required';
+  const canSendViaGmail = Boolean(recipientEmail && hasGmailConnection);
+  let emailDeliveryStatus = canSendViaGmail ? 'failed' : 'manual_send_required';
   let emailProviderData: unknown = null;
-  let emailProviderError: string | null = gmailTokenError
-    ? 'Unable to check the sender Google Workspace connection. The submission was logged for manual send.'
-    : gmailTokens?.email && gmailTokens?.access_token && !hasRequiredGmailSendScope(gmailTokens.scope)
+  let emailProviderError: string | null = !recipientEmail
+    ? 'Funding partner has no submission email. The package was logged for manual follow-up; add a submission email on the funder profile to send directly from Gmail.'
+    : gmailTokenError
+      ? 'Unable to check the sender Google Workspace connection. The submission was logged for manual send.'
+      : gmailTokens?.email && gmailTokens?.access_token && !hasRequiredGmailSendScope(gmailTokens.scope)
       ? 'Google Workspace is connected without Gmail send permission. Reconnect Gmail from Settings and approve email sending.'
-      : hasGmailConnection
+      : canSendViaGmail
       ? null
       : 'Google Workspace is not connected for this CRM user. The submission was logged and a manual draft was prepared.';
 
-  if (hasGmailConnection) {
+  if (canSendViaGmail) {
     try {
       const emailResult = await sendGmailEmail({
-        accessToken: gmailTokens.access_token,
-        refreshToken: gmailTokens.refresh_token || undefined,
+        accessToken: gmailTokens!.access_token,
+        refreshToken: gmailTokens!.refresh_token || undefined,
         userId: user.id,
         to: recipientEmail,
         subject: emailSubject,
         body: emailText,
         html: emailHtml,
-        from: gmailTokens.email,
+        from: gmailTokens!.email,
         attachments: providerAttachments,
       });
       emailDeliveryStatus = 'sent';
-      emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: gmailTokens.email };
+      emailProviderData = { id: emailResult.id, threadId: emailResult.threadId, from: gmailTokens!.email };
     } catch (error: any) {
       emailProviderError = error?.message || 'Unable to send funder email through Google Workspace. The submission was logged and a manual draft was prepared.';
     }
