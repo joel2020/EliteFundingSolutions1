@@ -241,9 +241,7 @@ test.describe('deal readiness and funder requirements', () => {
           application_payload: {
             legal_name: 'Atlas Retail LLC',
             requested_amount: '75000',
-            city: 'New York',
-            state: 'NY',
-            zip: '10001',
+            address: '200 Inline Ave New York NY 10001',
             ein: '12-3456789',
             owner1: { first_name: 'Jordan', last_name: 'Lee', dob: '1985-04-10', ssn: '123-45-6789', ownership_pct: '100' },
           },
@@ -270,6 +268,9 @@ test.describe('deal readiness and funder requirements', () => {
     }
 
     expect(result.provider).toBe('rules');
+    expect(result.analysis.applicationQa.blockers).not.toContain('Business address with city/state/ZIP missing');
+    expect(result.analysis.applicationQa.blockers).not.toContain('Owner DOB missing');
+    expect(result.analysis.applicationQa.blockers).not.toContain('Owner ownership percentage missing');
     expect(result.analysis.packageBuilder.requiredDocumentTypes).toEqual(expect.arrayContaining(['voided_check']));
     expect(result.analysis.packageBuilder.includedDocumentIds).toEqual(expect.arrayContaining(['doc-check']));
     expect(result.analysis.packageBuilder.missingDocumentTypes).not.toContain('voided_check');

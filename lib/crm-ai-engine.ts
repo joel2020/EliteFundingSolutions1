@@ -1,5 +1,10 @@
 import { sameCrmDocumentType } from './document-classification';
-import { hasApplicationSignatureEvidence } from './deal-readiness';
+import {
+  hasApplicationSignatureEvidence,
+  hasCompleteBusinessLocation,
+  hasOwnerDobEvidence,
+  hasOwnerOwnershipEvidence,
+} from './deal-readiness';
 
 type RecordMap = Record<string, any>;
 export type AiProvider = 'azure-openai' | 'openai' | 'rules';
@@ -315,11 +320,11 @@ function buildApplicationQa(context: RecordMap) {
   const checks = [
     ['Business legal name', boolPresent(payload.legal_name, payload.company_name, business.legal_name, context.deal?.title)],
     ['Requested amount', boolPresent(context.deal?.requested_amount, application.requested_amount, payload.requested_amount)],
-    ['Business address with city/state/ZIP', boolPresent(payload.city || business.city) && boolPresent(payload.state || business.state) && boolPresent(payload.zip || business.zip)],
+    ['Business address with city/state/ZIP', hasCompleteBusinessLocation({ applicationPayload: payload, business })],
     ['Full EIN / Tax ID evidence', boolPresent(business.ein_last4, payload.ein)],
     ['Owner name', boolPresent(firstOwner.first_name && firstOwner.last_name, firstOwner.full_name, payload.full_name)],
-    ['Owner DOB', boolPresent(firstOwner.dob, payload.dob)],
-    ['Owner ownership percentage', boolPresent(firstOwner.ownership_percentage, firstOwner.ownership_pct, payload.ownership_percentage, payload.ownership_pct)],
+    ['Owner DOB', hasOwnerDobEvidence({ applicationPayload: payload, owner: firstOwner })],
+    ['Owner ownership percentage', hasOwnerOwnershipEvidence({ applicationPayload: payload, owner: firstOwner })],
     ['Owner SSN evidence', boolPresent(firstOwner.ssn_last4, firstOwner.ssn, payload.ssn)],
     ['Signature', hasApplicationSignatureEvidence({ application, completedApplicationDocuments: documents })],
   ];
