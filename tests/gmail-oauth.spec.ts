@@ -83,4 +83,10 @@ test.describe('Google OAuth verification readiness', () => {
     expect(submissionRouteSource).toContain('sendGmailEmail({');
     expect(submissionRouteSource).toContain('userId: user.id');
   });
+
+  test('funder package PDF generation loads full signature evidence fields', () => {
+    const submissionRouteSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
+    expect(submissionRouteSource).toContain('signed_name,e_signature,signature_date,signature_status,signature_type,signature_data_storage_path,signed_application_document_id,application_payload');
+    expect(submissionRouteSource).toContain('drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf)');
+  });
 });

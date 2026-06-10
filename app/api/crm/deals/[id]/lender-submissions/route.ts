@@ -133,7 +133,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     deal.application_id
       ? supabase
         .from('applications')
-        .select('id,organization_id,business_id,requested_amount,has_existing_advances,bank_name,account_type,submitted_at,signed_name,signature_date,signature_data_storage_path,application_payload')
+        .select('id,organization_id,business_id,requested_amount,has_existing_advances,bank_name,account_type,submitted_at,signed_name,e_signature,signature_date,signature_status,signature_type,signature_data_storage_path,signed_application_document_id,application_payload')
         .eq('id', deal.application_id)
         .eq('organization_id', profile.organization_id)
         .maybeSingle()
