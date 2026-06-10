@@ -4,19 +4,9 @@ import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supaba
 import { decryptSensitiveField } from '@/lib/security';
 import { requireSameOrigin } from '@/lib/server-auth';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { decodePngDataUrl } from '@/lib/pdf-signature';
 
 export const dynamic = 'force-dynamic';
-
-const MAX_SIGNATURE_BYTES = 750 * 1024;
-
-function decodePngDataUrl(value: unknown) {
-  if (typeof value !== 'string') return null;
-  const match = value.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
-  if (!match) return null;
-  const buffer = Buffer.from(match[1], 'base64');
-  if (!buffer.length || buffer.length > MAX_SIGNATURE_BYTES) return null;
-  return buffer;
-}
 
 function safeDealName(value?: string | null) {
   return (value || 'merchant-application')

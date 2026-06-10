@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { APPLICATION_DISCLOSURE_SECTIONS } from './application-disclosures';
+import { decodePngDataUrl, isValidSignaturePng } from './pdf-signature';
 
 type Owner = Record<string, any>;
 
@@ -309,10 +310,7 @@ function trimToFit(value: string, font: any, maxWidth: number, size: number) {
 }
 
 function pngDataFromUrl(value: unknown) {
-  if (typeof value !== 'string') return null;
-  const match = value.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
-  if (!match) return null;
-  return Buffer.from(match[1], 'base64');
+  return decodePngDataUrl(value);
 }
 
 function mergeWithNonEmptyOverride(base: Owner, override: Owner) {
@@ -448,7 +446,7 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     accountType: firstText(application.account_type, payload.account_type),
     signer: text(application.signed_name || application.e_signature || payload.signature || ownerName(owner1)),
     signatureDate,
-    drawnSignaturePng: data.drawnSignaturePng || pngDataFromUrl(payload.signature_data_url),
+    drawnSignaturePng: data.drawnSignaturePng && isValidSignaturePng(data.drawnSignaturePng) ? data.drawnSignaturePng : pngDataFromUrl(payload.signature_data_url),
   };
 }
 

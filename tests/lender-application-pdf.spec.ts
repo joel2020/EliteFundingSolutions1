@@ -543,7 +543,7 @@ test.describe('lender application PDF data mapping', () => {
   });
 
   test('uses inline drawn signature PNG data from partner payloads', () => {
-    const signatureDataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const signatureDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
     const fields = resolveLenderApplicationPdfFields({
       ...sampleApplicationData,
       application: {
@@ -556,14 +556,39 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.drawnSignaturePng?.length).toBeGreaterThan(0);
   });
 
-  test('accepts stored signature PNG bytes for regenerated PDFs', () => {
-    const signaturePng = Buffer.from('signature-bytes');
+  test('rejects malformed inline signature PNG data before PDF rendering', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      application: {
+        application_payload: {
+          signature_data_url: 'data:image/png;base64,iVBORw0KGgo=',
+        },
+      },
+    });
+
+    expect(fields.drawnSignaturePng).toBeNull();
+  });
+
+  test('accepts valid stored signature PNG bytes for regenerated PDFs', () => {
+    const signaturePng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+      'base64',
+    );
     const fields = resolveLenderApplicationPdfFields({
       ...sampleApplicationData,
       drawnSignaturePng: signaturePng,
     });
 
     expect(fields.drawnSignaturePng).toBe(signaturePng);
+  });
+
+  test('rejects malformed stored signature PNG bytes for regenerated PDFs', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      drawnSignaturePng: Buffer.from('signature-bytes'),
+    });
+
+    expect(fields.drawnSignaturePng).toBeNull();
   });
 
   test('generates a completed application when a valid drawn signature PNG is present', async () => {
