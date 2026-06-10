@@ -279,6 +279,28 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner2.ssn).toBe('987-65-4321');
   });
 
+  test('summarizes up to three open advances without dropping balances', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      application: {
+        application_payload: {
+          has_existing_advances: true,
+          existing_advances: [
+            { funder_name: 'First Funder', current_balance: '$12,500', daily_payment: '$250' },
+            { funder_name: 'Second Capital', current_balance: '$8,000' },
+            { funder_name: 'Third Advance', current_balance: '$4,500' },
+          ],
+        },
+      },
+    });
+
+    expect(fields.hasExistingAdvance).toBe(true);
+    expect(fields.existingAdvanceFunder).toContain('First Funder - Bal $12,500 - Pay $250');
+    expect(fields.existingAdvanceFunder).toContain('Second Capital - Bal $8,000');
+    expect(fields.existingAdvanceFunder).toContain('Third Advance - Bal $4,500');
+    expect(fields.existingAdvanceBalance).toBe('$25,000');
+  });
+
   test('maps partner CSV signature fields for PDF review', () => {
     const payload = parsePartnerApplicationCsv(
       'business_name,owner_name,signature,signature_date,requested_amount\nPartner Merchant LLC,Pat Owner,Pat Owner,2026-06-01,50000',
@@ -307,6 +329,25 @@ test.describe('lender application PDF data mapping', () => {
     expect(payload.owner1.ownership_percentage).toBe('75');
     expect(payload.owner1.dob).toBe('02/03/1980');
     expect(payload.owner1.ssn).toBe('111223333');
+  });
+
+  test('maps partner CSV co-owner and open advance aliases', () => {
+    const payload = parsePartnerApplicationCsv(
+      'legal_business_name,owner_name,owner2_first_name,owner2_last_name,owner2_address,owner2_percent_ownership,owner2_date_of_birth,owner2_ssn,open_advance_funder,open_advance_balance,open_advance_2_funder,open_advance_2_balance\nAlias Merchant LLC,Dana Owner,Riley,Partner,\"10 Coowner Rd, Austin, TX 78702\",25,04/05/1982,999887777,Fast Fund,$12000,Second Fund,$7000',
+    );
+
+    expect(payload.owner2.first_name).toBe('Riley');
+    expect(payload.owner2.last_name).toBe('Partner');
+    expect(payload.owner2.address).toBe('10 Coowner Rd');
+    expect(payload.owner2.city).toBe('Austin');
+    expect(payload.owner2.state).toBe('TX');
+    expect(payload.owner2.zip).toBe('78702');
+    expect(payload.owner2.ownership_percentage).toBe('25');
+    expect(payload.owner2.dob).toBe('04/05/1982');
+    expect(payload.owner2.ssn).toBe('999887777');
+    expect(payload.existing_advances).toHaveLength(2);
+    expect(payload.existing_advances[0].funder_name).toBe('Fast Fund');
+    expect(payload.existing_advances[1].current_balance).toBe('$7000');
   });
 
   test('extracts partner PDF form fields before converting to Elite PDF', async () => {
@@ -376,6 +417,30 @@ test.describe('lender application PDF data mapping', () => {
             dob: '1981-07-04',
             ssn: '222334444',
           },
+          owner2: {
+            first_name: 'Riley',
+            last_name: 'Coowner',
+            address: '12 Second Owner Ave, Phoenix, AZ 85003',
+            city: 'Phoenix',
+            state: 'AZ',
+            zip: '85003',
+            phone: '6025550188',
+            mobile: '6025550188',
+            email: 'coowner@ai.test',
+            ownership_percentage: '35',
+            dob: '1982-08-09',
+            ssn: '555667777',
+          },
+          existing_advances: [
+            {
+              funder_name: 'AI Advance Co',
+              original_amount: '',
+              current_balance: '$15,000',
+              daily_payment: '$300',
+              payment_frequency: 'daily',
+              notes: '',
+            },
+          ],
           confidence: 'high',
           missing_fields: [],
           extraction_notes: 'All required fields found.',
@@ -408,6 +473,11 @@ test.describe('lender application PDF data mapping', () => {
       expect(payload.owner1.ownership_percentage).toBe('65');
       expect(payload.owner1.dob).toBe('1981-07-04');
       expect(payload.owner1.ssn).toBe('222334444');
+      expect(payload.owner2.first_name).toBe('Riley');
+      expect(payload.owner2.ownership_percentage).toBe('35');
+      expect(payload.owner2.ssn).toBe('555667777');
+      expect(payload.existing_advances[0].funder_name).toBe('AI Advance Co');
+      expect(payload.existing_advances[0].current_balance).toBe('$15,000');
       expect((payload as any).extraction_provider).toBe('azure-openai');
     } finally {
       global.fetch = originalFetch;

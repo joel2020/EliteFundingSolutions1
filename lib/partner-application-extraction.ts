@@ -7,6 +7,26 @@ const AI_PROVIDER = (process.env.AI_PROVIDER || 'azure').toLowerCase();
 const ALLOW_OPENAI_FALLBACK = process.env.ALLOW_OPENAI_FALLBACK === 'true';
 const AI_MAX_BYTES = 10 * 1024 * 1024;
 
+const ownerExtractionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    first_name: { type: 'string' },
+    last_name: { type: 'string' },
+    address: { type: 'string' },
+    city: { type: 'string' },
+    state: { type: 'string' },
+    zip: { type: 'string' },
+    phone: { type: 'string' },
+    mobile: { type: 'string' },
+    email: { type: 'string' },
+    ownership_percentage: { type: 'string' },
+    dob: { type: 'string' },
+    ssn: { type: 'string' },
+  },
+  required: ['first_name', 'last_name', 'address', 'city', 'state', 'zip', 'phone', 'mobile', 'email', 'ownership_percentage', 'dob', 'ssn'],
+};
+
 const extractionSchema = {
   type: 'object',
   additionalProperties: false,
@@ -28,30 +48,29 @@ const extractionSchema = {
     industry: { type: 'string' },
     signature: { type: 'string' },
     signature_date: { type: 'string' },
-    owner1: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        first_name: { type: 'string' },
-        last_name: { type: 'string' },
-        address: { type: 'string' },
-        city: { type: 'string' },
-        state: { type: 'string' },
-        zip: { type: 'string' },
-        phone: { type: 'string' },
-        mobile: { type: 'string' },
-        email: { type: 'string' },
-        ownership_percentage: { type: 'string' },
-        dob: { type: 'string' },
-        ssn: { type: 'string' },
+    owner1: ownerExtractionSchema,
+    owner2: ownerExtractionSchema,
+    existing_advances: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          funder_name: { type: 'string' },
+          original_amount: { type: 'string' },
+          current_balance: { type: 'string' },
+          daily_payment: { type: 'string' },
+          payment_frequency: { type: 'string' },
+          notes: { type: 'string' },
+        },
+        required: ['funder_name', 'original_amount', 'current_balance', 'daily_payment', 'payment_frequency', 'notes'],
       },
-      required: ['first_name', 'last_name', 'address', 'city', 'state', 'zip', 'phone', 'mobile', 'email', 'ownership_percentage', 'dob', 'ssn'],
     },
     confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
     missing_fields: { type: 'array', items: { type: 'string' } },
     extraction_notes: { type: 'string' },
   },
-  required: ['company_name', 'legal_name', 'dba', 'business_address', 'address', 'city', 'state', 'zip', 'business_phone', 'business_email', 'ein', 'start_date', 'requested_amount', 'products_services', 'industry', 'signature', 'signature_date', 'owner1', 'confidence', 'missing_fields', 'extraction_notes'],
+  required: ['company_name', 'legal_name', 'dba', 'business_address', 'address', 'city', 'state', 'zip', 'business_phone', 'business_email', 'ein', 'start_date', 'requested_amount', 'products_services', 'industry', 'signature', 'signature_date', 'owner1', 'owner2', 'existing_advances', 'confidence', 'missing_fields', 'extraction_notes'],
 };
 
 function text(value: unknown) {
@@ -69,6 +88,7 @@ function splitOwnerName(value: string) {
 
 function cleanPayload(input: RecordMap = {}) {
   const payload = buildPartnerApplicationPayload(input);
+  const owner2 = payload.owner2 || {};
   return {
     company_name: text(payload.company_name),
     legal_name: text(payload.legal_name),
@@ -101,14 +121,37 @@ function cleanPayload(input: RecordMap = {}) {
       dob: text(payload.owner1?.dob),
       ssn: text(payload.owner1?.ssn),
     },
+    owner2: {
+      first_name: text(owner2.first_name),
+      last_name: text(owner2.last_name),
+      address: text(owner2.address),
+      city: text(owner2.city),
+      state: text(owner2.state).toUpperCase(),
+      zip: text(owner2.zip),
+      phone: text(owner2.phone),
+      mobile: text(owner2.mobile),
+      email: text(owner2.email),
+      ownership_percentage: text(owner2.ownership_percentage),
+      dob: text(owner2.dob),
+      ssn: text(owner2.ssn),
+    },
+    has_existing_advances: Boolean(payload.has_existing_advances),
+    existing_advances: Array.isArray(payload.existing_advances) ? payload.existing_advances.slice(0, 3).map((advance: RecordMap) => ({
+      funder_name: text(advance.funder_name),
+      original_amount: text(advance.original_amount),
+      current_balance: text(advance.current_balance),
+      daily_payment: text(advance.daily_payment),
+      payment_frequency: text(advance.payment_frequency),
+      notes: text(advance.notes),
+    })) : [],
   };
 }
 
 function mergeNonEmpty(base: RecordMap, override: RecordMap): RecordMap {
   const next = { ...base };
   Object.entries(override || {}).forEach(([key, value]) => {
-    if (key === 'owner1' && typeof value === 'object' && value) {
-      next.owner1 = mergeNonEmpty(next.owner1 || {}, value as RecordMap);
+    if ((key === 'owner1' || key === 'owner2') && typeof value === 'object' && value) {
+      next[key] = mergeNonEmpty(next[key] || {}, value as RecordMap);
       return;
     }
     if (Array.isArray(value)) {
@@ -147,6 +190,8 @@ function buildAiPrompt(fallback: PartnerApplicationPayload) {
     'Return only JSON that matches the schema.',
     'Use exact values from the document. Do not invent missing values.',
     'Important fields: DOB/date of birth, SSN/social security number, tax ID/EIN/FEIN, percent ownership/ownership %, business city/state/ZIP, owner city/state/ZIP, signer name, signature date.',
+    'Extract co-owner/owner 2 fields when present. If no co-owner appears, return empty strings for owner2.',
+    'Extract up to three open advances/current positions with funder name and remaining/current balance when present.',
     'If a combined address line includes city/state/ZIP, split it into address, city, state, and zip.',
     'Normalize state values to two-letter US postal abbreviations only when the document clearly provides the state.',
     'Use the word funder only in notes if needed.',
@@ -192,7 +237,7 @@ async function generateAzureResponsesExtraction({ fileName, mimeType, bytes, fal
           strict: true,
         },
       },
-      max_output_tokens: 2200,
+      max_output_tokens: 3200,
     }),
   });
 
@@ -230,7 +275,7 @@ async function generateOpenAiExtraction({ fileName, mimeType, bytes, fallback }:
           strict: true,
         },
       },
-      max_output_tokens: 2200,
+      max_output_tokens: 3200,
     }),
   });
 
@@ -273,7 +318,9 @@ async function extractPdfFormPayload(bytes: Buffer) {
     });
     if (!Object.keys(values).length) return {};
     const ownerName = text(values.owner_name || values.principal_name || values.applicant_name || values.authorized_signer);
+    const owner2Name = text(values.owner2_name || values.co_owner_name || values.second_owner_name || values.principal_2_name);
     const ownerParts = splitOwnerName(ownerName);
+    const owner2Parts = splitOwnerName(owner2Name);
     return buildPartnerApplicationPayload({
       company_name: values.company_name || values.business_name || values.legal_business_name || values.merchant_name,
       legal_name: values.legal_name || values.legal_business_name || values.business_name || values.company_name || values.merchant_name,
@@ -303,6 +350,25 @@ async function extractPdfFormPayload(bytes: Buffer) {
         dob: values.dob || values.date_of_birth || values.owner_dob || values.owner_date_of_birth,
         ssn: values.ssn || values.social_security_number || values.owner_ssn,
       },
+      owner2: {
+        first_name: values.owner2_first_name || values.co_owner_first_name || owner2Parts.first_name,
+        last_name: values.owner2_last_name || values.co_owner_last_name || owner2Parts.last_name,
+        address: values.owner2_address || values.co_owner_address || values.co_owner_home_address,
+        city: values.owner2_city || values.co_owner_city,
+        state: values.owner2_state || values.co_owner_state,
+        zip: values.owner2_zip || values.co_owner_zip,
+        phone: values.owner2_phone || values.co_owner_phone || values.co_owner_cell_phone,
+        email: values.owner2_email || values.co_owner_email,
+        ownership_percentage: values.owner2_ownership_percentage || values.owner2_percent_ownership || values.co_owner_ownership_percentage || values.co_owner_percent_ownership,
+        dob: values.owner2_dob || values.owner2_date_of_birth || values.co_owner_dob || values.co_owner_date_of_birth,
+        ssn: values.owner2_ssn || values.co_owner_ssn,
+      },
+      existing_advance_funder: values.existing_advance_funder || values.open_advance_funder || values.current_funder || values.advance_1_funder,
+      existing_advance_balance: values.existing_advance_balance || values.open_advance_balance || values.current_balance || values.advance_1_balance,
+      existing_advance_2_funder: values.existing_advance_2_funder || values.open_advance_2_funder || values.current_funder_2 || values.advance_2_funder,
+      existing_advance_2_balance: values.existing_advance_2_balance || values.open_advance_2_balance || values.current_balance_2 || values.advance_2_balance,
+      existing_advance_3_funder: values.existing_advance_3_funder || values.open_advance_3_funder || values.current_funder_3 || values.advance_3_funder,
+      existing_advance_3_balance: values.existing_advance_3_balance || values.open_advance_3_balance || values.current_balance_3 || values.advance_3_balance,
     });
   } catch {
     return {};

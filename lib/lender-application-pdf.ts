@@ -80,9 +80,13 @@ function text(value: unknown) {
 }
 
 function money(value: unknown) {
-  const amount = Number(String(value ?? '').replace(/[$,]/g, ''));
+  const amount = moneyNumber(value);
   if (!Number.isFinite(amount) || amount <= 0) return '';
   return `$${amount.toLocaleString()}`;
+}
+
+function moneyNumber(value: unknown) {
+  return Number(String(value ?? '').replace(/[$,]/g, ''));
 }
 
 function dateValue(value: unknown) {
@@ -260,6 +264,45 @@ function mergeWithNonEmptyOverride(base: Owner, override: Owner) {
   return next;
 }
 
+function normalizeExistingAdvances(payload: Record<string, any>) {
+  const advances = Array.isArray(payload.existing_advances) ? payload.existing_advances : [];
+  const legacyAdvance = {
+    funder_name: payload.existing_advance_funder,
+    current_balance: payload.existing_advance_balance,
+  };
+
+  return [...advances, legacyAdvance]
+    .map((advance) => ({
+      ...advance,
+      funder_name: firstText(advance?.funder_name, advance?.funder, advance?.provider, advance?.company),
+      current_balance: firstText(advance?.current_balance, advance?.balance, advance?.remaining_balance),
+      original_amount: firstText(advance?.original_amount, advance?.original_funded_amount, advance?.funded_amount),
+      daily_payment: firstText(advance?.daily_payment, advance?.payment),
+      payment_frequency: firstText(advance?.payment_frequency, advance?.frequency),
+    }))
+    .filter((advance) => text(advance.funder_name) || text(advance.current_balance) || text(advance.original_amount) || text(advance.daily_payment))
+    .slice(0, 3);
+}
+
+function existingAdvanceSummary(advances: Record<string, any>[]) {
+  if (!advances.length) return '';
+  return advances.map((advance, index) => {
+    const details = [
+      text(advance.funder_name) || `Advance ${index + 1}`,
+      money(advance.current_balance) ? `Bal ${money(advance.current_balance)}` : '',
+      money(advance.daily_payment) ? `Pay ${money(advance.daily_payment)}` : '',
+    ].filter(Boolean);
+    return details.join(' - ');
+  }).join('; ');
+}
+
+function existingAdvanceBalanceSummary(advances: Record<string, any>[]) {
+  const balances = advances.map((advance) => moneyNumber(advance.current_balance)).filter((amount) => Number.isFinite(amount) && amount > 0);
+  if (!balances.length) return '';
+  if (balances.length === 1) return money(balances[0]);
+  return money(balances.reduce((sum, amount) => sum + amount, 0));
+}
+
 function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: Record<string, any>, allowPayloadFallback = false): ResolvedOwnerPdfFields {
   const ownerCity = fieldWithAddressFallback(owner.city, combinedAddress, 'city');
   const ownerState = fieldWithAddressFallback(owner.state, combinedAddress, 'state');
@@ -286,7 +329,8 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
   const owners = data.owners || [];
   const owner1 = mergeWithNonEmptyOverride(owners[0] || {}, payload.owner1 || {});
   const owner2 = mergeWithNonEmptyOverride(owners[1] || {}, payload.owner2 || {});
-  const existingAdvance = Array.isArray(payload.existing_advances) ? payload.existing_advances[0] : null;
+  const existingAdvances = normalizeExistingAdvances(payload);
+  const existingAdvance = existingAdvances[0] || null;
   const businessAddress = firstText(payload.address, payload.business_address, business.address);
   const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address);
   const owner2Address = firstText(owner2.address, owner2.home_address);
@@ -321,10 +365,10 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     isSeasonal: Boolean(payload.is_seasonal),
     owner1: resolveOwnerPdfFields(owner1, owner1Address, payload, true),
     owner2: resolveOwnerPdfFields(owner2, owner2Address, payload),
-    hasExistingAdvance: Boolean(application.has_existing_advances || payload.has_existing_advances),
-    existingAdvanceFunder: text(existingAdvance?.funder_name),
+    hasExistingAdvance: Boolean(application.has_existing_advances || payload.has_existing_advances || existingAdvances.length),
+    existingAdvanceFunder: existingAdvanceSummary(existingAdvances),
     existingAdvanceOriginalAmount: money(existingAdvance?.original_amount || existingAdvance?.original_funded_amount),
-    existingAdvanceBalance: money(existingAdvance?.current_balance),
+    existingAdvanceBalance: existingAdvanceBalanceSummary(existingAdvances),
     existingAdvanceDailyPayment: money(existingAdvance?.daily_payment),
     existingAdvancePaymentFrequency: text(existingAdvance?.payment_frequency),
     requestedAmount: money(deal.requested_amount || application.requested_amount || payload.requested_amount),
