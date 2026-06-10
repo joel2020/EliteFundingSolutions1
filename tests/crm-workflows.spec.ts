@@ -362,6 +362,14 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
   test('deal detail command center workflows render and log operational events', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page);
+    const secondFunderId = 'multi-funder-2';
+    state.funding_partners.push({
+      id: secondFunderId,
+      organization_id: ORG_ID,
+      name: 'Summit Capital',
+      submission_email: 'submissions@summit.test',
+      created_at: '2026-05-14T12:00:00.000Z',
+    });
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
@@ -396,17 +404,25 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByRole('tab', { name: 'Funders Sent To' }).click();
     await page.getByTestId('deal-submit-lender').click();
     await expect(page.getByTestId('lender-preset-summary')).toContainText('Funder package preset');
-    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with this funder');
+    await expect(page.getByTestId('lender-default-warning')).toContainText('Prior default with selected funder');
+    await page.getByTestId(`deal-submission-partner-${secondFunderId}`).check();
+    await expect(page.getByTestId('lender-preset-summary')).toContainText('2 funder(s)');
     await page.getByTestId('deal-submission-notes').fill('Strong deposits, explain two negative days from tax payment timing.');
+    page.once('dialog', async (dialog) => dialog.accept());
     await page.getByTestId('deal-save-submission').click();
     await expect.poll(() => state.activities.some((activity) => activity.activity_type === 'partner_submission')).toBe(true);
     expect(calls.some((call) => call.method === 'POST' && call.table === 'partner_submissions')).toBe(true);
-    const submissionCall = calls.find((call) => call.method === 'POST' && call.table === 'partner_submissions');
-    expect(submissionCall?.body.attachment_document_ids).toContain(DOC_ID);
-    expect(submissionCall?.body.attachment_document_ids).toEqual(expect.arrayContaining([
-      DOC_ID,
-      expect.stringMatching(/^document-/),
-    ]));
+    await expect.poll(() => calls.filter((call) => call.method === 'POST' && call.table === 'partner_submissions' && call.body.custom_message === 'Strong deposits, explain two negative days from tax payment timing.').length).toBe(2);
+    const submissionCalls = calls.filter((call) => call.method === 'POST' && call.table === 'partner_submissions' && call.body.custom_message === 'Strong deposits, explain two negative days from tax payment timing.');
+    expect(submissionCalls).toHaveLength(2);
+    expect(submissionCalls.map((call) => call.body.funding_partner_id)).toEqual(expect.arrayContaining(['88888888-8888-8888-8888-888888888888', secondFunderId]));
+    for (const submissionCall of submissionCalls) {
+      expect(submissionCall.body.attachment_document_ids).toContain(DOC_ID);
+      expect(submissionCall.body.attachment_document_ids).toEqual(expect.arrayContaining([
+        DOC_ID,
+        expect.stringMatching(/^document-/),
+      ]));
+    }
 
     await page.getByRole('tab', { name: 'Offers' }).click();
     await expect(page.getByTestId('offer-comparison-view')).toContainText('Recommended Offer');

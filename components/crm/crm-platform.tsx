@@ -1622,7 +1622,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [documentFilter, setDocumentFilter] = useState('all');
   const [noteBody, setNoteBody] = useState('');
   const [noteInternal, setNoteInternal] = useState(true);
-  const [submissionPartnerId, setSubmissionPartnerId] = useState('');
+  const [submissionPartnerIds, setSubmissionPartnerIds] = useState<string[]>([]);
   const [submissionNotes, setSubmissionNotes] = useState('');
   const [submissionDocumentIds, setSubmissionDocumentIds] = useState<string[]>([]);
   const [taskTitle, setTaskTitle] = useState('');
@@ -1685,10 +1685,11 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const dealNotes = notes.filter((row: RecordMap) => (row.deal_id === deal.id || row.application_id === deal.application_id) && (internalUser || !row.is_internal));
   const dealSubmissions = partnerSubmissions.filter((row: RecordMap) => row.deal_id === deal.id);
   const historyDeals = [deal, ...repeatDeals].sort((a: RecordMap, b: RecordMap) => Number(a.submission_sequence || 0) - Number(b.submission_sequence || 0) || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
-  const selectedSubmissionPartner = partners.find((row: RecordMap) => row.id === submissionPartnerId);
-  const selectedPartnerDefaultEvents = riskEvents.filter((row: RecordMap) => row.business_id === deal.business_id && row.funding_partner_id === submissionPartnerId && row.event_type === 'defaulted');
-  const selectedPartnerRequiredDocTypes = lenderRequiredDocTypes(selectedSubmissionPartner);
-  const selectedPartnerMissingDocTypes = selectedSubmissionPartner ? selectedPartnerRequiredDocTypes.filter((type) => !bestDocumentForType(dealDocs, type)) : [];
+  const selectedSubmissionPartners = partners.filter((row: RecordMap) => submissionPartnerIds.includes(row.id));
+  const selectedPartnerDefaultEvents = riskEvents.filter((row: RecordMap) => row.business_id === deal.business_id && submissionPartnerIds.includes(row.funding_partner_id) && row.event_type === 'defaulted');
+  const duplicateSubmissionPartners = selectedSubmissionPartners.filter((partner: RecordMap) => dealSubmissions.some((row: RecordMap) => row.funding_partner_id === partner.id && !['withdrawn', 'declined'].includes(String(row.status || '').toLowerCase())));
+  const selectedPartnerRequiredDocTypes = Array.from(new Set(selectedSubmissionPartners.flatMap((partner: RecordMap) => lenderRequiredDocTypes(partner))));
+  const selectedPartnerMissingDocTypes = selectedSubmissionPartners.length ? selectedPartnerRequiredDocTypes.filter((type) => !bestDocumentForType(dealDocs, type)) : [];
   const canSendToLenders = ['super_admin', 'admin', 'sales_rep'].includes(activeProfile?.role || '');
   const checklist = buildDealChecklist(deal, dealDocs, dealRequests, dealOffers, positions, dealStips, app, businessOwners);
   const submissionReadiness = calculateReadiness(checklist, 'submission');
@@ -1878,18 +1879,24 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const openLenderSubmission = () => {
     const partnerId = recommendedSubmissionPartner?.id || '';
     const partner = partners.find((row: RecordMap) => row.id === partnerId);
-    setSubmissionPartnerId(partnerId);
+    setSubmissionPartnerIds(partnerId ? [partnerId] : []);
     setSubmissionDocumentIds(defaultFunderPackageDocumentIds(dealDocs, partner));
     setSubmissionNotes(buildDefaultFunderMessage(deal, defaultFunderPackageDocumentIds(dealDocs, partner).map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[], submissionReadiness, partner));
     setSubmissionDialogOpen(true);
   };
 
-  const selectSubmissionPartner = (partnerId: string) => {
-    const partner = partners.find((row: RecordMap) => row.id === partnerId);
-    const nextDocumentIds = defaultFunderPackageDocumentIds(dealDocs, partner);
-    setSubmissionPartnerId(partnerId);
+  const toggleSubmissionPartner = (partnerId: string, checked: boolean) => {
+    const nextPartnerIds = checked
+      ? Array.from(new Set([...submissionPartnerIds, partnerId]))
+      : submissionPartnerIds.filter((id) => id !== partnerId);
+    const nextPartners = partners.filter((row: RecordMap) => nextPartnerIds.includes(row.id));
+    const messagePartner = nextPartners.length === 1 ? nextPartners[0] : null;
+    const nextDocumentIds = nextPartners.length
+      ? Array.from(new Set(nextPartners.flatMap((partner: RecordMap) => defaultFunderPackageDocumentIds(dealDocs, partner))))
+      : defaultFunderPackageDocumentIds(dealDocs, null);
+    setSubmissionPartnerIds(nextPartnerIds);
     setSubmissionDocumentIds(nextDocumentIds);
-    setSubmissionNotes(buildDefaultFunderMessage(deal, nextDocumentIds.map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[], submissionReadiness, partner));
+    setSubmissionNotes(buildDefaultFunderMessage(deal, nextDocumentIds.map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[], submissionReadiness, messagePartner));
   };
 
   const revealSensitiveApplicationData = async () => {
@@ -1939,26 +1946,32 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
 
   const submitToLender = async () => {
     if (!canSendToLenders) { toast.error('Only admins and sales reps can send deals to funders.'); return; }
-    const fundingPartnerId = submissionPartnerId || partnerMatches[0]?.partner?.id || partners[0]?.id;
-    if (!fundingPartnerId) { toast.error('Add a funding partner before submitting.'); return; }
-    const partner = partners.find((row: RecordMap) => row.id === fundingPartnerId);
+    const fundingPartnerIds = submissionPartnerIds.length ? submissionPartnerIds : [partnerMatches[0]?.partner?.id || partners[0]?.id].filter(Boolean);
+    if (!fundingPartnerIds.length) { toast.error('Add a funding partner before submitting.'); return; }
+    if (duplicateSubmissionPartners.length && !window.confirm(`This deal already has active submissions for ${duplicateSubmissionPartners.map((partner: RecordMap) => partner.name).join(', ')}. Send again anyway?`)) return;
     if (!submissionNotes.trim()) { toast.error('Add a funder message before sending.'); return; }
     setSavingSubmission(true);
     try {
-      const response = await fetch(`/api/crm/deals/${deal.id}/lender-submissions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ funding_partner_id: fundingPartnerId, custom_message: submissionNotes, attachment_document_ids: submissionDocumentIds }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit deal to funder');
-      if (result.warnings?.length) result.warnings.forEach((warning: string) => toast.warning(warning));
-      if (result.emailDeliveryStatus !== 'sent' && result.emailDraft?.to) {
-        const mailto = `mailto:${result.emailDraft.to}?subject=${encodeURIComponent(result.emailDraft.subject)}&body=${encodeURIComponent(result.emailDraft.body)}`;
+      const results = [];
+      for (const fundingPartnerId of fundingPartnerIds) {
+        const response = await fetch(`/api/crm/deals/${deal.id}/lender-submissions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ funding_partner_id: fundingPartnerId, custom_message: submissionNotes, attachment_document_ids: submissionDocumentIds }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit deal to funder');
+        results.push({ partner: partners.find((row: RecordMap) => row.id === fundingPartnerId), result });
+      }
+      results.flatMap((item) => item.result.warnings || []).forEach((warning: string) => toast.warning(warning));
+      const manualDraft = results.find((item) => item.result.emailDeliveryStatus !== 'sent' && item.result.emailDraft?.to)?.result.emailDraft;
+      if (manualDraft) {
+        const mailto = `mailto:${manualDraft.to}?subject=${encodeURIComponent(manualDraft.subject)}&body=${encodeURIComponent(manualDraft.body)}`;
         window.location.href = mailto;
       }
-      toast.success(result.emailDeliveryStatus === 'sent' ? `Funder email sent${partner?.name ? ` to ${partner.name}` : ''}` : `Funder submission logged${partner?.name ? ` for ${partner.name}` : ''}`);
-      setSubmissionDialogOpen(false); setSubmissionPartnerId(''); setSubmissionNotes(''); setSubmissionDocumentIds([]); reload();
+      const sentCount = results.filter((item) => item.result.emailDeliveryStatus === 'sent').length;
+      toast.success(fundingPartnerIds.length > 1 ? `${sentCount}/${fundingPartnerIds.length} funder email(s) sent; ${fundingPartnerIds.length - sentCount} logged for follow-up.` : sentCount ? `Funder email sent${results[0]?.partner?.name ? ` to ${results[0].partner.name}` : ''}` : `Funder submission logged${results[0]?.partner?.name ? ` for ${results[0].partner.name}` : ''}`);
+      setSubmissionDialogOpen(false); setSubmissionPartnerIds([]); setSubmissionNotes(''); setSubmissionDocumentIds([]); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to submit deal to funder'); } finally { setSavingSubmission(false); }
   };
 
@@ -2221,17 +2234,38 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>
         <DialogContent className="grid max-h-[calc(100vh-2rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-[8px]">
-          <DialogHeader><DialogTitle>Submit deal to funder</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Submit deal to funders</DialogTitle></DialogHeader>
           <div className="grid gap-4 overflow-y-auto pr-1">
-            <div><Label className="text-xs text-[#64748B]">Funding partner</Label><Select value={submissionPartnerId} onValueChange={selectSubmissionPartner}><SelectTrigger data-testid="deal-submission-partner" className="mt-1 rounded-[7px]"><SelectValue placeholder="Select a funder" /></SelectTrigger><SelectContent>{partners.map((partner: RecordMap) => <SelectItem key={partner.id} value={partner.id}>{partner.name}</SelectItem>)}</SelectContent></Select></div>
+            <div>
+              <Label className="text-xs text-[#64748B]">Funding partners</Label>
+              <div data-testid="deal-submission-partners" className="mt-2 max-h-[180px] overflow-y-auto rounded-[8px] border border-[#E2E8F0]">
+                {partners.length ? partners.map((partner: RecordMap) => (
+                  <label key={partner.id} className="flex items-start gap-3 border-b border-[#E2E8F0] p-3 text-sm last:border-b-0">
+                    <input
+                      type="checkbox"
+                      data-testid={`deal-submission-partner-${partner.id}`}
+                      checked={submissionPartnerIds.includes(partner.id)}
+                      onChange={(event) => toggleSubmissionPartner(partner.id, event.target.checked)}
+                      className="mt-1"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-[#0F172A]">{partner.name}</span>
+                      <span className="block text-xs text-[#64748B]">{partner.submission_email || partner.email || partner.portal_url || 'No route saved'}</span>
+                    </span>
+                    {dealSubmissions.some((row: RecordMap) => row.funding_partner_id === partner.id) && <span className="rounded-[6px] bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Sent before</span>}
+                  </label>
+                )) : <p className="p-3 text-sm text-[#64748B]">No funding partners are configured yet.</p>}
+              </div>
+            </div>
             <div className="grid gap-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm md:grid-cols-3">
               <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Readiness</p><p className="mt-1 font-semibold text-[#0F172A]">{submissionReadiness.score}% · {submissionReadiness.status}</p></div>
-              <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Selected package</p><p className="mt-1 font-semibold text-[#0F172A]">{submissionDocumentIds.length} attachment(s)</p></div>
+              <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Selected package</p><p className="mt-1 font-semibold text-[#0F172A]">{submissionDocumentIds.length} attachment(s) · {submissionPartnerIds.length} funder(s)</p></div>
               <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Elite app</p><p className="mt-1 font-semibold text-[#0F172A]">{completedEliteApplication ? 'Included' : 'Generated if needed'}</p></div>
             </div>
-            {selectedSubmissionPartner && !(selectedSubmissionPartner.submission_email || selectedSubmissionPartner.email) && <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">No submission email is saved for this funder. Add one on the funding partner profile before expecting direct email delivery.</div>}
-            {selectedSubmissionPartner && <div data-testid="lender-preset-summary" className={`rounded-[8px] border p-3 text-sm ${selectedPartnerMissingDocTypes.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-950'}`}><b>Funder package preset:</b> {submissionDocumentIds.length} attachment(s) preselected. The completed Elite application is mandatory and all eligible deal documents are included by default. {selectedPartnerMissingDocTypes.length ? `Missing: ${selectedPartnerMissingDocTypes.map(detailDocTypeLabel).join(', ')}.` : 'Required package looks complete.'}</div>}
-            {selectedPartnerDefaultEvents.length > 0 && <div data-testid="lender-default-warning" className="rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-900"><b>Prior default with this funder.</b><p className="mt-1">This merchant has {selectedPartnerDefaultEvents.length} default event(s) tied to {partners.find((partner: RecordMap) => partner.id === submissionPartnerId)?.name || 'this funder'}. Review history before sending.</p></div>}
+            {selectedSubmissionPartners.some((partner: RecordMap) => !(partner.submission_email || partner.email)) && <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">One or more selected funders has no submission email. Those submissions will be logged for manual follow-up unless a route is added on the funder profile.</div>}
+            {selectedSubmissionPartners.length > 0 && <div data-testid="lender-preset-summary" className={`rounded-[8px] border p-3 text-sm ${selectedPartnerMissingDocTypes.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-950'}`}><b>Funder package preset:</b> {submissionDocumentIds.length} attachment(s) preselected for {selectedSubmissionPartners.length} funder(s). The completed Elite application is mandatory and all eligible deal documents are included by default. {selectedPartnerMissingDocTypes.length ? `Missing: ${selectedPartnerMissingDocTypes.map(detailDocTypeLabel).join(', ')}.` : 'Required package looks complete.'}</div>}
+            {duplicateSubmissionPartners.length > 0 && <div data-testid="lender-duplicate-warning" className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><b>Already sent:</b> {duplicateSubmissionPartners.map((partner: RecordMap) => partner.name).join(', ')} already has an active submission. You will be asked to confirm before sending again.</div>}
+            {selectedPartnerDefaultEvents.length > 0 && <div data-testid="lender-default-warning" className="rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-900"><b>Prior default with selected funder.</b><p className="mt-1">This merchant has {selectedPartnerDefaultEvents.length} default event(s) tied to selected funders. Review history before sending.</p></div>}
             <div><Label className="text-xs text-[#64748B]">Custom funder message</Label><Textarea data-testid="deal-submission-notes" value={submissionNotes} onChange={(event) => setSubmissionNotes(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Explain deal specifics, negative days, cash-flow context, account quality, or funder-specific packaging notes." /></div>
             <div>
               <Label className="text-xs text-[#64748B]">Selected attachments</Label>
@@ -2248,7 +2282,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               <p className="mt-1 text-xs text-[#64748B]">The latest completed Elite application is included automatically. If none exists, the CRM generates one before sending. Eligible statements and support documents are selected by default.</p>
             </div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerId}>{savingSubmission ? 'Submitting...' : 'Send to Funder'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setSubmissionDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-submission" onClick={submitToLender} disabled={savingSubmission || !submissionPartnerIds.length}>{savingSubmission ? 'Submitting...' : submissionPartnerIds.length > 1 ? `Send to ${submissionPartnerIds.length} Funders` : 'Send to Funder'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </PageFrame>
