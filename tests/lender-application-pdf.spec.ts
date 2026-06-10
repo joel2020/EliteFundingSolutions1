@@ -243,6 +243,42 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner2.phone).toBe('');
   });
 
+  test('resolves optional co-owner fields into the second owner PDF column', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      application: {
+        application_payload: {
+          owner2: {
+            first_name: 'Jordan',
+            last_name: 'Reed',
+            address: '40 Partner Ave, Brooklyn, NY 11201',
+            phone: '7185550166',
+            email: 'jordan@fastsubmit.test',
+            ownership_pct: '40',
+            dob: '1987-07-12',
+            ssn: '987654321',
+          },
+        },
+      },
+      owners: [
+        sampleApplicationData.owners[0],
+        {
+          first_name: 'Old',
+          last_name: 'CoOwner',
+          address: 'Old Address',
+          ownership_percentage: '20',
+        },
+      ],
+    });
+
+    expect(fields.owner2.name).toBe('Jordan Reed');
+    expect(fields.owner2.street).toBe('40 Partner Ave');
+    expect(fields.owner2.cityLine).toBe('Brooklyn, NY 11201');
+    expect(fields.owner2.ownershipPercentage).toBe('40%');
+    expect(fields.owner2.dob).toBe('7/12/1987');
+    expect(fields.owner2.ssn).toBe('987-65-4321');
+  });
+
   test('maps partner CSV signature fields for PDF review', () => {
     const payload = parsePartnerApplicationCsv(
       'business_name,owner_name,signature,signature_date,requested_amount\nPartner Merchant LLC,Pat Owner,Pat Owner,2026-06-01,50000',

@@ -16,6 +16,13 @@ type ApplicationFormData = {
   cell_phone: string;
   email: string;
   ownership_percentage: string;
+  co_owner_full_name: string;
+  co_owner_home_address: string;
+  co_owner_ssn: string;
+  co_owner_dob: string;
+  co_owner_cell_phone: string;
+  co_owner_email: string;
+  co_owner_ownership_percentage: string;
   company_name: string;
   business_address: string;
   ein: string;
@@ -40,6 +47,13 @@ const initialForm: ApplicationFormData = {
   cell_phone: '',
   email: '',
   ownership_percentage: '100',
+  co_owner_full_name: '',
+  co_owner_home_address: '',
+  co_owner_ssn: '',
+  co_owner_dob: '',
+  co_owner_cell_phone: '',
+  co_owner_email: '',
+  co_owner_ownership_percentage: '',
   company_name: '',
   business_address: '',
   ein: '',
@@ -90,6 +104,18 @@ function prettyMoney(value: string) {
   const digits = digitsOnly(value).slice(0, 9);
   if (!digits) return '';
   return `$${Number(digits).toLocaleString()}`;
+}
+
+function hasCoOwnerData(data: ApplicationFormData) {
+  return Boolean(
+    data.co_owner_full_name.trim() ||
+    data.co_owner_home_address.trim() ||
+    data.co_owner_ssn.trim() ||
+    data.co_owner_dob ||
+    data.co_owner_cell_phone.trim() ||
+    data.co_owner_email.trim() ||
+    data.co_owner_ownership_percentage.trim(),
+  );
 }
 
 function InputField({
@@ -243,6 +269,8 @@ function SignaturePad({ value, onChange }: { value: string; onChange: (value: st
 }
 
 function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+  const showCoOwnerReview = hasCoOwnerData(data);
+
   return (
     <div className="space-y-6">
       <SectionIntro title="About You" text="Tell us who is applying. This information is encrypted and used for funding review." />
@@ -258,6 +286,25 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
         <InputField label="Cell Phone Number" value={data.cell_phone} onChange={(value) => update('cell_phone', prettyPhone(value))} autoComplete="tel" />
         <InputField label="Email Address" value={data.email} onChange={(value) => update('email', value)} type="email" autoComplete="email" required={false} />
         <InputField label="Ownership Percentage" value={data.ownership_percentage} onChange={(value) => update('ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="100" />
+      </div>
+      <div className="rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
+        <div className="mb-4">
+          <h3 className="text-[16px] font-bold text-[#0F172A]">Co-owner / partner</h3>
+          <p className="mt-1 text-[13px] font-medium leading-5 text-[#334155]">Complete this only if another owner or principal should appear on the funding application.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <InputField label="Co-owner Full Name" value={data.co_owner_full_name} onChange={(value) => update('co_owner_full_name', value)} autoComplete="name" required={false} />
+          </div>
+          <div className="md:col-span-2">
+            <InputField label="Co-owner Home Address" value={data.co_owner_home_address} onChange={(value) => update('co_owner_home_address', value)} autoComplete="street-address" placeholder="Street, city, state, ZIP" required={showCoOwnerReview} />
+          </div>
+          <InputField label="Co-owner Social Security Number" value={data.co_owner_ssn} onChange={(value) => update('co_owner_ssn', prettySsn(value))} placeholder="XXX-XX-XXXX" autoComplete="off" required={showCoOwnerReview} />
+          <InputField label="Co-owner Date of Birth" value={data.co_owner_dob} onChange={(value) => update('co_owner_dob', value)} type="date" autoComplete="bday" required={showCoOwnerReview} />
+          <InputField label="Co-owner Cell Phone Number" value={data.co_owner_cell_phone} onChange={(value) => update('co_owner_cell_phone', prettyPhone(value))} autoComplete="tel" required={false} />
+          <InputField label="Co-owner Email Address" value={data.co_owner_email} onChange={(value) => update('co_owner_email', value)} type="email" autoComplete="email" required={false} />
+          <InputField label="Co-owner Ownership Percentage" value={data.co_owner_ownership_percentage} onChange={(value) => update('co_owner_ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="50" required={showCoOwnerReview} />
+        </div>
       </div>
     </div>
   );
@@ -287,6 +334,8 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
 }
 
 function StepReview({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+  const showCoOwner = hasCoOwnerData(data);
+
   return (
     <div className="space-y-6">
       <SectionIntro title="Review and Sign" text="Confirm the basics, draw your signature, and authorize Elite Funding Solutions to review your funding options." />
@@ -306,6 +355,11 @@ function StepReview({ data, update }: { data: ApplicationFormData; update: <K ex
         <ReviewRow label="Industry" value={data.industry} />
         <ReviewRow label="Use of funds" value={data.use_of_funds} />
         <ReviewRow label="Open advance" value={[data.existing_advance_funder, data.existing_advance_balance].filter(Boolean).join(' - ')} />
+        {showCoOwner && <ReviewRow label="Co-owner" value={data.co_owner_full_name} />}
+        {showCoOwner && <ReviewRow label="Co-owner ownership" value={data.co_owner_ownership_percentage ? `${data.co_owner_ownership_percentage}%` : ''} />}
+        {showCoOwner && <ReviewRow label="Co-owner address" value={data.co_owner_home_address} />}
+        {showCoOwner && <ReviewRow label="Co-owner SSN" value={data.co_owner_ssn} sensitive />}
+        {showCoOwner && <ReviewRow label="Co-owner DOB" value={data.co_owner_dob} sensitive />}
       </div>
       <SignaturePad value={data.signature_data_url} onChange={(value) => update('signature_data_url', value)} />
       <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm md:p-5">
@@ -404,6 +458,17 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return 'Please enter a valid email address.';
       const ownership = Number(form.ownership_percentage);
       if (!Number.isFinite(ownership) || ownership <= 0 || ownership > 100) return 'Please enter an ownership percentage from 1 to 100.';
+      if (hasCoOwnerData(form)) {
+        if (form.co_owner_full_name.trim().split(/\s+/).length < 2) return 'Please enter the co-owner full name.';
+        if (form.co_owner_home_address.trim().length < 8) return 'Please enter the co-owner full home address.';
+        if (digitsOnly(form.co_owner_ssn).length !== 9) return 'Please enter a valid 9 digit co-owner Social Security Number.';
+        if (!form.co_owner_dob || Number.isNaN(new Date(form.co_owner_dob).getTime())) return 'Please enter a valid co-owner date of birth.';
+        if (form.co_owner_cell_phone && digitsOnly(form.co_owner_cell_phone).length !== 10) return 'Please enter a valid 10 digit co-owner cell phone number.';
+        if (form.co_owner_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.co_owner_email)) return 'Please enter a valid co-owner email address.';
+        const coOwnerOwnership = Number(form.co_owner_ownership_percentage);
+        if (!Number.isFinite(coOwnerOwnership) || coOwnerOwnership <= 0 || coOwnerOwnership > 100) return 'Please enter a co-owner ownership percentage from 1 to 100.';
+        if (ownership + coOwnerOwnership > 100) return 'Owner and co-owner ownership percentages cannot exceed 100.';
+      }
     }
     if (currentStep === 2) {
       if (form.company_name.trim().length < 2) return 'Please enter the company name.';

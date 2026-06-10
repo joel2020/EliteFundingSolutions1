@@ -271,7 +271,7 @@ function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: R
     cityLine: cityStateZip(ownerCity, ownerState, ownerZip),
     phone: firstText(owner.phone, owner.mobile, allowPayloadFallback ? payload.cell_phone : ''),
     email: firstText(owner.email, allowPayloadFallback ? payload.business_email : ''),
-    ownershipPercentage: formatOwnership(firstText(owner.ownership_percentage, owner.ownership_pct, allowPayloadFallback ? payload.ownership_pct || payload.ownership_percentage : '')),
+    ownershipPercentage: formatOwnership(firstText(owner.ownership_pct, owner.ownership_percentage, allowPayloadFallback ? payload.ownership_pct || payload.ownership_percentage : '')),
     dob: dateValue(firstText(owner.dob_decrypted, owner.dob, allowPayloadFallback ? payload.dob : '')),
     ssn: formatFullSsn(firstText(owner.ssn_decrypted, owner.ssn, allowPayloadFallback ? payload.ssn : '')),
     driversLicense: text(owner.drivers_license),

@@ -32,6 +32,15 @@ async function readPayload(request: Request) {
 }
 
 function validateShortApplication(payload: any, issues: IssueMap) {
+  const hasCoOwnerData = Boolean(
+    hasText(payload.co_owner_full_name) ||
+    hasText(payload.co_owner_home_address) ||
+    hasText(payload.co_owner_ssn) ||
+    hasText(payload.co_owner_dob) ||
+    hasText(payload.co_owner_cell_phone) ||
+    hasText(payload.co_owner_email) ||
+    hasText(payload.co_owner_ownership_percentage),
+  );
   if (!hasText(payload.full_name, 2)) addIssue(issues, 'full_name', 'Full legal name is required.');
   if (!hasText(payload.home_address, 5)) addIssue(issues, 'home_address', 'Home address is required.');
   if (digitsOnly(payload.ssn || '').length !== 9) addIssue(issues, 'ssn', 'Full SSN must be 9 digits.');
@@ -43,6 +52,16 @@ function validateShortApplication(payload: any, issues: IssueMap) {
   if (!hasText(payload.business_address, 5)) addIssue(issues, 'business_address', 'Business address is required.');
   if (digitsOnly(payload.ein || '').length !== 9) addIssue(issues, 'ein', 'Full EIN / Tax ID must be 9 digits.');
   if (!isValidDate(payload.business_start_date)) addIssue(issues, 'business_start_date', 'Business start date is required.');
+  if (hasCoOwnerData) {
+    const coOwnerOwnership = Number(String(payload.co_owner_ownership_percentage || '').replace(/%/g, ''));
+    if (!hasText(payload.co_owner_full_name, 2)) addIssue(issues, 'co_owner_full_name', 'Co-owner full legal name is required.');
+    if (!hasText(payload.co_owner_home_address, 5)) addIssue(issues, 'co_owner_home_address', 'Co-owner home address is required.');
+    if (digitsOnly(payload.co_owner_ssn || '').length !== 9) addIssue(issues, 'co_owner_ssn', 'Full co-owner SSN must be 9 digits.');
+    if (!isValidDate(payload.co_owner_dob)) addIssue(issues, 'co_owner_dob', 'Co-owner date of birth is required.');
+    if (payload.co_owner_cell_phone && digitsOnly(payload.co_owner_cell_phone || '').length < 10) addIssue(issues, 'co_owner_cell_phone', 'A valid co-owner cell phone number is required.');
+    if (!Number.isFinite(coOwnerOwnership) || coOwnerOwnership <= 0 || coOwnerOwnership > 100) addIssue(issues, 'co_owner_ownership_percentage', 'Co-owner ownership percentage must be between 1 and 100.');
+    if (Number.isFinite(ownership) && Number.isFinite(coOwnerOwnership) && ownership + coOwnerOwnership > 100) addIssue(issues, 'ownership_percentage', 'Owner and co-owner ownership percentages cannot exceed 100.');
+  }
 }
 
 function validateFullApplication(payload: any, issues: IssueMap) {

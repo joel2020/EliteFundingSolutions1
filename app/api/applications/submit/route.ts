@@ -378,10 +378,20 @@ function splitFullName(fullName: string) {
   };
 }
 
-function normalizeIncomingPayload(payload: any) {
+export function normalizeIncomingPayload(payload: any) {
   if (!payload || typeof payload !== 'object' || !('full_name' in payload)) return payload;
 
   const ownerName = splitFullName(String(payload.full_name || ''));
+  const coOwnerName = splitFullName(String(payload.co_owner_full_name || ''));
+  const hasCoOwnerData = Boolean(
+    String(payload.co_owner_full_name || '').trim() ||
+    String(payload.co_owner_home_address || '').trim() ||
+    String(payload.co_owner_ssn || '').trim() ||
+    String(payload.co_owner_dob || '').trim() ||
+    String(payload.co_owner_cell_phone || '').trim() ||
+    String(payload.co_owner_email || '').trim() ||
+    String(payload.co_owner_ownership_percentage || '').trim(),
+  );
   const consentAccepted = Boolean(payload.consent_accepted);
   const existingAdvanceFunder = String(payload.existing_advance_funder || '').trim();
   const existingAdvanceBalance = String(payload.existing_advance_balance || '').trim();
@@ -431,7 +441,21 @@ function normalizeIncomingPayload(payload: any) {
       zip: '',
       credit_range: '',
     },
-    owner2: {},
+    owner2: hasCoOwnerData ? {
+      ...coOwnerName,
+      title: 'Co-owner',
+      ownership_pct: String(payload.co_owner_ownership_percentage || '').replace(/%/g, ''),
+      email: String(payload.co_owner_email || ''),
+      phone: String(payload.co_owner_cell_phone || ''),
+      mobile: String(payload.co_owner_cell_phone || ''),
+      dob: String(payload.co_owner_dob || ''),
+      ssn: String(payload.co_owner_ssn || ''),
+      address: String(payload.co_owner_home_address || ''),
+      city: '',
+      state: '',
+      zip: '',
+      credit_range: '',
+    } : {},
     requested_amount: String(payload.requested_amount || ''),
     use_of_funds: String(payload.use_of_funds || ''),
     timeline: '',

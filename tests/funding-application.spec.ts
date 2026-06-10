@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { normalizeIncomingPayload } from '../app/api/applications/submit/route';
 import { mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('public funding application', () => {
@@ -18,7 +19,14 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-date-of-birth').fill('1985-04-10');
     await page.getByTestId('application-cell-phone-number').fill('2125550144');
     await page.getByTestId('application-email-address').fill('taylor@fastsubmit.test');
-    await page.getByTestId('application-ownership-percentage').fill('85');
+    await page.getByTestId('application-ownership-percentage').fill('60');
+    await page.getByTestId('application-co-owner-full-name').fill('Jordan Reed');
+    await page.getByTestId('application-co-owner-home-address').fill('40 Partner Ave, Brooklyn, NY 11201');
+    await page.getByTestId('application-co-owner-social-security-number').fill('987654321');
+    await page.getByTestId('application-co-owner-date-of-birth').fill('1987-07-12');
+    await page.getByTestId('application-co-owner-cell-phone-number').fill('7185550166');
+    await page.getByTestId('application-co-owner-email-address').fill('jordan@fastsubmit.test');
+    await page.getByTestId('application-co-owner-ownership-percentage').fill('40');
     await page.getByRole('button', { name: /continue/i }).click();
 
     await page.getByTestId('application-company-name').fill('Fast Submit LLC');
@@ -33,7 +41,9 @@ test.describe('public funding application', () => {
     await page.getByRole('button', { name: /continue/i }).click();
 
     await expect(page.getByText('***-6789')).toHaveCount(2);
-    await expect(page.getByText('85%')).toBeVisible();
+    await expect(page.getByText('60%')).toBeVisible();
+    await expect(page.getByText('Jordan Reed')).toBeVisible();
+    await expect(page.getByText('40%')).toBeVisible();
     await expect(page.getByText('$75,000')).toBeVisible();
     await expect(page.getByText('Inventory and payroll')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Authorization', exact: true })).toBeVisible();
@@ -58,12 +68,64 @@ test.describe('public funding application', () => {
     const submissionCall = calls.find((call) => call.table === 'applications_submit_api');
     expect(submissionCall?.body).toEqual(expect.objectContaining({
       email: 'taylor@fastsubmit.test',
-      ownership_percentage: '85',
+      ownership_percentage: '60',
+      co_owner_full_name: 'Jordan Reed',
+      co_owner_home_address: '40 Partner Ave, Brooklyn, NY 11201',
+      co_owner_ssn: '987-65-4321',
+      co_owner_dob: '1987-07-12',
+      co_owner_cell_phone: '(718) 555-0166',
+      co_owner_email: 'jordan@fastsubmit.test',
+      co_owner_ownership_percentage: '40',
       requested_amount: '$75,000',
       industry: 'Retail',
       use_of_funds: 'Inventory and payroll',
       existing_advance_funder: 'Old Advance Co',
       existing_advance_balance: '$12,500',
+    }));
+  });
+
+  test('maps optional co-owner intake into the full application payload contract', () => {
+    const normalized = normalizeIncomingPayload({
+      full_name: 'Taylor Reed',
+      home_address: '20 Broadway, New York, NY 10002',
+      ssn: '123-45-6789',
+      dob: '1985-04-10',
+      cell_phone: '(212) 555-0144',
+      email: 'taylor@fastsubmit.test',
+      ownership_percentage: '60',
+      co_owner_full_name: 'Jordan Reed',
+      co_owner_home_address: '40 Partner Ave, Brooklyn, NY 11201',
+      co_owner_ssn: '987-65-4321',
+      co_owner_dob: '1987-07-12',
+      co_owner_cell_phone: '(718) 555-0166',
+      co_owner_email: 'jordan@fastsubmit.test',
+      co_owner_ownership_percentage: '40',
+      company_name: 'Fast Submit LLC',
+      business_address: '10 Main Street, New York, NY 10001',
+      ein: '12-3456789',
+      business_start_date: '2021-01-15',
+      requested_amount: '$75,000',
+      industry: 'Retail',
+      use_of_funds: 'Inventory and payroll',
+      consent_accepted: true,
+    });
+
+    expect(normalized.owner1).toEqual(expect.objectContaining({
+      first_name: 'Taylor',
+      last_name: 'Reed',
+      ownership_pct: '60',
+      email: 'taylor@fastsubmit.test',
+      ssn: '123-45-6789',
+    }));
+    expect(normalized.owner2).toEqual(expect.objectContaining({
+      first_name: 'Jordan',
+      last_name: 'Reed',
+      address: '40 Partner Ave, Brooklyn, NY 11201',
+      ownership_pct: '40',
+      email: 'jordan@fastsubmit.test',
+      phone: '(718) 555-0166',
+      dob: '1987-07-12',
+      ssn: '987-65-4321',
     }));
   });
 
