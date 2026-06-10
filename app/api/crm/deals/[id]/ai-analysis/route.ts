@@ -61,7 +61,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     safeRows(
       supabase
         .from('documents')
-        .select('id,label,file_name,file_size,mime_type,document_type,status,application_variant,review_notes,created_at,updated_at')
+        .select('id,label,file_name,file_size,mime_type,document_type,status,application_variant,review_notes,ai_extraction,ai_extracted_at,created_at,updated_at')
         .eq('organization_id', profile.organization_id)
         .or(deal.application_id ? `deal_id.eq.${deal.id},application_id.eq.${deal.application_id}` : `deal_id.eq.${deal.id}`)
         .order('created_at', { ascending: false })

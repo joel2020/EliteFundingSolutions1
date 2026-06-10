@@ -451,13 +451,23 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       mime_type: 'application/pdf',
       storage_path: `${ORG_ID}/${id}/${fileName}`,
       status: 'uploaded',
+      ai_extraction: documentType === 'bank_statements' ? {
+        document_type: 'bank_statement',
+        provider: 'rules',
+        confidence: 'low',
+        total_deposits: '$85,000',
+        ending_balance: '$12,500',
+        negative_days: '0',
+        nsf_count: '0',
+        notes: ['Mock bank statement extraction.'],
+      } : {},
       created_at: now,
       updated_at: now,
     };
     state.documents.unshift(document);
     state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'document_event', title: `Document uploaded: ${document.label}`, body: fileName, created_at: now });
     calls.push({ method: route.request().method(), table: 'deal_documents_api', body: { file_name: fileName, document_type: documentType } });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document, classification: { document_type: documentType, label, confidence: 'medium', provider: 'rules' } }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document, classification: { document_type: documentType, label, confidence: 'medium', provider: 'rules' }, aiExtraction: document.ai_extraction }) });
   });
 
   await page.route('**/api/crm/deals/*/partner-applications', async (route) => {

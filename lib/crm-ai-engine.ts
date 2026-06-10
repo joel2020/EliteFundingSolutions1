@@ -340,9 +340,14 @@ function buildDocumentIntelligence(context: RecordMap) {
   const missingDocumentTypes = requiredTypes.filter((type) => !hasDocType(documents, type));
   const reviewed = documents.slice(0, 12).map((doc: RecordMap) => {
     const type = text(doc.document_type || 'other');
+    const extraction = doc.ai_extraction || {};
     const signals = [
       doc.status ? `Status: ${doc.status}` : '',
       type.includes('bank') ? 'Bank document available for revenue/cash-flow review.' : '',
+      extraction.total_deposits ? `AI deposits: ${extraction.total_deposits}` : '',
+      extraction.ending_balance ? `AI ending balance: ${extraction.ending_balance}` : '',
+      extraction.negative_days ? `AI negative days: ${extraction.negative_days}` : '',
+      extraction.nsf_count ? `AI NSFs: ${extraction.nsf_count}` : '',
       sameCrmDocumentType(type, 'drivers_license') ? 'Owner ID document available.' : '',
       sameCrmDocumentType(type, 'voided_check') ? 'Funding bank account evidence available.' : '',
       sameCrmDocumentType(type, 'completed_application') ? 'Completed application available.' : '',
@@ -358,22 +363,27 @@ function buildDocumentIntelligence(context: RecordMap) {
   });
   const application = context.application || {};
   const business = context.business || {};
-  const nsfCount = text(application.nsf_count || business.nsf_count || '');
-  const negativeDays = text(application.negative_days_count || business.negative_days_count || '');
-  const monthlyRevenue = money(application.avg_monthly_deposits || business.monthly_gross_revenue || application.application_payload?.average_monthly_sales) || 'See bank statements';
+  const bankExtractions = documents.map((doc: RecordMap) => doc.ai_extraction).filter(Boolean);
+  const latestBankExtraction = bankExtractions[0] || {};
+  const nsfCount = text(application.nsf_count || business.nsf_count || latestBankExtraction.nsf_count || '');
+  const negativeDays = text(application.negative_days_count || business.negative_days_count || latestBankExtraction.negative_days || '');
+  const monthlyRevenue = money(application.avg_monthly_deposits || business.monthly_gross_revenue || application.application_payload?.average_monthly_sales || latestBankExtraction.total_deposits) || 'See bank statements';
   return {
     status: missingDocumentTypes.length ? 'needs_review' : 'ready',
     documentsReviewed: reviewed,
     extractedSignals: unique(reviewed.flatMap((doc: RecordMap) => doc.signals)),
     missingDocumentTypes,
     bankStatementAnalysis: {
-      status: hasDocType(documents, 'bank_statements') || hasDocType(documents, 'bank_statement') ? 'Bank statements attached' : 'Bank statements missing',
+      status: latestBankExtraction.total_deposits || latestBankExtraction.ending_balance ? 'AI bank statement extraction available' : hasDocType(documents, 'bank_statements') || hasDocType(documents, 'bank_statement') ? 'Bank statements attached' : 'Bank statements missing',
       monthlyRevenue,
       negativeDays: negativeDays || 'Not extracted yet',
       nsfCount: nsfCount || 'Not extracted yet',
       notes: [
-        hasDocType(documents, 'bank_statements') ? 'AI should parse statement tables for deposits, ending balances, negative days, and NSFs during the next extraction pass.' : 'Collect recent bank statements.',
-      ],
+        latestBankExtraction.bank_name ? `Bank: ${latestBankExtraction.bank_name}` : '',
+        latestBankExtraction.statement_period_start || latestBankExtraction.statement_period_end ? `Statement period: ${[latestBankExtraction.statement_period_start, latestBankExtraction.statement_period_end].filter(Boolean).join(' - ')}` : '',
+        latestBankExtraction.ending_balance ? `Ending balance: ${latestBankExtraction.ending_balance}` : '',
+        latestBankExtraction.provider ? `Extraction provider: ${latestBankExtraction.provider}` : hasDocType(documents, 'bank_statements') ? 'Bank statement is attached but still needs extracted deposit/NSF details.' : 'Collect recent bank statements.',
+      ].filter(Boolean),
     },
   };
 }

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireCrmAccess, requireSameOrigin } from '@/lib/server-auth';
 import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
-import { classifyDealDocumentUpload } from '@/lib/document-classification';
+import { classifyDealDocumentUpload, sameCrmDocumentType } from '@/lib/document-classification';
+import { extractBankStatementSignals } from '@/lib/bank-statement-extraction';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,6 +114,42 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
 
+  let aiExtraction = null;
+  if (sameCrmDocumentType(documentType, 'bank_statements') || sameCrmDocumentType(documentType, 'bank_statement')) {
+    aiExtraction = await extractBankStatementSignals({
+      fileName: file.name,
+      mimeType: file.type || null,
+      bytes,
+    });
+    const extractionSummary = [
+      'AI bank statement extraction',
+      aiExtraction.bank_name ? `Bank: ${aiExtraction.bank_name}` : '',
+      aiExtraction.statement_period_start || aiExtraction.statement_period_end ? `Period: ${[aiExtraction.statement_period_start, aiExtraction.statement_period_end].filter(Boolean).join(' - ')}` : '',
+      aiExtraction.total_deposits ? `Deposits: ${aiExtraction.total_deposits}` : '',
+      aiExtraction.ending_balance ? `Ending balance: ${aiExtraction.ending_balance}` : '',
+      aiExtraction.negative_days ? `Negative days: ${aiExtraction.negative_days}` : '',
+      aiExtraction.nsf_count ? `NSFs: ${aiExtraction.nsf_count}` : '',
+    ].filter(Boolean).join(' | ');
+
+    const { error: extractionUpdateError } = await supabase
+      .from('documents')
+      .update({
+        ai_extraction: aiExtraction,
+        ai_extracted_at: new Date().toISOString(),
+        review_notes: [reviewNotes, extractionSummary].filter(Boolean).join('\n\n') || null,
+      })
+      .eq('id', document.id)
+      .eq('organization_id', profile.organization_id);
+
+    if (extractionUpdateError) {
+      await supabase
+        .from('documents')
+        .update({ review_notes: [reviewNotes, extractionSummary].filter(Boolean).join('\n\n') || null })
+        .eq('id', document.id)
+        .eq('organization_id', profile.organization_id);
+    }
+  }
+
   if (linkedRequestId) {
     await supabase
       .from('document_requests')
@@ -130,7 +167,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       lead_id: deal.lead_id,
       activity_type: 'document_event',
       title: `Document uploaded: ${label}`,
-      body: file.name,
+      body: aiExtraction ? `${file.name} - AI extracted bank statement signals.` : file.name,
       performed_by: profile.id,
     }),
     supabase.from('audit_logs').insert({
@@ -139,9 +176,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       action: isInternalCrmRole(profile.role) ? 'deal_document_uploaded' : 'external_partner_document_uploaded',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: linkedRequestId, classification, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
+      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: linkedRequestId, classification, ai_extraction: aiExtraction, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
     }),
   ]);
 
-  return NextResponse.json({ success: true, document, classification });
+  return NextResponse.json({ success: true, document: { ...document, ai_extraction: aiExtraction || undefined }, classification, aiExtraction });
 }
