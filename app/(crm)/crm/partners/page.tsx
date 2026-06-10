@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ export default function PartnersPage() {
   const [showDialog, setShowDialog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyPartner);
+  const [editingPartner, setEditingPartner] = useState<FundingPartner | null>(null);
 
   const loadPartners = useCallback(async () => {
     if (!organizationId) return;
@@ -68,6 +69,42 @@ export default function PartnersPage() {
     loadPartners();
   }, [crmUserLoading, organizationId, loadPartners]);
 
+  const formFromPartner = (partner: FundingPartner) => ({
+    name: partner.name || '',
+    contact_name: partner.contact_name || '',
+    email: partner.email || '',
+    phone: partner.phone || '',
+    min_funding_amount: partner.min_funding_amount ? String(partner.min_funding_amount) : '',
+    max_funding_amount: partner.max_funding_amount ? String(partner.max_funding_amount) : '',
+    min_monthly_revenue: partner.min_monthly_revenue ? String(partner.min_monthly_revenue) : '',
+    min_time_in_business_months: partner.min_time_in_business_months ? String(partner.min_time_in_business_months) : '',
+    states_served: partner.states_served?.length ? partner.states_served.join(', ') : '',
+    restricted_industries: partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : '',
+    product_types: partner.product_types?.length ? partner.product_types.join(', ') : '',
+    submission_email: partner.submission_email || '',
+    portal_url: partner.portal_url || '',
+    avg_approval_days: partner.avg_approval_days ? String(partner.avg_approval_days) : '',
+    notes: partner.notes || '',
+  });
+
+  const openAddPartner = () => {
+    setEditingPartner(null);
+    setForm(emptyPartner);
+    setShowDialog(true);
+  };
+
+  const openEditPartner = (partner: FundingPartner) => {
+    setEditingPartner(partner);
+    setForm(formFromPartner(partner));
+    setShowDialog(true);
+  };
+
+  const closeDialog = () => {
+    setShowDialog(false);
+    setEditingPartner(null);
+    setForm(emptyPartner);
+  };
+
   const savePartner = async () => {
     if (!form.name.trim()) {
       toast.error('Company name is required');
@@ -79,8 +116,8 @@ export default function PartnersPage() {
     }
 
     setSaving(true);
-    const response = await fetch('/api/crm/partners', {
-      method: 'POST',
+    const response = await fetch(editingPartner ? `/api/crm/partners/${editingPartner.id}` : '/api/crm/partners', {
+      method: editingPartner ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
@@ -89,16 +126,16 @@ export default function PartnersPage() {
         min_monthly_revenue: form.min_monthly_revenue || null,
         min_time_in_business_months: form.min_time_in_business_months || null,
         avg_approval_days: form.avg_approval_days || null,
+        is_active: editingPartner?.is_active ?? true,
       }),
     });
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok || !result.success) {
-      toast.error(result.error || 'Failed to add funding partner');
+      toast.error(result.error || (editingPartner ? 'Failed to update funding partner' : 'Failed to add funding partner'));
     } else {
-      toast.success('Funding partner added');
-      setShowDialog(false);
-      setForm(emptyPartner);
+      toast.success(editingPartner ? 'Funding partner updated' : 'Funding partner added');
+      closeDialog();
       if (organizationId) loadPartners();
     }
     setSaving(false);
@@ -111,7 +148,7 @@ export default function PartnersPage() {
       <CrmTopbar
         title="Funding Partners"
         subtitle="Manage your lender and funder network"
-        actions={<Button data-testid="add-partner" className="h-9 rounded-[8px] bg-[#2563EB]" onClick={() => setShowDialog(true)}><Plus className="mr-2 h-4 w-4" />Add Partner</Button>}
+        actions={<Button data-testid="add-partner" className="h-9 rounded-[8px] bg-[#2563EB]" onClick={openAddPartner}><Plus className="mr-2 h-4 w-4" />Add Partner</Button>}
       />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -160,8 +197,9 @@ export default function PartnersPage() {
                 </a>
               )}
               <div className="mt-4 border-t pt-4">
+                <Button data-testid={`edit-partner-${partner.id}`} variant="outline" className="mb-2 h-9 w-full rounded-[7px]" onClick={() => openEditPartner(partner)}><Pencil className="mr-2 h-4 w-4" />Edit Funder Rules</Button>
                 <DeleteConfirmButton
-                  itemLabel={`lender ${partner.name}`}
+                  itemLabel={`funder ${partner.name}`}
                   endpoint={`/api/crm/partners/${partner.id}`}
                   onDeleted={loadPartners}
                 />
@@ -171,11 +209,11 @@ export default function PartnersPage() {
         </div>
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+      <Dialog open={showDialog} onOpenChange={(open) => { if (open) setShowDialog(true); else closeDialog(); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Funding Partner</DialogTitle>
-            <DialogDescription>Create a funder profile for offers and partner reporting.</DialogDescription>
+            <DialogTitle>{editingPartner ? 'Edit Funding Partner' : 'Add Funding Partner'}</DialogTitle>
+            <DialogDescription>{editingPartner ? 'Update funder contact information, submission route, criteria, and notes.' : 'Create a funder profile for offers and partner reporting.'}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 md:grid-cols-2">
             <div><Label>Company Name *</Label><Input data-testid="partner-name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
@@ -194,7 +232,7 @@ export default function PartnersPage() {
             <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : 'Save Partner'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={closeDialog}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : editingPartner ? 'Update Partner' : 'Save Partner'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1607,7 +1607,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [requestingMissingDocs, setRequestingMissingDocs] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [savingSubmission, setSavingSubmission] = useState(false);
-  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [documentUploadProgress, setDocumentUploadProgress] = useState('');
   const [partnerApplicationFile, setPartnerApplicationFile] = useState<File | null>(null);
   const [partnerApplicationSource, setPartnerApplicationSource] = useState('');
   const [partnerApplicationNotes, setPartnerApplicationNotes] = useState('');
@@ -1733,24 +1734,33 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     console.debug('Activity logging is handled by server APIs.', { activity_type, title, body });
   };
 
-  const resetDocumentDialog = () => { setDocumentFile(null); setDocumentDescription(''); };
+  const resetDocumentDialog = () => { setDocumentFiles([]); setDocumentDescription(''); setDocumentUploadProgress(''); };
   const resetPartnerApplicationDialog = () => { setPartnerApplicationFile(null); setPartnerApplicationSource(''); setPartnerApplicationNotes(''); };
 
   const uploadDealDocument = async () => {
-    if (!documentFile) { toast.error('Please select a document.'); return; }
+    if (!documentFiles.length) { toast.error('Please select at least one document.'); return; }
     const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif'];
-    const extension = documentFile.name.split('.').pop()?.toLowerCase();
-    if (documentFile.size > 10 * 1024 * 1024 || (!allowed.includes(documentFile.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''))) { toast.error('Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.'); return; }
+    const invalidFile = documentFiles.find((file) => {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      return file.size > 10 * 1024 * 1024 || (!allowed.includes(file.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''));
+    });
+    if (invalidFile) { toast.error(`${invalidFile.name} must be a PDF, JPG, PNG, or HEIC file up to 10MB.`); return; }
     setUploadingDocument(true);
     try {
-      const formData = new FormData();
-      formData.set('file', documentFile);
-      formData.set('review_notes', documentDescription);
-      const response = await fetch(`/api/crm/deals/${deal.id}/documents`, { method: 'POST', body: formData });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload document');
-      const classifiedType = result.document?.document_type || result.classification?.document_type;
-      toast.success(classifiedType ? `Document uploaded as ${detailDocTypeLabel(classifiedType)}` : 'Deal document uploaded');
+      const uploadedTypes: string[] = [];
+      for (let index = 0; index < documentFiles.length; index += 1) {
+        const file = documentFiles[index];
+        setDocumentUploadProgress(`Uploading ${index + 1} of ${documentFiles.length}: ${file.name}`);
+        const formData = new FormData();
+        formData.set('file', file);
+        formData.set('review_notes', documentDescription);
+        const response = await fetch(`/api/crm/deals/${deal.id}/documents`, { method: 'POST', body: formData });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || `Failed to upload ${file.name}`);
+        const classifiedType = result.document?.document_type || result.classification?.document_type;
+        if (classifiedType) uploadedTypes.push(detailDocTypeLabel(classifiedType));
+      }
+      toast.success(documentFiles.length > 1 ? `${documentFiles.length} documents uploaded` : uploadedTypes[0] ? `Document uploaded as ${uploadedTypes[0]}` : 'Deal document uploaded');
       setDocumentDialogOpen(false); resetDocumentDialog(); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to upload document'); } finally { setUploadingDocument(false); }
   };
@@ -2193,7 +2203,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           <TabsContent value="activity"><SimpleRows rows={dealActivity} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{row.activity_type ? `${row.activity_type.replaceAll('_', ' ')} · ` : ''}{date(row.created_at)}{row.performed_by ? ` · User ${shortId(row.performed_by)}` : ''}</p></div>} /></TabsContent>
         </Tabs>
       </CrmCard>
-      <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload or replace deal document</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document file</Label><Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload deal documents</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document files</Label><Input data-testid="deal-document-file" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFiles(Array.from(event.target.files || []))} className="mt-1 rounded-[7px]" />{documentFiles.length > 0 && <div className="mt-2 grid gap-1 text-xs text-[#64748B]">{documentFiles.map((file) => <p key={`${file.name}-${file.size}`}>{file.name} · {formatBytes(file.size)}</p>)}</div>}{documentUploadProgress && <p className="mt-2 text-xs font-semibold text-[#0F2B5B]">{documentUploadProgress}</p>}</div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFiles.length}>{uploadingDocument ? 'Uploading...' : documentFiles.length > 1 ? `Upload ${documentFiles.length} documents` : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={partnerApplicationDialogOpen} onOpenChange={(open) => { setPartnerApplicationDialogOpen(open); if (!open) resetPartnerApplicationDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload Partner Application</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Application file</Label><Input data-testid="partner-application-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,.csv" onChange={(event) => setPartnerApplicationFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{partnerApplicationFile && <p className="mt-1 text-xs text-[#64748B]">{partnerApplicationFile.name} · {formatBytes(partnerApplicationFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Source partner</Label><Input data-testid="partner-application-source" value={partnerApplicationSource} onChange={(event) => setPartnerApplicationSource(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Funding partner or broker name" /></div><div><Label className="text-xs text-[#64748B]">Notes</Label><Textarea data-testid="partner-application-notes" value={partnerApplicationNotes} onChange={(event) => setPartnerApplicationNotes(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="What came in, missing fields, or conversion notes" /></div><div className="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">Upload stores the original partner file on this deal and immediately creates an Elite Funding Solutions application PDF. That Elite application is automatically included when this deal is sent to funders. Review/edit fields and regenerate if the partner file has newer details.</div></div><DialogFooter><Button variant="outline" onClick={() => setPartnerApplicationDialogOpen(false)}>Cancel</Button><Button data-testid="save-partner-application" onClick={uploadPartnerApplication} disabled={uploadingPartnerApplication || !partnerApplicationFile}>{uploadingPartnerApplication ? 'Converting...' : 'Upload and Create Elite Application'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={partnerApplicationReviewOpen} onOpenChange={(open) => { setPartnerApplicationReviewOpen(open); if (!open) setReviewingPartnerApplication(null); }}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-[8px]">

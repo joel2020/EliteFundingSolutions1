@@ -222,6 +222,29 @@ function wrapPdfText(value: string, max = 120) {
   return lines;
 }
 
+function wrapPdfTextByWidth(value: string, font: any, size: number, maxWidth: number) {
+  const words = value.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    const next = `${line} ${word}`.trim();
+    if (line && font.widthOfTextAtSize(next, size) > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function shrinkToFit(value: string, font: any, maxWidth: number, preferredSize: number, minSize = 7.2) {
+  let size = preferredSize;
+  while (size > minSize && font.widthOfTextAtSize(value, size) > maxWidth) size -= 0.25;
+  return size;
+}
+
 function pngDataFromUrl(value: unknown) {
   if (typeof value !== 'string') return null;
   const match = value.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
@@ -335,6 +358,38 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
       page.drawText(line, { x, y: y - index * (size + 2), size, font, color: rgb(0.05, 0.08, 0.12) });
     });
   };
+  const drawBoxText = (
+    value: unknown,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    options: { size?: number; maxLines?: number; erase?: boolean; bold?: boolean } = {},
+  ) => {
+    const cleaned = text(value);
+    if (!cleaned) return;
+    const preferredSize = options.size || 11.2;
+    const maxLines = options.maxLines || 1;
+    const activeFont = options.bold ? boldFont : font;
+    if (options.erase !== false) {
+      page.drawRectangle({ x, y, width, height, color: rgb(1, 1, 1), opacity: 0.98 });
+    }
+    if (maxLines <= 1) {
+      const size = shrinkToFit(cleaned, activeFont, width - 6, preferredSize);
+      page.drawText(cleaned, { x: x + 3, y: y + Math.max(3, (height - size) / 2), size, font: activeFont, color: rgb(0.03, 0.07, 0.13) });
+      return;
+    }
+    const lineHeight = preferredSize + 2;
+    let size = preferredSize;
+    let lines = wrapPdfTextByWidth(cleaned, activeFont, size, width - 6);
+    while (size > 7.2 && lines.length > maxLines) {
+      size -= 0.25;
+      lines = wrapPdfTextByWidth(cleaned, activeFont, size, width - 6);
+    }
+    lines.slice(0, maxLines).forEach((line, index) => {
+      page.drawText(line, { x: x + 3, y: y + height - size - 3 - index * lineHeight, size, font: activeFont, color: rgb(0.03, 0.07, 0.13) });
+    });
+  };
   const check = (enabled: boolean, x: number, y: number) => {
     if (!enabled) return;
     page.drawText('X', { x, y, size: 15, font: boldFont, color: rgb(0.02, 0.09, 0.25) });
@@ -354,23 +409,23 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   void logo;
 
-  draw(fields.businessLegalName, 318, 1549, 12, 32);
-  draw(fields.businessDba, 1050, 1549, 12, 24);
-  draw(fields.businessStreet, 118, 1515, 12, 42);
-  draw(fields.businessCityLine, 86, 1480, 12, 36);
-  draw(fields.businessSuite, 925, 1515, 12, 18);
-  draw(fields.businessState, 925, 1480, 12, 12);
-  draw(fields.businessZip, 86, 1446, 12, 12);
-  draw(fields.businessPhone, 925, 1446, 12, 20);
-  draw(fields.businessMobile, 105, 1413, 12, 20);
-  draw(fields.businessFax, 925, 1413, 12, 20);
-  draw(fields.businessWebsite, 118, 1378, 12, 34);
-  draw(fields.businessEmail, 925, 1378, 12, 34);
-  drawReadable(fields.ein, 1080, 1346, 11, 18);
-  draw(fields.businessStartDate, 1115, 1312, 12, 16);
-  draw(fields.productsServices, 1120, 1278, 12, 22);
-  draw(fields.posContact, 260, 1245, 12, 30);
-  draw(fields.posSystem, 1015, 1245, 12, 24);
+  drawBoxText(fields.businessLegalName, 315, 1539, 470, 28, { size: 13.5, maxLines: 2 });
+  drawBoxText(fields.businessDba, 1050, 1539, 335, 28, { size: 13.2, maxLines: 2 });
+  drawBoxText(fields.businessStreet, 116, 1507, 650, 22, { size: 13.5, maxLines: 1 });
+  drawBoxText(fields.businessCityLine, 86, 1472, 620, 22, { size: 13.5, maxLines: 1 });
+  drawBoxText(fields.businessSuite, 925, 1507, 315, 22, { size: 13.5 });
+  drawBoxText(fields.businessState, 925, 1472, 145, 22, { size: 13.5 });
+  drawBoxText(fields.businessZip, 86, 1438, 230, 22, { size: 13.5 });
+  drawBoxText(fields.businessPhone, 925, 1438, 280, 22, { size: 13.5 });
+  drawBoxText(fields.businessMobile, 105, 1405, 285, 22, { size: 13.5 });
+  drawBoxText(fields.businessFax, 925, 1405, 280, 22, { size: 13.5 });
+  drawBoxText(fields.businessWebsite, 118, 1371, 520, 22, { size: 12.8 });
+  drawBoxText(fields.businessEmail, 925, 1371, 380, 22, { size: 12.8 });
+  drawBoxText(fields.ein, 1080, 1339, 230, 24, { size: 13.5 });
+  drawBoxText(fields.businessStartDate, 1115, 1305, 230, 24, { size: 13.5 });
+  drawBoxText(fields.productsServices, 1120, 1264, 260, 34, { size: 12.2, maxLines: 2 });
+  drawBoxText(fields.posContact, 260, 1238, 450, 24, { size: 13.5 });
+  drawBoxText(fields.posSystem, 1015, 1238, 330, 24, { size: 13.5 });
 
   check(fields.entityType.includes('corp') && !fields.entityType.includes('s_') && !fields.entityType.includes('c_'), 223, 1357);
   check(fields.entityType.includes('sole'), 326, 1357);
@@ -394,26 +449,26 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   check(!fields.isSeasonal, 1210, 1207);
 
   const drawOwner = (owner: ResolvedOwnerPdfFields, x: number) => {
-    draw(owner.name, x + 160, 906, 11.5, 32);
-    draw(owner.street, x + 160, 871, 11.5, 32);
-    draw(owner.cityLine, x + 225, 837, 11.5, 26);
-    draw(owner.phone, x + 155, 802, 11.5, 22);
-    draw(owner.email, x + 155, 768, 11, 32);
-    drawReadable(owner.ownershipPercentage, x + 245, 733, 11, 10);
-    drawReadable(owner.dob, x + 230, 699, 11, 16);
-    drawReadable(owner.ssn, x + 155, 665, 11, 18);
-    draw(owner.driversLicense, x + 210, 630, 11, 18);
+    drawBoxText(owner.name, x + 115, 899, 560, 24, { size: 13.2 });
+    drawBoxText(owner.street, x + 135, 865, 540, 24, { size: 13.2 });
+    drawBoxText(owner.cityLine, x + 225, 831, 450, 24, { size: 13.2 });
+    drawBoxText(owner.phone, x + 155, 796, 290, 24, { size: 13.2 });
+    drawBoxText(owner.email, x + 155, 762, 410, 24, { size: 12.4 });
+    drawBoxText(owner.ownershipPercentage, x + 245, 727, 150, 24, { size: 13.2 });
+    drawBoxText(owner.dob, x + 230, 693, 210, 24, { size: 13.2 });
+    drawBoxText(owner.ssn, x + 155, 659, 240, 24, { size: 13.2 });
+    drawBoxText(owner.driversLicense, x + 210, 624, 260, 24, { size: 13.2 });
   };
   drawOwner(fields.owner1, 0);
   drawOwner(fields.owner2, 755);
 
   check(fields.hasExistingAdvance, 465, 553);
   check(!fields.hasExistingAdvance, 575, 553);
-  draw(fields.existingAdvanceFunder, 70, 508, 12, 42);
-  draw(fields.existingAdvanceBalance, 1000, 541, 12, 18);
-  draw(fields.requestedAmount, 975, 508, 12, 18);
-  draw(fields.averageMonthlySales, 305, 458, 12, 18);
-  draw(fields.averageVisaMcSales, 1040, 458, 12, 18);
+  drawBoxText(fields.existingAdvanceFunder, 70, 500, 650, 30, { size: 12.4, maxLines: 2 });
+  drawBoxText(fields.existingAdvanceBalance, 1000, 536, 220, 22, { size: 13.2 });
+  drawBoxText(fields.requestedAmount, 975, 500, 250, 24, { size: 13.2 });
+  drawBoxText(fields.averageMonthlySales, 305, 450, 230, 24, { size: 13.2 });
+  drawBoxText(fields.averageVisaMcSales, 1040, 450, 230, 24, { size: 13.2 });
 
   drawTemplateCorrection(
     'By signing below, the Merchant and its owners/principals: (1) certify that all information and documents submitted in connection with this Application are true, correct and complete; and (2) authorize Elite Funding Solutions, its funding partners, representatives, successors, assigns, designees, agents, partners, and funders to receive credit reports and any other information regarding the Merchant and its owners and principals from third parties.',
@@ -433,11 +488,11 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     const scale = Math.min(maxWidth / imageDims.width, maxHeight / imageDims.height, 1);
     page.drawImage(signatureImage, { x: 100, y: 258, width: imageDims.width * scale, height: imageDims.height * scale });
   }
-  draw(fields.signer, 105, 251, 13, 28);
-  draw(fields.signatureDate, 425, 251, 13, 18);
+  drawBoxText(fields.signer, 105, 246, 270, 28, { size: 12.5, erase: false });
+  drawBoxText(fields.signatureDate, 425, 246, 150, 28, { size: 12.5, erase: false });
   if (fields.owner2.name) {
-    draw(fields.owner2.name, 655, 251, 13, 28);
-    draw(fields.signatureDate, 980, 251, 13, 18);
+    drawBoxText(fields.owner2.name, 655, 246, 270, 28, { size: 12.5, erase: false });
+    drawBoxText(fields.signatureDate, 980, 246, 150, 28, { size: 12.5, erase: false });
   }
 
   drawTemplateCorrection(
@@ -451,98 +506,6 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   );
 
   const firstPageSize = page.getSize();
-  const summaryPage = pdfDoc.insertPage(0, [firstPageSize.width, firstPageSize.height]);
-  const summaryMargin = 72;
-  const summaryNavy = rgb(0.06, 0.17, 0.36);
-  const summaryText = rgb(0.05, 0.08, 0.12);
-  const summaryMuted = rgb(0.36, 0.43, 0.52);
-  const summaryBorder = rgb(0.82, 0.86, 0.91);
-  const summaryFill = rgb(0.96, 0.98, 1);
-  let summaryY = firstPageSize.height - 84;
-
-  const summaryValue = (value: unknown) => text(value) || 'Not provided';
-  const drawSummaryText = (value: string, x: number, y: number, size: number, isBold = false, color = summaryText) => {
-    summaryPage.drawText(value, { x, y, size, font: isBold ? boldFont : font, color });
-  };
-  const drawSummaryLines = (value: string, x: number, y: number, maxChars: number, size = 15, lineHeight = 19, color = summaryText) => {
-    const lines = wrapPdfText(value, maxChars).slice(0, 3);
-    lines.forEach((line, index) => {
-      summaryPage.drawText(line, { x, y: y - index * lineHeight, size, font, color });
-    });
-    return Math.max(lineHeight, lines.length * lineHeight);
-  };
-  const drawSummarySection = (title: string) => {
-    summaryPage.drawRectangle({ x: summaryMargin, y: summaryY - 28, width: firstPageSize.width - summaryMargin * 2, height: 34, color: summaryNavy });
-    drawSummaryText(title, summaryMargin + 14, summaryY - 18, 15, true, rgb(1, 1, 1));
-    summaryY -= 48;
-  };
-  const drawSummaryRow = (leftLabel: string, leftValue: unknown, rightLabel = '', rightValue: unknown = '') => {
-    const rowTop = summaryY;
-    const rowHeight = 66;
-    const usableWidth = firstPageSize.width - summaryMargin * 2;
-    const colWidth = usableWidth / 2;
-    summaryPage.drawRectangle({ x: summaryMargin, y: rowTop - rowHeight + 8, width: usableWidth, height: rowHeight, borderColor: summaryBorder, borderWidth: 1, color: rgb(1, 1, 1) });
-    summaryPage.drawLine({ start: { x: summaryMargin + colWidth, y: rowTop + 8 }, end: { x: summaryMargin + colWidth, y: rowTop - rowHeight + 8 }, thickness: 1, color: summaryBorder });
-    drawSummaryText(leftLabel, summaryMargin + 14, rowTop - 14, 10.5, true, summaryMuted);
-    drawSummaryLines(summaryValue(leftValue), summaryMargin + 14, rowTop - 36, 47);
-    if (rightLabel) {
-      drawSummaryText(rightLabel, summaryMargin + colWidth + 14, rowTop - 14, 10.5, true, summaryMuted);
-      drawSummaryLines(summaryValue(rightValue), summaryMargin + colWidth + 14, rowTop - 36, 47);
-    }
-    summaryY -= rowHeight;
-  };
-
-  summaryPage.drawImage(logo, { x: summaryMargin, y: firstPageSize.height - 150, width: 135, height: 75 });
-  drawSummaryText('Funding Application', summaryMargin + 160, firstPageSize.height - 100, 25, true, summaryNavy);
-  drawSummaryText('Elite Funding Solutions', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
-  summaryPage.drawRectangle({ x: summaryMargin, y: firstPageSize.height - 188, width: firstPageSize.width - summaryMargin * 2, height: 42, color: summaryFill, borderColor: summaryBorder, borderWidth: 1 });
-  drawSummaryText('Application details, signature evidence, and authorization/consent disclosures are included in this PDF.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
-  summaryY = firstPageSize.height - 226;
-
-  drawSummarySection('Business Information');
-  drawSummaryRow('Legal business name', fields.businessLegalName, 'DBA', fields.businessDba);
-  drawSummaryRow('Business address', [fields.businessStreet, fields.businessCityLine].filter(Boolean).join(', '), 'Tax ID / EIN', fields.ein);
-  drawSummaryRow('Business phone', fields.businessPhone, 'Business mobile', fields.businessMobile);
-  drawSummaryRow('Business email', fields.businessEmail, 'Website', fields.businessWebsite);
-  drawSummaryRow('Date business started', fields.businessStartDate, 'Products / services', fields.productsServices);
-  drawSummaryRow('Entity / merchant / location', [fields.entityType, fields.merchantType, fields.businessLocation].filter(Boolean).join(' / '), 'POS contact / system', [fields.posContact, fields.posSystem].filter(Boolean).join(' / '));
-
-  drawSummarySection('Primary Owner');
-  drawSummaryRow('Owner name', fields.owner1.name, 'Ownership %', fields.owner1.ownershipPercentage);
-  drawSummaryRow('Home address', [fields.owner1.street, fields.owner1.cityLine].filter(Boolean).join(', '), 'Date of birth', fields.owner1.dob);
-  drawSummaryRow('Owner phone', fields.owner1.phone, 'Owner email', fields.owner1.email);
-  drawSummaryRow('Full SSN', fields.owner1.ssn, 'Driver license', fields.owner1.driversLicense);
-
-  if (fields.owner2.name || fields.owner2.ssn || fields.owner2.dob) {
-    drawSummarySection('Additional Owner');
-    drawSummaryRow('Owner name', fields.owner2.name, 'Ownership %', fields.owner2.ownershipPercentage);
-    drawSummaryRow('Home address', [fields.owner2.street, fields.owner2.cityLine].filter(Boolean).join(', '), 'Date of birth', fields.owner2.dob);
-    drawSummaryRow('Owner phone', fields.owner2.phone, 'Owner email', fields.owner2.email);
-    drawSummaryRow('Full SSN', fields.owner2.ssn, 'Driver license', fields.owner2.driversLicense);
-  }
-
-  drawSummarySection('Funding And Signature');
-  drawSummaryRow('Requested amount', fields.requestedAmount, 'Average monthly sales', fields.averageMonthlySales);
-  drawSummaryRow('Use of funds', fields.useOfFunds, 'Desired timeline', fields.desiredTimeline);
-  drawSummaryRow('Average Visa/MC sales', fields.averageVisaMcSales, 'Bank / account type', [fields.bankName, fields.accountType].filter(Boolean).join(' / '));
-  drawSummaryRow('Bank contact', fields.bankContact, 'Bank phone', fields.bankPhone);
-  drawSummaryRow('Existing advance', fields.hasExistingAdvance ? 'Yes' : 'No', 'Existing advance funder', fields.existingAdvanceFunder);
-  drawSummaryRow('Advance original amount', fields.existingAdvanceOriginalAmount, 'Advance balance', fields.existingAdvanceBalance);
-  drawSummaryRow('Advance daily payment', fields.existingAdvanceDailyPayment, 'Payment frequency', fields.existingAdvancePaymentFrequency);
-  drawSummaryRow('Risk / seasonal', `${fields.hasRisk ? 'Risk items reported' : 'No risk items reported'} / ${fields.isSeasonal ? 'Seasonal' : 'Not seasonal'}`, 'Risk notes', fields.riskNotes);
-  drawSummaryRow('Signer', fields.signer, 'Signature date', fields.signatureDate);
-
-  summaryPage.drawText('Signature', { x: summaryMargin + 14, y: summaryY - 10, size: 10.5, font: boldFont, color: summaryMuted });
-  summaryPage.drawRectangle({ x: summaryMargin + 14, y: summaryY - 92, width: 420, height: 74, borderColor: summaryBorder, borderWidth: 1, color: rgb(1, 1, 1) });
-  if (fields.drawnSignaturePng) {
-    const summarySignatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
-    const imageDims = summarySignatureImage.scale(1);
-    const scale = Math.min(300 / imageDims.width, 70 / imageDims.height, 1);
-    summaryPage.drawImage(summarySignatureImage, { x: summaryMargin + 30, y: summaryY - 84, width: imageDims.width * scale, height: imageDims.height * scale });
-  } else {
-    drawSummaryText(fields.signer || 'Not provided', summaryMargin + 30, summaryY - 54, 22, true, summaryText);
-    drawSummaryText('Electronic signature', summaryMargin + 30, summaryY - 76, 10.5, false, summaryMuted);
-  }
 
   let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
   const disclosureMargin = 72;
