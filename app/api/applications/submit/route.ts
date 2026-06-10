@@ -85,7 +85,7 @@ export const applicationSchema = z.object({
   owner1: ownerSchema.extend({
     first_name: z.string().min(1),
     last_name: z.string().min(1),
-    ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct >= 0 && pct <= 100; }, 'Ownership must be between 0 and 100.'),
+    ownership_pct: z.string().refine((value) => { const pct = Number(value); return Number.isFinite(pct) && pct > 0 && pct <= 100; }, 'Ownership must be between 1 and 100.'),
     email: z.string().optional().default('').refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value), 'Owner email must be valid, or left blank.'),
     phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner phone must be valid, or left blank.'),
     mobile: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner mobile phone must be valid, or left blank.'),
@@ -129,6 +129,8 @@ export const applicationSchema = z.object({
   const owner2HasData = Object.values(form.owner2 || {}).some((value) => String(value ?? '').trim());
   if (!owner2HasData) return;
   const owner2 = form.owner2 || {};
+  const owner1Pct = Number(form.owner1.ownership_pct);
+  const owner2Pct = Number(owner2.ownership_pct);
   const requiredOwner2Fields: Array<[keyof typeof owner2, string]> = [
     ['first_name', 'Co-owner first name is required.'],
     ['last_name', 'Co-owner last name is required.'],
@@ -143,9 +145,11 @@ export const applicationSchema = z.object({
   for (const [field, message] of requiredOwner2Fields) {
     if (!String(owner2[field] ?? '').trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', field], message });
   }
-  const pct = Number(owner2.ownership_pct);
-  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+  if (!Number.isFinite(owner2Pct) || owner2Pct <= 0 || owner2Pct > 100) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', 'ownership_pct'], message: 'Co-owner ownership must be between 1 and 100.' });
+  }
+  if (Number.isFinite(owner1Pct) && Number.isFinite(owner2Pct) && owner1Pct + owner2Pct > 100) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', 'ownership_pct'], message: 'Owner and co-owner ownership percentages cannot exceed 100.' });
   }
   if (digitsOnly(owner2.ssn).length !== 9) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', 'ssn'], message: 'Co-owner SSN must be 9 digits.' });

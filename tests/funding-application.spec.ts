@@ -211,6 +211,47 @@ test.describe('public funding application', () => {
     }
   });
 
+  test('rejects impossible owner percentage totals at the API schema layer', () => {
+    const basePublicPayload = {
+      full_name: 'Taylor Reed',
+      home_address: '20 Broadway, New York, NY 10002',
+      ssn: '123-45-6789',
+      dob: '1985-04-10',
+      cell_phone: '(212) 555-0144',
+      email: 'taylor@fastsubmit.test',
+      ownership_percentage: '0',
+      company_name: 'Fast Submit LLC',
+      business_address: '10 Main Street, New York, NY 10001',
+      ein: '12-3456789',
+      business_start_date: '2021-01-15',
+      requested_amount: '$75,000',
+      industry: 'Retail',
+      consent_accepted: true,
+    };
+
+    const zeroOwnership = applicationSchema.safeParse(normalizeIncomingPayload(basePublicPayload));
+    expect(zeroOwnership.success).toBe(false);
+    if (!zeroOwnership.success) {
+      expect(zeroOwnership.error.flatten().fieldErrors.owner1?.join(' ')).toContain('Ownership must be between 1 and 100');
+    }
+
+    const overAllocated = applicationSchema.safeParse(normalizeIncomingPayload({
+      ...basePublicPayload,
+      ownership_percentage: '75',
+      co_owner_full_name: 'Jordan Reed',
+      co_owner_home_address: '40 Partner Ave, Brooklyn, NY 11201',
+      co_owner_ssn: '987-65-4321',
+      co_owner_dob: '1987-07-12',
+      co_owner_cell_phone: '(718) 555-0166',
+      co_owner_email: 'jordan@fastsubmit.test',
+      co_owner_ownership_percentage: '40',
+    }));
+    expect(overAllocated.success).toBe(false);
+    if (!overAllocated.success) {
+      expect(overAllocated.error.flatten().fieldErrors.owner2?.join(' ')).toContain('cannot exceed 100');
+    }
+  });
+
   test('requires the minimum identity and business fields', async ({ page }) => {
     await mockCrmApis(page);
 
