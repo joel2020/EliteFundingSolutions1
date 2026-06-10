@@ -21,8 +21,11 @@ type GmailOAuthState = {
 
 const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
 
-function getConfiguredRedirectUri() {
+export function getConfiguredRedirectUri() {
   if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+
+  const crmUrl = process.env.NEXT_PUBLIC_CRM_URL || process.env.CRM_APP_URL;
+  if (crmUrl) return `${crmUrl.replace(/\/$/, '')}/api/gmail/callback`;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) {
@@ -31,7 +34,9 @@ function getConfiguredRedirectUri() {
     );
   }
 
-  return `${appUrl.replace(/\/$/, '')}/api/gmail/callback`;
+  const url = new URL(appUrl);
+  if (url.hostname.startsWith('www.')) url.hostname = url.hostname.replace(/^www\./, 'crm.');
+  return `${url.origin}/api/gmail/callback`;
 }
 
 function getOAuthStateSecret() {
@@ -251,62 +256,5 @@ export async function sendEmail({
     requestBody: { raw: encodedMessage },
   });
 
-  return res.data;
-}
-
-export async function listEmails({
-  accessToken,
-  refreshToken,
-  userId,
-  maxResults = 50,
-  query,
-}: {
-  accessToken: string;
-  refreshToken?: string;
-  userId?: string;
-  maxResults?: number;
-  query?: string;
-}) {
-  const gmail = await getGmailClient(accessToken, refreshToken, userId);
-
-  const res = await gmail.users.messages.list({
-    userId: 'me',
-    maxResults,
-    q: query,
-  });
-
-  return res.data.messages || [];
-}
-
-export async function getEmail({
-  accessToken,
-  refreshToken,
-  userId,
-  messageId,
-}: {
-  accessToken: string;
-  refreshToken?: string;
-  userId?: string;
-  messageId: string;
-}) {
-  const gmail = await getGmailClient(accessToken, refreshToken, userId);
-
-  const res = await gmail.users.messages.get({
-    userId: 'me',
-    id: messageId,
-    format: 'full',
-  });
-
-  return res.data;
-}
-
-export async function getUserProfile(
-  accessToken: string,
-  refreshToken?: string,
-  userId?: string
-) {
-  const gmail = await getGmailClient(accessToken, refreshToken, userId);
-
-  const res = await gmail.users.getProfile({ userId: 'me' });
   return res.data;
 }
