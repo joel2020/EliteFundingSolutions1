@@ -308,13 +308,14 @@ function bestDocumentForType(docs: RecordMap[], type: string) {
 function isFunderPackageDocument(doc: RecordMap) {
   if (!doc?.id) return false;
   if (['rejected', 'needs_replacement', 'expired', 'deleted'].includes(String(doc.status || '').toLowerCase())) return false;
-  if (doc.document_type === 'completed_application') return true;
+  if (doc.document_type === 'completed_application') return false;
   if (doc.document_type === 'partner_application' || doc.application_variant === 'original_partner') return false;
   return true;
 }
 
 function defaultFunderPackageDocumentIds(docs: RecordMap[], partner?: RecordMap | null) {
   const requiredIds = lenderRequiredDocTypes(partner)
+    .filter((type) => type !== 'completed_application')
     .map((type) => bestDocumentForType(docs, type)?.id)
     .filter(Boolean) as string[];
   const eligibleIds = docs.filter(isFunderPackageDocument).map((doc) => doc.id);
@@ -329,7 +330,7 @@ function packageDocLabel(doc: RecordMap) {
 function buildDefaultFunderMessage(deal: RecordMap, docs: RecordMap[], readiness: ReturnType<typeof calculateReadiness>, partner?: RecordMap | null) {
   const business = deal.businesses || {};
   const missing = readiness.missing.slice(0, 4).map((item) => item.name);
-  const docTypes = Array.from(new Set(docs.map(packageDocLabel))).slice(0, 6);
+  const docTypes = Array.from(new Set(['Elite application', ...docs.map(packageDocLabel)])).slice(0, 6);
   return [
     `Hi${partner?.name ? ` ${partner.name} team` : ''},`,
     '',
@@ -1719,8 +1720,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const submissionBlockers = [
     ...submissionReadiness.missing.slice(0, 6).map((item) => item.name),
     ...submissionReadiness.rejected.slice(0, 4).map((item) => `${item.name} rejected`),
-    !completedEliteApplication ? 'Completed Elite application PDF' : '',
-    !recommendedPackageDocs.length ? 'No sendable package documents' : '',
+    !completedEliteApplication && !app ? 'No application data available to generate the Elite application PDF' : '',
     recommendedSubmissionPartner && !(recommendedSubmissionPartner.submission_email || recommendedSubmissionPartner.email) ? 'Recommended funder has no submission email' : '',
   ].filter(Boolean);
   const submissionWarnings = [

@@ -248,8 +248,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (packageDocsError) return NextResponse.json({ success: false, error: packageDocsError.message }, { status: 500 });
 
+  const selectedPackageDocuments = (selectedDocuments || []).filter(isEligibleFunderPackageDocument);
+  const skippedSelectedDocuments = (selectedDocuments || []).filter((doc: any) => !isEligibleFunderPackageDocument(doc));
   const documentMap = new Map<string, any>();
-  [generatedApplicationDocument, ...(dealPackageDocuments || []).filter(isEligibleFunderPackageDocument), ...(selectedDocuments || [])].forEach((doc: any) => {
+  [generatedApplicationDocument, ...(dealPackageDocuments || []).filter(isEligibleFunderPackageDocument), ...selectedPackageDocuments].forEach((doc: any) => {
     if (doc?.id && !documentMap.has(doc.id)) documentMap.set(doc.id, doc);
   });
   const documents = Array.from(documentMap.values());
@@ -404,6 +406,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const warnings = [
     ...(priorDefaults?.length ? [`Prior default history exists with ${partner.name}.`] : []),
     ...(emailDeliveryStatus === 'sent' ? [] : [emailProviderError || 'Funder submission was logged, but email delivery needs manual follow-up.']),
+    ...(skippedSelectedDocuments.length ? [`${skippedSelectedDocuments.length} manually selected application/original partner document(s) were skipped because the CRM generated a fresh Elite application for this send.`] : []),
     ...attachmentWarnings,
   ];
 

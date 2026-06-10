@@ -370,6 +370,22 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       submission_email: 'submissions@summit.test',
       created_at: '2026-05-14T12:00:00.000Z',
     });
+    state.documents.unshift({
+      id: 'completed-application-old',
+      organization_id: ORG_ID,
+      deal_id: DEAL_ID,
+      application_id: 'application-1',
+      document_type: 'completed_application',
+      label: 'Older completed application',
+      file_name: 'older-completed-application.pdf',
+      file_size: 56000,
+      mime_type: 'application/pdf',
+      storage_path: `${ORG_ID}/${DEAL_ID}/generated-applications/older-completed-application.pdf`,
+      status: 'uploaded',
+      application_variant: 'elite_signed_website',
+      created_at: '2026-05-13T12:00:00.000Z',
+      updated_at: '2026-05-13T12:00:00.000Z',
+    });
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
@@ -418,6 +434,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     expect(submissionCalls.map((call) => call.body.funding_partner_id)).toEqual(expect.arrayContaining(['88888888-8888-8888-8888-888888888888', secondFunderId]));
     for (const submissionCall of submissionCalls) {
       expect(submissionCall.body.attachment_document_ids).toContain(DOC_ID);
+      expect(submissionCall.body.attachment_document_ids).not.toContain('completed-application-old');
       expect(submissionCall.body.attachment_document_ids).toEqual(expect.arrayContaining([
         DOC_ID,
         expect.stringMatching(/^document-/),
