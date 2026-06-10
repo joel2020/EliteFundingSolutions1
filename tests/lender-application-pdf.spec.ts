@@ -221,6 +221,37 @@ test.describe('lender application PDF data mapping', () => {
     expect(last4OnlyFields.owner1.ssn).toBe('');
   });
 
+  test('uses top-level public application owner aliases when owner rows are unavailable', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      application: {
+        application_payload: {
+          legal_name: 'Alias Owner Merchant LLC',
+          full_name: 'Public Alias Owner',
+          home_address: '55 Public Owner Rd, Miami, FL 33130',
+          phone: '3055550199',
+          email: 'public-owner@example.test',
+          percent_of_ownership: '100',
+          date_of_birth: '1984-02-03',
+          social_security_number: '321654987',
+          driver_license_number: 'FL-Alias-12345',
+          signature: 'Public Alias Owner',
+          signature_date: '2026-06-10',
+        },
+      },
+      owners: [],
+    });
+
+    expect(fields.owner1.name).toBe('Public Alias Owner');
+    expect(fields.owner1.street).toBe('55 Public Owner Rd');
+    expect(fields.owner1.cityLine).toBe('Miami, FL 33130');
+    expect(fields.owner1.phone).toBe('3055550199');
+    expect(fields.owner1.email).toBe('public-owner@example.test');
+    expect(fields.owner1.ownershipPercentage).toBe('100%');
+    expect(fields.owner1.dob).toBe('2/3/1984');
+    expect(fields.owner1.ssn).toBe('321-65-4987');
+    expect(fields.owner1.driversLicense).toBe('FL-Alias-12345');
+  });
+
   test('does not leak business contact data into a blank second-owner column', () => {
     const fields = resolveLenderApplicationPdfFields({
       ...sampleApplicationData,

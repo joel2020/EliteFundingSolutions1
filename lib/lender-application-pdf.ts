@@ -356,15 +356,21 @@ function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: R
   const ownerZip = fieldWithAddressFallback(owner.zip, combinedAddress, 'zip');
 
   return {
-    name: ownerName(owner),
+    name: firstText(ownerName(owner), allowPayloadFallback ? firstText(payload.full_name, payload.owner_name, payload.authorized_signer) : ''),
     street: fieldWithAddressFallback(owner.address, combinedAddress, 'address'),
     cityLine: cityStateZip(ownerCity, ownerState, ownerZip),
-    phone: firstText(owner.phone, owner.mobile, allowPayloadFallback ? payload.cell_phone : ''),
-    email: firstText(owner.email, allowPayloadFallback ? payload.business_email : ''),
-    ownershipPercentage: formatOwnership(firstText(owner.ownership_pct, owner.ownership_percentage, allowPayloadFallback ? payload.ownership_pct || payload.ownership_percentage : '')),
-    dob: dateValue(firstText(owner.dob_decrypted, owner.dob, allowPayloadFallback ? payload.dob : '')),
-    ssn: formatFullSsn(firstText(owner.ssn_decrypted, owner.ssn, allowPayloadFallback ? payload.ssn : '')),
-    driversLicense: text(owner.drivers_license),
+    phone: firstText(owner.phone, owner.mobile, allowPayloadFallback ? firstText(payload.cell_phone, payload.phone, payload.mobile) : ''),
+    email: firstText(owner.email, allowPayloadFallback ? firstText(payload.email, payload.business_email) : ''),
+    ownershipPercentage: formatOwnership(firstText(
+      owner.ownership_pct,
+      owner.ownership_percentage,
+      owner.percent_ownership,
+      owner.percent_of_ownership,
+      allowPayloadFallback ? firstText(payload.ownership_pct, payload.ownership_percentage, payload.percent_ownership, payload.percent_of_ownership) : '',
+    )),
+    dob: dateValue(firstText(owner.dob_decrypted, owner.dob, owner.date_of_birth, allowPayloadFallback ? firstText(payload.dob, payload.date_of_birth, payload.owner_dob) : '')),
+    ssn: formatFullSsn(firstText(owner.ssn_decrypted, owner.ssn, owner.social_security_number, owner.owner_ssn, allowPayloadFallback ? firstText(payload.ssn, payload.social_security_number, payload.owner_ssn) : '')),
+    driversLicense: firstText(owner.drivers_license, owner.driver_license, owner.drivers_license_number, owner.driver_license_number, allowPayloadFallback ? firstText(payload.drivers_license, payload.driver_license, payload.owner_drivers_license, payload.driver_license_number) : ''),
   };
 }
 
