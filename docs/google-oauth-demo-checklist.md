@@ -31,6 +31,7 @@ Use this checklist for the Google reviewer demo video and final QA pass.
 - If `NEXT_PUBLIC_APP_URL` points at the public website, `NEXT_PUBLIC_CRM_URL` or `CRM_APP_URL` is configured as `https://crm.elitefundingsolution.com`.
 - Google Cloud Console redirect URI exactly matches `https://crm.elitefundingsolution.com/api/gmail/callback`.
 - Disconnect/reconnect flow works from Settings.
+- Settings shows a clear reconnect warning when the saved Google account is missing `gmail.send` or has an expired token.
 - `gmail.send` succeeds from the funder submission workflow.
 - OAuth errors are shown to the user and logged clearly.
 - `Google OAuth Test Lender` exists and uses a safe test email, not a real funder.

@@ -63,6 +63,21 @@ test.describe('Google OAuth verification readiness', () => {
     expect(submissionSource).toContain('hasRequiredGmailSendScope(gmailTokens.scope)');
   });
 
+  test('Settings explains reconnect states needed for Google review', () => {
+    const connectionSource = fs.readFileSync(path.join(repoRoot, 'components/gmail/gmail-connection.tsx'), 'utf8');
+    const settingsToastSource = fs.readFileSync(path.join(repoRoot, 'app/(crm)/crm/settings/settings-client.tsx'), 'utf8');
+    const checklistSource = fs.readFileSync(path.join(repoRoot, 'docs/google-oauth-demo-checklist.md'), 'utf8');
+
+    expect(connectionSource).toContain('needsReconnect');
+    expect(connectionSource).toContain('missing_gmail_send_scope');
+    expect(connectionSource).toContain('gmail_token_expired');
+    expect(connectionSource).toContain('Reconnect required');
+    expect(settingsToastSource).toContain('missing_gmail_send_scope');
+    expect(settingsToastSource).toContain('invalid_state');
+    expect(settingsToastSource).toContain('callback_error');
+    expect(checklistSource).toContain('Settings shows a clear reconnect warning');
+  });
+
   test('funder package sending persists refreshed Gmail tokens', () => {
     const submissionRouteSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
     expect(submissionRouteSource).toContain('sendGmailEmail({');

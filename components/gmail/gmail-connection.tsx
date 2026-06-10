@@ -7,9 +7,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
+type GmailStatusReason = 'gmail_token_expired' | 'missing_gmail_send_scope' | string;
+
+function gmailStatusMessage(reason: GmailStatusReason | null, email: string | null) {
+  if (reason === 'missing_gmail_send_scope') {
+    return 'Google Workspace is connected without Gmail send permission. Reconnect and approve email sending.';
+  }
+  if (reason === 'gmail_token_expired') {
+    return 'Google Workspace session expired. Reconnect this account before sending funder packages.';
+  }
+  if (email) {
+    return 'Reconnect Google Workspace before sending funder packages.';
+  }
+  return 'Connect your Google Workspace email.';
+}
+
 export function GmailConnection() {
   const [isConnected, setIsConnected] = useState(false);
   const [connectedEmail, setConnectedEmail] = useState<string | null>(null);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  const [statusReason, setStatusReason] = useState<GmailStatusReason | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
@@ -24,14 +41,20 @@ export function GmailConnection() {
       if (response.status === 401 || response.status === 403) return;
 
       const data = await response.json();
+      const email = data.email || null;
+      setConnectedEmail(email);
+      setNeedsReconnect(Boolean(data.needsReconnect));
+      setStatusReason(data.reason || null);
       if (response.ok && data.connected) {
         setIsConnected(true);
-        setConnectedEmail(data.email);
+      } else {
+        setIsConnected(false);
       }
     } catch (error) {
       console.error('Error checking Gmail connection:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleConnect = async () => {
@@ -62,6 +85,8 @@ export function GmailConnection() {
 
       setIsConnected(false);
       setConnectedEmail(null);
+      setNeedsReconnect(false);
+      setStatusReason(null);
       toast.success('Gmail disconnected');
     } catch (error) {
       toast.error('Failed to disconnect Gmail');
@@ -165,6 +190,18 @@ export function GmailConnection() {
           </div>
         ) : (
           <div className="space-y-4">
+            {needsReconnect || connectedEmail ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start gap-2 text-sm text-amber-900">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <div className="font-medium">Reconnect required</div>
+                    <div>{gmailStatusMessage(statusReason, connectedEmail)}</div>
+                    {connectedEmail ? <div className="mt-1 text-amber-800">{connectedEmail}</div> : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="text-sm text-[#71717A]">
               Connect your Google Workspace email to:
             </div>
