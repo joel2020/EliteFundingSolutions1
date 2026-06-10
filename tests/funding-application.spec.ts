@@ -3,7 +3,7 @@ import { mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('public funding application', () => {
   test('submits the simplified funding-options application', async ({ page }) => {
-    await mockCrmApis(page);
+    const { calls } = await mockCrmApis(page);
     await page.route('**/api/applications/*/signature', async (route) => {
       const payload = route.request().postDataJSON() as any;
       expect(payload.signature_data_url).toContain('data:image/png;base64,');
@@ -17,15 +17,25 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-social-security-number').fill('123456789');
     await page.getByTestId('application-date-of-birth').fill('1985-04-10');
     await page.getByTestId('application-cell-phone-number').fill('2125550144');
+    await page.getByTestId('application-email-address').fill('taylor@fastsubmit.test');
+    await page.getByTestId('application-ownership-percentage').fill('85');
     await page.getByRole('button', { name: /continue/i }).click();
 
     await page.getByTestId('application-company-name').fill('Fast Submit LLC');
     await page.getByTestId('application-business-address').fill('10 Main Street, New York, NY 10001');
     await page.getByTestId('application-tax-id-ein').fill('123456789');
     await page.getByTestId('application-business-start-date').fill('2021-01-15');
+    await page.getByTestId('application-requested-funding-amount').fill('75000');
+    await page.getByTestId('application-industry').fill('Retail');
+    await page.getByTestId('application-use-of-funds').fill('Inventory and payroll');
+    await page.getByTestId('application-open-advance-funder').fill('Old Advance Co');
+    await page.getByTestId('application-open-advance-balance').fill('12500');
     await page.getByRole('button', { name: /continue/i }).click();
 
     await expect(page.getByText('***-6789')).toHaveCount(2);
+    await expect(page.getByText('85%')).toBeVisible();
+    await expect(page.getByText('$75,000')).toBeVisible();
+    await expect(page.getByText('Inventory and payroll')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Authorization', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Credit Review Consent' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Electronic Signature Consent' })).toBeVisible();
@@ -45,6 +55,16 @@ test.describe('public funding application', () => {
 
     await expect(page.getByText('Application Received')).toBeVisible();
     await expect(page.getByText('Thank you. Your signed application has been received. An Elite Funding Solutions funding specialist will review your information and contact you shortly.')).toBeVisible();
+    const submissionCall = calls.find((call) => call.table === 'applications_submit_api');
+    expect(submissionCall?.body).toEqual(expect.objectContaining({
+      email: 'taylor@fastsubmit.test',
+      ownership_percentage: '85',
+      requested_amount: '$75,000',
+      industry: 'Retail',
+      use_of_funds: 'Inventory and payroll',
+      existing_advance_funder: 'Old Advance Co',
+      existing_advance_balance: '$12,500',
+    }));
   });
 
   test('requires the minimum identity and business fields', async ({ page }) => {

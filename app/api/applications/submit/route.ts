@@ -383,6 +383,9 @@ function normalizeIncomingPayload(payload: any) {
 
   const ownerName = splitFullName(String(payload.full_name || ''));
   const consentAccepted = Boolean(payload.consent_accepted);
+  const existingAdvanceFunder = String(payload.existing_advance_funder || '').trim();
+  const existingAdvanceBalance = String(payload.existing_advance_balance || '').trim();
+  const hasExistingAdvance = Boolean(existingAdvanceFunder || existingAdvanceBalance);
 
   return {
     legal_name: String(payload.company_name || ''),
@@ -390,18 +393,18 @@ function normalizeIncomingPayload(payload: any) {
     entity_type: '',
     ein: String(payload.ein || ''),
     merchant_type: '',
-    industry: '',
+    industry: String(payload.industry || ''),
     start_date: String(payload.business_start_date || ''),
     business_phone: String(payload.cell_phone || ''),
     business_mobile: String(payload.cell_phone || ''),
-    business_email: '',
+    business_email: String(payload.email || ''),
     website: '',
     address: String(payload.business_address || ''),
     city: '',
     state: '',
     zip: '',
     business_location: '',
-    products_services: '',
+    products_services: String(payload.industry || ''),
     pos_contact_name: '',
     pos_contact_phone: '',
     pos_system: '',
@@ -416,8 +419,8 @@ function normalizeIncomingPayload(payload: any) {
     owner1: {
       ...ownerName,
       title: 'Owner',
-      ownership_pct: '100',
-      email: '',
+      ownership_pct: String(payload.ownership_percentage || '100').replace(/%/g, ''),
+      email: String(payload.email || ''),
       phone: String(payload.cell_phone || ''),
       mobile: String(payload.cell_phone || ''),
       dob: String(payload.dob || ''),
@@ -429,15 +432,27 @@ function normalizeIncomingPayload(payload: any) {
       credit_range: '',
     },
     owner2: {},
-    requested_amount: '',
-    use_of_funds: '',
+    requested_amount: String(payload.requested_amount || ''),
+    use_of_funds: String(payload.use_of_funds || ''),
     timeline: '',
     average_monthly_sales: '',
     average_visa_mc_sales: '',
     monthly_gross_revenue: '',
-    has_existing_advances: false,
-    existing_advances: [],
-    notes: 'Submitted from short public funding-options application.',
+    has_existing_advances: hasExistingAdvance,
+    existing_advances: hasExistingAdvance ? [{
+      funder_name: existingAdvanceFunder,
+      current_balance: existingAdvanceBalance,
+      original_amount: '',
+      daily_payment: '',
+      payment_frequency: '',
+      notes: 'Submitted from public application.',
+    }] : [],
+    notes: [
+      'Submitted from public funding application.',
+      payload.industry ? `Industry: ${payload.industry}` : '',
+      payload.use_of_funds ? `Use of funds: ${payload.use_of_funds}` : '',
+      hasExistingAdvance ? `Open advance: ${[existingAdvanceFunder, existingAdvanceBalance].filter(Boolean).join(' - ')}` : '',
+    ].filter(Boolean).join('\n'),
     certification_accepted: consentAccepted,
     credit_authorization_accepted: consentAccepted,
     esign_consent_accepted: consentAccepted,

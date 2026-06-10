@@ -14,10 +14,17 @@ type ApplicationFormData = {
   ssn: string;
   dob: string;
   cell_phone: string;
+  email: string;
+  ownership_percentage: string;
   company_name: string;
   business_address: string;
   ein: string;
   business_start_date: string;
+  requested_amount: string;
+  industry: string;
+  use_of_funds: string;
+  existing_advance_funder: string;
+  existing_advance_balance: string;
   consent_accepted: boolean;
   signature_data_url: string;
   bot_field: string;
@@ -31,10 +38,17 @@ const initialForm: ApplicationFormData = {
   ssn: '',
   dob: '',
   cell_phone: '',
+  email: '',
+  ownership_percentage: '100',
   company_name: '',
   business_address: '',
   ein: '',
   business_start_date: '',
+  requested_amount: '',
+  industry: '',
+  use_of_funds: '',
+  existing_advance_funder: '',
+  existing_advance_balance: '',
   consent_accepted: false,
   signature_data_url: '',
   bot_field: '',
@@ -72,6 +86,12 @@ function prettyEin(value: string) {
   return `${digits.slice(0, 2)}-${digits.slice(2)}`;
 }
 
+function prettyMoney(value: string) {
+  const digits = digitsOnly(value).slice(0, 9);
+  if (!digits) return '';
+  return `$${Number(digits).toLocaleString()}`;
+}
+
 function InputField({
   label,
   value,
@@ -79,6 +99,7 @@ function InputField({
   type = 'text',
   placeholder = '',
   autoComplete,
+  required = true,
 }: {
   label: string;
   value: string;
@@ -86,11 +107,12 @@ function InputField({
   type?: string;
   placeholder?: string;
   autoComplete?: string;
+  required?: boolean;
 }) {
   return (
     <div>
       <label className="mb-1.5 block text-[13px] font-semibold text-[#334155]">
-        {label} <span className="text-[#B91C1C]">*</span>
+        {label} {required && <span className="text-[#B91C1C]">*</span>}
       </label>
       <input
         data-testid={fieldTestId(label)}
@@ -234,6 +256,8 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
         <InputField label="Social Security Number" value={data.ssn} onChange={(value) => update('ssn', prettySsn(value))} placeholder="XXX-XX-XXXX" autoComplete="off" />
         <InputField label="Date of Birth" value={data.dob} onChange={(value) => update('dob', value)} type="date" autoComplete="bday" />
         <InputField label="Cell Phone Number" value={data.cell_phone} onChange={(value) => update('cell_phone', prettyPhone(value))} autoComplete="tel" />
+        <InputField label="Email Address" value={data.email} onChange={(value) => update('email', value)} type="email" autoComplete="email" required={false} />
+        <InputField label="Ownership Percentage" value={data.ownership_percentage} onChange={(value) => update('ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="100" />
       </div>
     </div>
   );
@@ -252,6 +276,11 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         </div>
         <InputField label="Tax ID / EIN" value={data.ein} onChange={(value) => update('ein', prettyEin(value))} placeholder="XX-XXXXXXX" autoComplete="off" />
         <InputField label="Business Start Date" value={data.business_start_date} onChange={(value) => update('business_start_date', value)} type="date" />
+        <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', prettyMoney(value))} placeholder="$75,000" required={false} />
+        <InputField label="Industry" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." required={false} />
+        <InputField label="Use of Funds" value={data.use_of_funds} onChange={(value) => update('use_of_funds', value)} placeholder="Payroll, inventory, expansion..." required={false} />
+        <InputField label="Open Advance Funder" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Current funder, if any" required={false} />
+        <InputField label="Open Advance Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', prettyMoney(value))} placeholder="$12,500" required={false} />
       </div>
     </div>
   );
@@ -264,13 +293,19 @@ function StepReview({ data, update }: { data: ApplicationFormData; update: <K ex
       <div className="grid gap-3 md:grid-cols-2">
         <ReviewRow label="Full name" value={data.full_name} />
         <ReviewRow label="Cell phone" value={data.cell_phone} />
+        <ReviewRow label="Email" value={data.email} />
         <ReviewRow label="Home address" value={data.home_address} />
+        <ReviewRow label="Ownership" value={data.ownership_percentage ? `${data.ownership_percentage}%` : ''} />
         <ReviewRow label="SSN" value={data.ssn} sensitive />
         <ReviewRow label="Date of birth" value={data.dob} sensitive />
         <ReviewRow label="Company" value={data.company_name} />
         <ReviewRow label="Business address" value={data.business_address} />
         <ReviewRow label="EIN" value={data.ein} sensitive />
         <ReviewRow label="Business start date" value={data.business_start_date} />
+        <ReviewRow label="Requested amount" value={data.requested_amount} />
+        <ReviewRow label="Industry" value={data.industry} />
+        <ReviewRow label="Use of funds" value={data.use_of_funds} />
+        <ReviewRow label="Open advance" value={[data.existing_advance_funder, data.existing_advance_balance].filter(Boolean).join(' - ')} />
       </div>
       <SignaturePad value={data.signature_data_url} onChange={(value) => update('signature_data_url', value)} />
       <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm md:p-5">
@@ -366,12 +401,17 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       if (digitsOnly(form.ssn).length !== 9) return 'Please enter a valid 9 digit Social Security Number.';
       if (!form.dob || Number.isNaN(new Date(form.dob).getTime())) return 'Please enter a valid date of birth.';
       if (digitsOnly(form.cell_phone).length !== 10) return 'Please enter a valid 10 digit cell phone number.';
+      if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return 'Please enter a valid email address.';
+      const ownership = Number(form.ownership_percentage);
+      if (!Number.isFinite(ownership) || ownership <= 0 || ownership > 100) return 'Please enter an ownership percentage from 1 to 100.';
     }
     if (currentStep === 2) {
       if (form.company_name.trim().length < 2) return 'Please enter the company name.';
       if (form.business_address.trim().length < 8) return 'Please enter the full business address.';
       if (digitsOnly(form.ein).length !== 9) return 'Please enter a valid 9 digit Tax ID / EIN.';
       if (!form.business_start_date || Number.isNaN(new Date(form.business_start_date).getTime())) return 'Please enter a valid business start date.';
+      if (form.requested_amount && Number(digitsOnly(form.requested_amount)) <= 0) return 'Please enter a valid requested funding amount.';
+      if (form.existing_advance_balance && Number(digitsOnly(form.existing_advance_balance)) <= 0) return 'Please enter a valid open advance balance.';
     }
     if (currentStep === 3) {
       if (!form.signature_data_url) return 'Please draw your signature before submitting.';

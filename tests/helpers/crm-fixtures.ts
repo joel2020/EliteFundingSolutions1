@@ -311,6 +311,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
   });
 
   await page.route('**/api/applications/submit', async (route) => {
+    calls.push({ method: route.request().method(), table: 'applications_submit_api', body: route.request().postDataJSON() });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationId: 'app-1' }) });
   });
 

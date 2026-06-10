@@ -37,6 +37,8 @@ function validateShortApplication(payload: any, issues: IssueMap) {
   if (digitsOnly(payload.ssn || '').length !== 9) addIssue(issues, 'ssn', 'Full SSN must be 9 digits.');
   if (!isValidDate(payload.dob)) addIssue(issues, 'dob', 'Date of birth is required.');
   if (digitsOnly(payload.cell_phone || '').length < 10) addIssue(issues, 'cell_phone', 'A valid cell phone number is required.');
+  const ownership = Number(String(payload.ownership_percentage || '100').replace(/%/g, ''));
+  if (!Number.isFinite(ownership) || ownership <= 0 || ownership > 100) addIssue(issues, 'ownership_percentage', 'Ownership percentage must be between 1 and 100.');
   if (!hasText(payload.company_name, 2)) addIssue(issues, 'company_name', 'Company name is required.');
   if (!hasText(payload.business_address, 5)) addIssue(issues, 'business_address', 'Business address is required.');
   if (digitsOnly(payload.ein || '').length !== 9) addIssue(issues, 'ein', 'Full EIN / Tax ID must be 9 digits.');
