@@ -386,6 +386,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       const emailResult = await sendGmailEmail({
         accessToken: gmailTokens.access_token,
         refreshToken: gmailTokens.refresh_token || undefined,
+        userId: user.id,
         to: recipientEmail,
         subject: emailSubject,
         body: emailText,

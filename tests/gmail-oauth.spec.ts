@@ -48,4 +48,10 @@ test.describe('Google OAuth verification readiness', () => {
     expect(gmailSource).not.toContain('gmail.users.messages.get');
     expect(gmailSource).toContain('gmail.users.messages.send');
   });
+
+  test('funder package sending persists refreshed Gmail tokens', () => {
+    const submissionRouteSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
+    expect(submissionRouteSource).toContain('sendGmailEmail({');
+    expect(submissionRouteSource).toContain('userId: user.id');
+  });
 });
