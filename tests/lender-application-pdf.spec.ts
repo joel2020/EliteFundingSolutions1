@@ -295,9 +295,9 @@ test.describe('lender application PDF data mapping', () => {
     });
 
     expect(fields.hasExistingAdvance).toBe(true);
-    expect(fields.existingAdvanceFunder).toContain('First Funder - Bal $12,500');
-    expect(fields.existingAdvanceFunder).toContain('Second Capital - Bal $8,000');
-    expect(fields.existingAdvanceFunder).toContain('Third Advance - Bal $4,500');
+    expect(fields.existingAdvanceFunder).toContain('1) First Funder $12,500');
+    expect(fields.existingAdvanceFunder).toContain('2) Second Capital $8,000');
+    expect(fields.existingAdvanceFunder).toContain('3) Third Advance $4,500');
     expect(fields.existingAdvanceBalance).toBe('$25,000');
   });
 

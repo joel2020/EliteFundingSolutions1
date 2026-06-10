@@ -227,19 +227,55 @@ function wrapPdfText(value: string, max = 120) {
 }
 
 function wrapPdfTextByWidth(value: string, font: any, size: number, maxWidth: number) {
-  const words = value.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
+  const tokens = value.split(/(\s+)/).filter((token) => token.length > 0);
   let line = '';
-  for (const word of words) {
-    const next = `${line} ${word}`.trim();
-    if (line && font.widthOfTextAtSize(next, size) > maxWidth) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
+
+  const pushLine = () => {
+    const cleaned = line.trimEnd();
+    if (cleaned) lines.push(cleaned);
+    line = '';
+  };
+
+  for (const token of tokens) {
+    if (/^\s+$/.test(token)) {
+      if (line && !line.endsWith(' ')) line += ' ';
+      continue;
+    }
+
+    let remaining = token;
+    while (remaining) {
+      const prefix = line ? line : '';
+      const separator = prefix && !prefix.endsWith(' ') ? ' ' : '';
+      let fit = '';
+
+      for (let index = 1; index <= remaining.length; index += 1) {
+        const candidateChunk = remaining.slice(0, index);
+        const candidate = `${prefix}${separator}${candidateChunk}`;
+        if (font.widthOfTextAtSize(candidate, size) > maxWidth && fit) break;
+        fit = candidateChunk;
+      }
+
+      if (!fit) {
+        if (line) {
+          pushLine();
+          continue;
+        }
+        fit = remaining.slice(0, 1);
+      }
+
+      const candidate = `${prefix}${separator}${fit}`;
+      if (font.widthOfTextAtSize(candidate, size) > maxWidth && line) {
+        pushLine();
+        continue;
+      }
+
+      line = candidate;
+      remaining = remaining.slice(fit.length);
+      if (remaining) pushLine();
     }
   }
-  if (line) lines.push(line);
+  if (line.trim()) pushLine();
   return lines;
 }
 
@@ -247,6 +283,16 @@ function shrinkToFit(value: string, font: any, maxWidth: number, preferredSize: 
   let size = preferredSize;
   while (size > minSize && font.widthOfTextAtSize(value, size) > maxWidth) size -= 0.25;
   return size;
+}
+
+function trimToFit(value: string, font: any, maxWidth: number, size: number) {
+  if (font.widthOfTextAtSize(value, size) <= maxWidth) return value;
+  const suffix = '...';
+  let trimmed = value;
+  while (trimmed.length > 1 && font.widthOfTextAtSize(`${trimmed}${suffix}`, size) > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+  }
+  return `${trimmed.trimEnd()}${suffix}`;
 }
 
 function pngDataFromUrl(value: unknown) {
@@ -287,11 +333,13 @@ function normalizeExistingAdvances(payload: Record<string, any>) {
 function existingAdvanceSummary(advances: Record<string, any>[]) {
   if (!advances.length) return '';
   return advances.map((advance, index) => {
+    const funderName = text(advance.funder_name) || `Advance ${index + 1}`;
+    const compactFunderName = funderName.length > 30 ? `${funderName.slice(0, 27).trimEnd()}...` : funderName;
     const details = [
-      text(advance.funder_name) || `Advance ${index + 1}`,
-      money(advance.current_balance) ? `Bal ${money(advance.current_balance)}` : '',
+      compactFunderName,
+      money(advance.current_balance),
     ].filter(Boolean);
-    return details.join(' - ');
+    return `${index + 1}) ${details.join(' ')}`;
   }).join('; ');
 }
 
@@ -419,16 +467,17 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     }
     if (maxLines <= 1) {
       const size = shrinkToFit(cleaned, activeFont, width - 6, preferredSize);
-      page.drawText(cleaned, { x: x + 3, y: y + Math.max(3, (height - size) / 2), size, font: activeFont, color: rgb(0.03, 0.07, 0.13) });
+      const fittedText = trimToFit(cleaned, activeFont, width - 6, size);
+      page.drawText(fittedText, { x: x + 3, y: y + Math.max(3, (height - size) / 2), size, font: activeFont, color: rgb(0.03, 0.07, 0.13) });
       return;
     }
-    const lineHeight = preferredSize + 2;
     let size = preferredSize;
     let lines = wrapPdfTextByWidth(cleaned, activeFont, size, width - 6);
     while (size > 7.2 && lines.length > maxLines) {
       size -= 0.25;
       lines = wrapPdfTextByWidth(cleaned, activeFont, size, width - 6);
     }
+    const lineHeight = size + 2;
     lines.slice(0, maxLines).forEach((line, index) => {
       page.drawText(line, { x: x + 3, y: y + height - size - 3 - index * lineHeight, size, font: activeFont, color: rgb(0.03, 0.07, 0.13) });
     });
@@ -454,7 +503,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   drawBoxText(fields.businessLegalName, 315, 1539, 470, 28, { size: 13.5, maxLines: 2 });
   drawBoxText(fields.businessDba, 1050, 1539, 335, 28, { size: 13.2, maxLines: 2 });
-  drawBoxText(fields.businessStreet, 116, 1507, 650, 22, { size: 13.5, maxLines: 1 });
+  drawBoxText(fields.businessStreet, 116, 1499, 650, 30, { size: 12.2, maxLines: 2 });
   drawBoxText(fields.businessCityLine, 86, 1472, 620, 22, { size: 13.5, maxLines: 1 });
   drawBoxText(fields.businessSuite, 925, 1507, 315, 22, { size: 13.5 });
   drawBoxText(fields.businessState, 925, 1472, 145, 22, { size: 13.5 });
@@ -462,8 +511,8 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   drawBoxText(fields.businessPhone, 925, 1438, 280, 22, { size: 13.5 });
   drawBoxText(fields.businessMobile, 105, 1405, 285, 22, { size: 13.5 });
   drawBoxText(fields.businessFax, 925, 1405, 280, 22, { size: 13.5 });
-  drawBoxText(fields.businessWebsite, 118, 1371, 520, 22, { size: 12.8 });
-  drawBoxText(fields.businessEmail, 925, 1371, 380, 22, { size: 12.8 });
+  drawBoxText(fields.businessWebsite, 118, 1367, 520, 26, { size: 11.2, maxLines: 2 });
+  drawBoxText(fields.businessEmail, 925, 1367, 380, 26, { size: 11.2, maxLines: 2 });
   drawBoxText(fields.ein, 1080, 1339, 230, 24, { size: 13.5 });
   drawBoxText(fields.businessStartDate, 1115, 1305, 230, 24, { size: 13.5 });
   drawBoxText(fields.productsServices, 1120, 1264, 260, 34, { size: 12.2, maxLines: 2 });
@@ -493,10 +542,10 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   const drawOwner = (owner: ResolvedOwnerPdfFields, x: number) => {
     drawBoxText(owner.name, x + 115, 899, 560, 24, { size: 13.2 });
-    drawBoxText(owner.street, x + 135, 865, 540, 24, { size: 13.2 });
+    drawBoxText(owner.street, x + 135, 859, 540, 30, { size: 12.2, maxLines: 2 });
     drawBoxText(owner.cityLine, x + 225, 831, 450, 24, { size: 13.2 });
     drawBoxText(owner.phone, x + 155, 796, 290, 24, { size: 13.2 });
-    drawBoxText(owner.email, x + 155, 762, 410, 24, { size: 12.4 });
+    drawBoxText(owner.email, x + 155, 756, 410, 30, { size: 11.2, maxLines: 2 });
     drawBoxText(owner.ownershipPercentage, x + 245, 727, 150, 24, { size: 13.2 });
     drawBoxText(owner.dob, x + 230, 693, 210, 24, { size: 13.2 });
     drawBoxText(owner.ssn, x + 155, 659, 240, 24, { size: 13.2 });
@@ -507,7 +556,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   check(fields.hasExistingAdvance, 465, 553);
   check(!fields.hasExistingAdvance, 575, 553);
-  drawBoxText(fields.existingAdvanceFunder, 70, 492, 665, 42, { size: 10.8, maxLines: 3 });
+  drawBoxText(fields.existingAdvanceFunder, 70, 486, 665, 50, { size: 9.8, maxLines: 4 });
   drawBoxText(fields.existingAdvanceBalance, 1000, 536, 220, 22, { size: 13.2 });
   drawBoxText(fields.requestedAmount, 1082, 500, 190, 24, { size: 13.2 });
   drawBoxText(fields.averageMonthlySales, 305, 450, 230, 24, { size: 13.2 });
