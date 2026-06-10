@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { normalizeIncomingPayload } from '../app/api/applications/submit/route';
+import { applicationSchema, normalizeIncomingPayload } from '../app/api/applications/submit/route';
 import { mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('public funding application', () => {
@@ -163,6 +163,54 @@ test.describe('public funding application', () => {
     expect(normalized.notes).toContain('Open advance 3: Third Advance - $4,500');
   });
 
+  test('normalizes no-comma public addresses and rejects incomplete required application data', () => {
+    const completePublicPayload = {
+      full_name: 'Taylor Reed',
+      home_address: '20 Broadway New York NY 10002',
+      ssn: '123-45-6789',
+      dob: '1985-04-10',
+      cell_phone: '(212) 555-0144',
+      email: 'taylor@fastsubmit.test',
+      ownership_percentage: '100',
+      company_name: 'Fast Submit LLC',
+      business_address: '10 Main Street New York NY 10001',
+      ein: '12-3456789',
+      business_start_date: '2021-01-15',
+      requested_amount: '$75,000',
+      industry: 'Retail',
+      consent_accepted: true,
+    };
+    const normalized = normalizeIncomingPayload(completePublicPayload);
+
+    expect(normalized).toEqual(expect.objectContaining({
+      address: '10 Main Street',
+      city: 'New York',
+      state: 'NY',
+      zip: '10001',
+    }));
+    expect(normalized.owner1).toEqual(expect.objectContaining({
+      address: '20 Broadway',
+      city: 'New York',
+      state: 'NY',
+      zip: '10002',
+    }));
+    expect(applicationSchema.safeParse(normalized).success).toBe(true);
+
+    const incomplete = applicationSchema.safeParse(normalizeIncomingPayload({
+      ...completePublicPayload,
+      business_address: '10 Main Street',
+      requested_amount: '',
+      industry: '',
+    }));
+    expect(incomplete.success).toBe(false);
+    if (!incomplete.success) {
+      const fields = incomplete.error.flatten().fieldErrors;
+      expect(fields.city?.join(' ')).toContain('Business city is required');
+      expect(fields.requested_amount?.join(' ')).toContain('Requested funding amount is required');
+      expect(fields.industry?.join(' ')).toContain('Industry is required');
+    }
+  });
+
   test('requires the minimum identity and business fields', async ({ page }) => {
     await mockCrmApis(page);
 
@@ -187,6 +235,8 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-business-address').fill('10 Main Street, New York, NY 10001');
     await page.getByTestId('application-tax-id-ein').fill('123456789');
     await page.getByTestId('application-business-start-date').fill('2021-01-15');
+    await page.getByTestId('application-requested-funding-amount').fill('75000');
+    await page.getByTestId('application-industry').fill('Retail');
     await page.getByRole('button', { name: /continue/i }).click();
 
     const mobileDisclosure = page.getByText('Please read these disclosures before submitting.').first();

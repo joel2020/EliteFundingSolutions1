@@ -339,8 +339,8 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         </div>
         <InputField label="Tax ID / EIN" value={data.ein} onChange={(value) => update('ein', prettyEin(value))} placeholder="XX-XXXXXXX" autoComplete="off" />
         <InputField label="Business Start Date" value={data.business_start_date} onChange={(value) => update('business_start_date', value)} type="date" />
-        <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', prettyMoney(value))} placeholder="$75,000" required={false} />
-        <InputField label="Industry" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." required={false} />
+        <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', prettyMoney(value))} placeholder="$75,000" />
+        <InputField label="Industry" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." />
         <InputField label="Use of Funds" value={data.use_of_funds} onChange={(value) => update('use_of_funds', value)} placeholder="Payroll, inventory, expansion..." required={false} />
         <div className="md:col-span-2 rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
           <h3 className="text-[16px] font-bold text-[#0F172A]">Open advances</h3>
@@ -504,7 +504,8 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       if (form.business_address.trim().length < 8) return 'Please enter the full business address.';
       if (digitsOnly(form.ein).length !== 9) return 'Please enter a valid 9 digit Tax ID / EIN.';
       if (!form.business_start_date || Number.isNaN(new Date(form.business_start_date).getTime())) return 'Please enter a valid business start date.';
-      if (form.requested_amount && Number(digitsOnly(form.requested_amount)) <= 0) return 'Please enter a valid requested funding amount.';
+      if (!form.requested_amount || Number(digitsOnly(form.requested_amount)) <= 0) return 'Please enter a valid requested funding amount.';
+      if (form.industry.trim().length < 2) return 'Please enter the business industry.';
       const invalidAdvanceBalance = existingAdvanceRows(form).some((advance) => advance.balance && Number(digitsOnly(advance.balance)) <= 0);
       if (invalidAdvanceBalance) return 'Please enter valid open advance balances.';
     }

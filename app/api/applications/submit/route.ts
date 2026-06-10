@@ -52,23 +52,23 @@ const existingAdvanceSchema = z.object({
   notes: z.string().optional().default(''),
 });
 
-const applicationSchema = z.object({
+export const applicationSchema = z.object({
   legal_name: z.string().min(2),
   dba: z.string().optional().default(''),
   entity_type: z.string().optional().default(''),
   ein: z.string().optional().default('').transform(digitsOnly).refine((value) => value.length === 9, 'Tax ID / EIN must be 9 digits.'),
   merchant_type: z.string().optional().default(''),
-  industry: z.string().optional().default(''),
-  start_date: z.string().optional().default(''),
+  industry: z.string().trim().min(2, 'Industry is required.'),
+  start_date: z.string().trim().min(1, 'Business start date is required.'),
   business_phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Business phone must be a valid U.S. phone number, or left blank.'),
   business_mobile: z.string().optional().default(''),
   fax: z.string().optional().default(''),
   business_email: z.string().optional().default('').refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value), 'Business email must be valid, or left blank.'),
   website: z.string().optional().default(''),
-  address: z.string().optional().default(''),
-  city: z.string().optional().default(''),
-  state: z.string().optional().default(''),
-  zip: z.string().optional().default(''),
+  address: z.string().trim().min(3, 'Business street address is required.'),
+  city: z.string().trim().min(2, 'Business city is required.'),
+  state: z.string().trim().min(2, 'Business state is required.'),
+  zip: z.string().trim().min(5, 'Business ZIP is required.'),
   business_location: z.string().optional().default(''),
   products_services: z.string().optional().default(''),
   pos_contact_name: z.string().optional().default(''),
@@ -89,15 +89,15 @@ const applicationSchema = z.object({
     email: z.string().optional().default('').refine((value) => !value || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value), 'Owner email must be valid, or left blank.'),
     phone: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner phone must be valid, or left blank.'),
     mobile: z.string().optional().default('').refine(isBlankOrValidPhone, 'Owner mobile phone must be valid, or left blank.'),
-    dob: z.string().optional().default(''),
+    dob: z.string().trim().min(1, 'Owner date of birth is required.'),
     ssn: z.string().optional().default('').transform(digitsOnly).refine((value) => value.length === 9, 'SSN must be 9 digits.'),
-    address: z.string().optional().default(''),
-    city: z.string().optional().default(''),
-    state: z.string().optional().default(''),
-    zip: z.string().optional().default(''),
+    address: z.string().trim().min(3, 'Owner street address is required.'),
+    city: z.string().trim().min(2, 'Owner city is required.'),
+    state: z.string().trim().min(2, 'Owner state is required.'),
+    zip: z.string().trim().min(5, 'Owner ZIP is required.'),
   }),
   owner2: ownerSchema.default({}),
-  requested_amount: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Requested funding amount must be positive, or left blank.'),
+  requested_amount: z.string().trim().min(1, 'Requested funding amount is required.').refine(isPositiveMoney, 'Requested funding amount must be positive.'),
   use_of_funds: z.string().optional().default(''),
   timeline: z.string().optional().default(''),
   average_monthly_sales: z.string().optional().default('').refine(isBlankOrPositiveMoney, 'Average monthly sales must be positive, or left blank.'),
@@ -121,6 +121,38 @@ const applicationSchema = z.object({
   referral_code: referralCodeSchema,
   referral_path: z.string().trim().max(240).optional().default(''),
   application_source: z.string().optional().default('website'),
+}).superRefine((form, ctx) => {
+  if (!isValidPhone(form.owner1.mobile || form.owner1.phone)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner1', 'mobile'], message: 'Owner cell phone is required.' });
+  }
+
+  const owner2HasData = Object.values(form.owner2 || {}).some((value) => String(value ?? '').trim());
+  if (!owner2HasData) return;
+  const owner2 = form.owner2 || {};
+  const requiredOwner2Fields: Array<[keyof typeof owner2, string]> = [
+    ['first_name', 'Co-owner first name is required.'],
+    ['last_name', 'Co-owner last name is required.'],
+    ['ownership_pct', 'Co-owner ownership percentage is required.'],
+    ['dob', 'Co-owner date of birth is required.'],
+    ['ssn', 'Co-owner SSN is required.'],
+    ['address', 'Co-owner street address is required.'],
+    ['city', 'Co-owner city is required.'],
+    ['state', 'Co-owner state is required.'],
+    ['zip', 'Co-owner ZIP is required.'],
+  ];
+  for (const [field, message] of requiredOwner2Fields) {
+    if (!String(owner2[field] ?? '').trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', field], message });
+  }
+  const pct = Number(owner2.ownership_pct);
+  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', 'ownership_pct'], message: 'Co-owner ownership must be between 1 and 100.' });
+  }
+  if (digitsOnly(owner2.ssn).length !== 9) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', 'ssn'], message: 'Co-owner SSN must be 9 digits.' });
+  }
+  if ((owner2.mobile || owner2.phone) && !isValidPhone(owner2.mobile || owner2.phone)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['owner2', 'mobile'], message: 'Co-owner phone must be a valid U.S. phone number, or left blank.' });
+  }
 });
 
 const documentKeys = ['bank_statements', 'license_verification', 'other_documents'] as const;
@@ -386,6 +418,19 @@ function splitUsAddress(value: unknown) {
     const match = part.match(/\b([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/i);
     return match ? { state: match[1].toUpperCase(), zip: match[2] } : { state: '', zip: '' };
   };
+  const parseInlineAddress = (part: string) => {
+    const match = part.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+    if (!match) return { address: part, city: '', state: '', zip: '' };
+    const beforeState = match[1].trim();
+    const streetMatch = beforeState.match(/^(.+\b(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|parkway|pkwy|place|pl|terrace|ter|trail|trl|way|highway|hwy|broadway)\b(?:\s+(?:apt|apartment|suite|ste|unit|#)\s*[\w-]+)?)\s+(.+)$/i);
+    if (!streetMatch) return { address: part, city: '', state: match[2].toUpperCase(), zip: match[3] };
+    return {
+      address: streetMatch[1].trim(),
+      city: streetMatch[2].trim(),
+      state: match[2].toUpperCase(),
+      zip: match[3],
+    };
+  };
 
   if (parts.length >= 3) {
     const { state, zip } = parseStateZip(parts[parts.length - 1]);
@@ -402,7 +447,7 @@ function splitUsAddress(value: unknown) {
     return { address: parts[0], city: state || zip ? '' : parts[1], state, zip };
   }
 
-  return { address: raw, city: '', state: '', zip: '' };
+  return parseInlineAddress(raw);
 }
 
 export function normalizeIncomingPayload(payload: any) {

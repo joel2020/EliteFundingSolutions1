@@ -48,7 +48,7 @@ function splitAddress(value: unknown) {
   const inline = raw.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
   if (!inline) return { city: '', state: '', zip: '' };
   const beforeState = inline[1].trim();
-  const streetMatch = beforeState.match(/^(.+\b(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|parkway|pkwy|place|pl|terrace|ter|trail|trl|way|highway|hwy)\b(?:\s+(?:apt|apartment|suite|ste|unit|#)\s*[\w-]+)?)\s+(.+)$/i);
+  const streetMatch = beforeState.match(/^(.+\b(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|parkway|pkwy|place|pl|terrace|ter|trail|trl|way|highway|hwy|broadway)\b(?:\s+(?:apt|apartment|suite|ste|unit|#)\s*[\w-]+)?)\s+(.+)$/i);
   return { city: streetMatch?.[2]?.trim() || '', state: inline[2].toUpperCase(), zip: inline[3] };
 }
 
