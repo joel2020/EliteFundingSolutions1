@@ -290,7 +290,6 @@ function existingAdvanceSummary(advances: Record<string, any>[]) {
     const details = [
       text(advance.funder_name) || `Advance ${index + 1}`,
       money(advance.current_balance) ? `Bal ${money(advance.current_balance)}` : '',
-      money(advance.daily_payment) ? `Pay ${money(advance.daily_payment)}` : '',
     ].filter(Boolean);
     return details.join(' - ');
   }).join('; ');
@@ -508,9 +507,9 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
   check(fields.hasExistingAdvance, 465, 553);
   check(!fields.hasExistingAdvance, 575, 553);
-  drawBoxText(fields.existingAdvanceFunder, 70, 500, 650, 30, { size: 12.4, maxLines: 2 });
+  drawBoxText(fields.existingAdvanceFunder, 70, 492, 665, 42, { size: 10.8, maxLines: 3 });
   drawBoxText(fields.existingAdvanceBalance, 1000, 536, 220, 22, { size: 13.2 });
-  drawBoxText(fields.requestedAmount, 975, 500, 250, 24, { size: 13.2 });
+  drawBoxText(fields.requestedAmount, 1082, 500, 190, 24, { size: 13.2 });
   drawBoxText(fields.averageMonthlySales, 305, 450, 230, 24, { size: 13.2 });
   drawBoxText(fields.averageVisaMcSales, 1040, 450, 230, 24, { size: 13.2 });
 
