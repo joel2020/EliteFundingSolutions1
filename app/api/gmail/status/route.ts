@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { requireCrmProfile } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('gmail_tokens')
-    .select('email,access_token')
+    .select('email,access_token,refresh_token,expires_at,scope')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -20,9 +21,17 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Unable to check Gmail status.' }, { status: 500 });
   }
 
+  const expiresAt = data?.expires_at ? new Date(data.expires_at).getTime() : null;
+  const expiredWithoutRefresh = Boolean(expiresAt && Date.now() >= expiresAt && !data?.refresh_token);
+  const missingSendScope = Boolean(data?.email && data?.access_token && !hasRequiredGmailSendScope(data?.scope));
+  const connected = Boolean(data?.email && data?.access_token && !expiredWithoutRefresh && !missingSendScope);
+
   return NextResponse.json({
     success: true,
-    connected: Boolean(data?.email && data?.access_token),
+    connected,
     email: data?.email || null,
+    needsReconnect: Boolean(data?.email && (expiredWithoutRefresh || missingSendScope)),
+    status: connected ? 'connected' : data?.email ? 'reconnect_required' : 'not_connected',
+    reason: expiredWithoutRefresh ? 'gmail_token_expired' : missingSendScope ? 'missing_gmail_send_scope' : null,
   });
 }

@@ -7,6 +7,7 @@ export const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
+export const REQUIRED_GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 
 type GmailOAuthOptions = {
   redirectUri?: string;
@@ -104,6 +105,13 @@ export function getAuthUrl(options: GmailOAuthOptions = {}) {
     include_granted_scopes: false,
     ...(options.userId && { state: createOAuthState(options.userId) }),
   });
+}
+
+export function hasRequiredGmailSendScope(scope?: string | null) {
+  return String(scope || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .includes(REQUIRED_GMAIL_SEND_SCOPE);
 }
 
 /**

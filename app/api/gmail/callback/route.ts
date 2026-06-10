@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
-import { getOAuth2Client, verifyOAuthState } from '@/lib/gmail';
+import { getOAuth2Client, hasRequiredGmailSendScope, verifyOAuthState } from '@/lib/gmail';
 import { google } from 'googleapis';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 import { INTERNAL_CRM_ROLES } from '@/lib/server-auth';
@@ -88,6 +88,10 @@ export async function GET(request: NextRequest) {
     if (!tokens.access_token) {
       console.error('Google OAuth did not return an access token:', tokens);
       return redirectToSettings(request, 'missing_access_token');
+    }
+    if (!hasRequiredGmailSendScope(tokens.scope)) {
+      console.error('Google OAuth did not grant Gmail send scope:', tokens.scope);
+      return redirectToSettings(request, 'missing_gmail_send_scope');
     }
 
     oauth2Client.setCredentials(tokens);

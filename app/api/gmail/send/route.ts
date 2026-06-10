@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/gmail';
+import { hasRequiredGmailSendScope, sendEmail } from '@/lib/gmail';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
@@ -39,6 +39,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Gmail not connected. Please connect your Gmail account first.' },
         { status: 400 }
+      );
+    }
+    if (!hasRequiredGmailSendScope(tokens.scope)) {
+      return NextResponse.json(
+        {
+          error: 'Gmail is connected without send permission. Please reconnect Gmail from Settings and approve email sending.',
+          code: 'missing_gmail_send_scope',
+        },
+        { status: 403 }
       );
     }
 

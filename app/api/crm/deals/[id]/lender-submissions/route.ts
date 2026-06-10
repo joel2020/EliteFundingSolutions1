@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
@@ -109,7 +110,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: gmailTokens, error: gmailTokenError } = await supabase
     .from('gmail_tokens')
-    .select('email,access_token,refresh_token')
+    .select('email,access_token,refresh_token,scope')
     .eq('user_id', user.id)
     .maybeSingle();
 
@@ -374,12 +375,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     </div>
   `;
 
-  const hasGmailConnection = !!gmailTokens?.email && !!gmailTokens?.access_token;
+  const hasGmailConnection = !!gmailTokens?.email && !!gmailTokens?.access_token && hasRequiredGmailSendScope(gmailTokens.scope);
   let emailDeliveryStatus = hasGmailConnection ? 'failed' : 'manual_send_required';
   let emailProviderData: unknown = null;
   let emailProviderError: string | null = gmailTokenError
     ? 'Unable to check the sender Google Workspace connection. The submission was logged for manual send.'
-    : hasGmailConnection
+    : gmailTokens?.email && gmailTokens?.access_token && !hasRequiredGmailSendScope(gmailTokens.scope)
+      ? 'Google Workspace is connected without Gmail send permission. Reconnect Gmail from Settings and approve email sending.'
+      : hasGmailConnection
       ? null
       : 'Google Workspace is not connected for this CRM user. The submission was logged and a manual draft was prepared.';
 

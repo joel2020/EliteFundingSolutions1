@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { GMAIL_SCOPES, getConfiguredRedirectUri } from '../lib/gmail';
+import { GMAIL_SCOPES, getConfiguredRedirectUri, hasRequiredGmailSendScope } from '../lib/gmail';
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -47,6 +47,20 @@ test.describe('Google OAuth verification readiness', () => {
     expect(gmailSource).not.toContain('gmail.users.messages.list');
     expect(gmailSource).not.toContain('gmail.users.messages.get');
     expect(gmailSource).toContain('gmail.users.messages.send');
+  });
+
+  test('requires Gmail send scope before reporting or using a connection', () => {
+    expect(hasRequiredGmailSendScope('https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.send')).toBe(true);
+    expect(hasRequiredGmailSendScope('https://www.googleapis.com/auth/userinfo.email')).toBe(false);
+
+    const callbackSource = fs.readFileSync(path.join(repoRoot, 'app/api/gmail/callback/route.ts'), 'utf8');
+    const statusSource = fs.readFileSync(path.join(repoRoot, 'app/api/gmail/status/route.ts'), 'utf8');
+    const sendSource = fs.readFileSync(path.join(repoRoot, 'app/api/gmail/send/route.ts'), 'utf8');
+    const submissionSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
+    expect(callbackSource).toContain('missing_gmail_send_scope');
+    expect(statusSource).toContain('missing_gmail_send_scope');
+    expect(sendSource).toContain('missing_gmail_send_scope');
+    expect(submissionSource).toContain('hasRequiredGmailSendScope(gmailTokens.scope)');
   });
 
   test('funder package sending persists refreshed Gmail tokens', () => {
