@@ -11,6 +11,11 @@ const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'ima
 const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
+function normalizeRequirementList(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -66,6 +71,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     ? documentRequestQuery.or(`deal_id.eq.${deal.id},application_id.eq.${deal.application_id}`)
     : documentRequestQuery.eq('deal_id', deal.id);
   const { data: documentRequests } = await documentRequestQuery;
+  const { data: fundingPartners } = await supabase
+    .from('funding_partners')
+    .select('required_documents,product_types,notes,criteria_notes')
+    .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
+    .eq('is_active', true)
+    .limit(100);
+  const funderRequirements = Array.from(new Set((fundingPartners || []).flatMap((partner: any) => [
+    ...normalizeRequirementList(partner.required_documents),
+    ...normalizeRequirementList(partner.product_types).filter((item) => /document|statement|license|check|tax|invoice|payoff|stip/i.test(item)),
+    ...normalizeRequirementList(partner.notes).filter((item) => /statement|license|check|tax|invoice|payoff|stip|processing|contract/i.test(item)),
+    ...normalizeRequirementList(partner.criteria_notes).filter((item) => /statement|license|check|tax|invoice|payoff|stip|processing|contract/i.test(item)),
+  ])));
 
   if (documentRequestId) {
     const requestRow = (documentRequests || []).find((row) => row.id === documentRequestId);
@@ -77,6 +95,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     mimeType: file.type || null,
     bytes,
     requests: documentRequests || [],
+    funderRequirements,
     explicitDocumentType,
   });
   const documentType = classification.document_type;

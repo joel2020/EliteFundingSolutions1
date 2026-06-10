@@ -226,9 +226,10 @@ function bestDocIdForType(documents: RecordMap[], wanted: string) {
 }
 
 function requiredDocTypesForPartner(partner?: RecordMap | null) {
+  const savedRequirements = Array.isArray(partner?.required_documents) ? (partner?.required_documents || []) : [];
   const productTypes = Array.isArray(partner?.product_types) ? (partner?.product_types || []).join(' ').toLowerCase() : text(partner?.product_types).toLowerCase();
   const notes = `${partner?.notes || ''} ${partner?.criteria_notes || ''}`.toLowerCase();
-  const required = new Set(['completed_application', 'bank_statements', 'drivers_license']);
+  const required = new Set(['completed_application', 'bank_statements', 'drivers_license', ...savedRequirements.map(text).filter(Boolean)]);
   if (productTypes.includes('mca') || productTypes.includes('merchant') || notes.includes('voided')) required.add('voided_check');
   if (productTypes.includes('equipment') || notes.includes('invoice')) required.add('invoice');
   if (notes.includes('tax')) required.add('tax_return');

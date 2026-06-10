@@ -284,10 +284,11 @@ function repReferralUrl(slug?: string | null) {
 }
 
 function lenderRequiredDocTypes(partner?: RecordMap | null) {
+  const savedRequirements = Array.isArray(partner?.required_documents) ? (partner?.required_documents || []) : [];
   const rawProductTypes = partner?.product_types;
   const productTypes = Array.isArray(rawProductTypes) ? rawProductTypes.join(' ').toLowerCase() : String(rawProductTypes || '').toLowerCase();
   const notes = String(partner?.notes || '').toLowerCase();
-  const required = new Set(['completed_application', 'bank_statement', 'bank_statements', 'drivers_license', 'license_verification']);
+  const required = new Set(['completed_application', 'bank_statement', 'bank_statements', 'drivers_license', 'license_verification', ...savedRequirements.map((item: string) => item.trim()).filter(Boolean)]);
   if (productTypes.includes('mca') || productTypes.includes('merchant') || notes.includes('voided')) required.add('voided_check');
   if (productTypes.includes('equipment')) required.add('invoice');
   if (notes.includes('tax')) required.add('tax_return');

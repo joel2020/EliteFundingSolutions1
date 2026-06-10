@@ -279,6 +279,7 @@ export interface Database {
           submission_email: string | null;
           portal_url: string | null;
           product_types: string[];
+          required_documents: string[];
           min_funding_amount: number | null;
           max_funding_amount: number | null;
           min_monthly_revenue: number | null;

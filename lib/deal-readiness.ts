@@ -13,9 +13,14 @@ export type DealReadinessResult = {
 };
 
 const LAST4_PATTERN = /^\d{4}$/;
+const COMPLETE_REQUIRED_DOCUMENT_STATUSES = new Set(['uploaded', 'in_review', 'approved', 'waived']);
 
 function normalizeDigits(value: string | null | undefined) {
   return (value || '').replace(/\D/g, '');
+}
+
+export function isRequiredDocumentCompleteStatus(status: string | null | undefined) {
+  return COMPLETE_REQUIRED_DOCUMENT_STATUSES.has(String(status || '').toLowerCase());
 }
 
 export async function evaluateDealReadinessForLenderSubmission(args: {
@@ -70,7 +75,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
   ]);
 
   const requiredDocRows = docsRes.data || [];
-  const openRequired = requiredDocRows.filter((row: any) => !['approved', 'waived'].includes(row.status));
+  const openRequired = requiredDocRows.filter((row: any) => !isRequiredDocumentCompleteStatus(row.status));
   const hasSignature = Boolean(appRes.data?.signed_name || appRes.data?.signature_date);
   const einLast4 = normalizeDigits(businessRes.data?.ein_last4 || '');
   const owner = (ownerRes.data || [])[0] as any;
@@ -82,7 +87,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       key: 'required_documents_complete',
       label: 'Required checklist documents complete',
       passed: openRequired.length === 0,
-      detail: openRequired.length ? `${openRequired.length} required checklist item(s) still open.` : 'All required checklist items are approved or waived.',
+      detail: openRequired.length ? `${openRequired.length} required checklist item(s) still missing or needs replacement.` : 'All required checklist items are uploaded, in review, approved, or waived.',
     },
     {
       key: 'signature_captured',

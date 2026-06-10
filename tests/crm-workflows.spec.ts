@@ -455,12 +455,14 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('partner-name').fill('Keystone Capital');
     await page.getByTestId('partner-contact-name').fill('Kim Partner');
     await page.getByTestId('partner-email').fill('kim@keystone.test');
+    await page.getByTestId('partner-required-documents').fill('completed_application, bank_statements, drivers_license, voided_check');
     const partnerResponse = page.waitForResponse('**/api/crm/partners');
     await page.getByTestId('save-partner').click();
     await expect.poll(async () => (await partnerResponse).ok()).toBe(true);
     await expect.poll(() => state.funding_partners.some((partner) => partner.name === 'Keystone Capital')).toBe(true);
-    expect(calls.some((call) => call.table === 'funding_partners_api' && call.body.name === 'Keystone Capital')).toBe(true);
+    expect(calls.some((call) => call.table === 'funding_partners_api' && call.body.name === 'Keystone Capital' && call.body.required_documents.includes('voided_check'))).toBe(true);
     await expect(page.getByText('Keystone Capital')).toBeVisible();
+    await expect(page.getByText(/Required docs:/).first()).toBeVisible();
 
     const createdPartner = state.funding_partners.find((partner) => partner.name === 'Keystone Capital')!;
     await page.getByTestId(`partner-card-${createdPartner.id}`).getByRole('button', { name: 'Delete' }).click();

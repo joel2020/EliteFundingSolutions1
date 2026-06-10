@@ -26,6 +26,7 @@ const emptyPartner = {
   states_served: '',
   restricted_industries: '',
   product_types: 'MCA, Revenue based financing',
+  required_documents: 'completed_application, bank_statements, drivers_license',
   submission_email: '',
   portal_url: '',
   avg_approval_days: '',
@@ -81,6 +82,7 @@ export default function PartnersPage() {
     states_served: partner.states_served?.length ? partner.states_served.join(', ') : '',
     restricted_industries: partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : '',
     product_types: partner.product_types?.length ? partner.product_types.join(', ') : '',
+    required_documents: Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : '',
     submission_email: partner.submission_email || '',
     portal_url: partner.portal_url || '',
     avg_approval_days: partner.avg_approval_days ? String(partner.avg_approval_days) : '',
@@ -190,6 +192,7 @@ export default function PartnersPage() {
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Revenue min: <span className="font-semibold text-[#0F172A]">{fmt(partner.min_monthly_revenue)}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">States: <span className="font-semibold text-[#0F172A]">{partner.states_served?.length ? partner.states_served.join(', ') : 'All states'}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Required docs: <span className="font-semibold text-[#0F172A]">{Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : 'Default package'}</span></div>
               </div>
               {partner.email && (
                 <a href={`mailto:${partner.email}`} className="mt-3 block text-[12px] text-[#2563EB] hover:underline">
@@ -230,6 +233,7 @@ export default function PartnersPage() {
             <div><Label>States Served</Label><Input placeholder="NY, NJ, FL" value={form.states_served} onChange={(event) => setForm({ ...form, states_served: event.target.value })} /></div>
             <div><Label>Product Types</Label><Input value={form.product_types} onChange={(event) => setForm({ ...form, product_types: event.target.value })} /></div>
             <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Required Documents</Label><Input data-testid="partner-required-documents" placeholder="completed_application, bank_statements, drivers_license, voided_check" value={form.required_documents} onChange={(event) => setForm({ ...form, required_documents: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={closeDialog}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : editingPartner ? 'Update Partner' : 'Save Partner'}</Button></DialogFooter>
