@@ -483,6 +483,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       method: route.request().method(),
       table: 'deal_documents_api',
       body: {
+        deal_id: id,
         file_name: fileName,
         document_type: documentType,
         manual_document_type_present: /name="document_type"/.test(body),

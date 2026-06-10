@@ -131,8 +131,8 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     expect(calls.some((call) => call.method === 'POST' && call.table === 'leads' && Array.isArray(call.body) && call.body.length === 2)).toBe(true);
   });
 
-  test('creates a deal and updates deal stages', async ({ page }) => {
-    const { state } = await mockCrmApis(page);
+  test('creates a deal with documents and updates deal stages', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page);
 
     await page.goto('/crm/deals');
     await expect(page.getByTestId('crm-page-deals')).toBeVisible();
@@ -142,10 +142,34 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('deal-requested_amount').fill('90000');
     await page.getByTestId('deal-approved_amount').fill('85000');
     await page.getByTestId('deal-notes').fill('Direct deal created by sales.');
+    await expect(page.getByText(/Category|Document type/i)).toHaveCount(0);
+    await page.getByTestId('deal-create-document-files').setInputFiles([
+      {
+        name: 'peak-dental-bank-statement.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 peak dental bank statement'),
+      },
+      {
+        name: 'peak-dental-driver-license.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 peak dental driver license'),
+      },
+    ]);
     await page.getByTestId('save-deal').click();
 
     await expect.poll(() => state.deals.some((deal) => deal.title === 'Peak Dental - $90K MCA')).toBe(true);
     await expect(page.getByText('Peak Dental - $90K MCA')).toBeVisible();
+    const createdDeal = state.deals.find((deal) => deal.title === 'Peak Dental - $90K MCA')!;
+    await expect.poll(() => state.documents.some((doc) => doc.deal_id === createdDeal.id && doc.file_name === 'peak-dental-bank-statement.pdf' && doc.document_type === 'bank_statements')).toBe(true);
+    await expect.poll(() => state.documents.some((doc) => doc.deal_id === createdDeal.id && doc.file_name === 'peak-dental-driver-license.pdf' && doc.document_type === 'drivers_license')).toBe(true);
+    const createUploadCalls = calls.filter((call) => call.table === 'deal_documents_api' && call.body.deal_id === createdDeal.id);
+    expect(createUploadCalls).toHaveLength(2);
+    expect(createUploadCalls.every((call) => call.body.manual_document_type_present === false)).toBe(true);
+
+    await page.goto(`/crm/deals/${createdDeal.id}`);
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    await expect(page.getByText('peak-dental-bank-statement.pdf').first()).toBeVisible();
+    await expect(page.getByText('peak-dental-driver-license.pdf').first()).toBeVisible();
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await page.getByTestId('deal-detail-stage').click();
