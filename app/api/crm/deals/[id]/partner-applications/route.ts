@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { extractPartnerApplicationPayloadFromUpload } from '@/lib/partner-application-extraction';
@@ -151,7 +152,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select(DOCUMENT_SELECT)
     .single();
 
-  if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
+  if (documentError) {
+    await cleanupGeneratedApplicationArtifacts(supabase, {
+      organizationId: profile.organization_id,
+      storagePaths: [originalPath],
+    });
+    return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
+  }
 
   const extractedPayload = await extractPartnerApplicationPayloadFromUpload({
     fileName: file.name,
@@ -194,7 +201,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('*')
     .single();
 
-  if (uploadRecordError) return NextResponse.json({ success: false, error: uploadRecordError.message }, { status: 500 });
+  if (uploadRecordError) {
+    await cleanupGeneratedApplicationArtifacts(supabase, {
+      organizationId: profile.organization_id,
+      storagePaths: [originalPath],
+      documentIds: [document.id],
+    });
+    return NextResponse.json({ success: false, error: uploadRecordError.message }, { status: 500 });
+  }
 
   const [{ data: application }, { data: business }, { data: ownerLinks }] = await Promise.all([
     supabase
@@ -271,6 +285,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .single();
 
   if (convertedDocumentError) {
+    await cleanupGeneratedApplicationArtifacts(supabase, {
+      organizationId: profile.organization_id,
+      storagePaths: [convertedPath],
+    });
     await supabase
       .from('partner_application_uploads')
       .update({ status: 'failed', updated_by: profile.id })
@@ -279,13 +297,30 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: `Partner app uploaded, but Elite PDF record failed: ${convertedDocumentError.message}` }, { status: 500 });
   }
 
-  const { data: convertedUpload } = await supabase
+  const { data: convertedUpload, error: convertedUploadRecordError } = await supabase
     .from('partner_application_uploads')
     .update({ converted_document_id: convertedDocument.id, status: 'converted', updated_by: profile.id })
     .eq('id', upload.id)
     .eq('organization_id', profile.organization_id)
     .select('*')
     .single();
+
+  if (convertedUploadRecordError) {
+    await cleanupGeneratedApplicationArtifacts(supabase, {
+      organizationId: profile.organization_id,
+      storagePaths: [convertedPath],
+      documentIds: [convertedDocument.id],
+    });
+    await supabase
+      .from('partner_application_uploads')
+      .update({ status: 'failed', updated_by: profile.id })
+      .eq('id', upload.id)
+      .eq('organization_id', profile.organization_id);
+    return NextResponse.json({
+      success: false,
+      error: `Partner app was uploaded and converted, but the upload record could not be finalized: ${convertedUploadRecordError.message}`,
+    }, { status: 500 });
+  }
 
   const applicationSyncPayload = {
     ...buildPartnerApplicationSyncUpdate({
@@ -302,6 +337,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq('organization_id', profile.organization_id);
 
   if (applicationSyncError) {
+    await cleanupGeneratedApplicationArtifacts(supabase, {
+      organizationId: profile.organization_id,
+      storagePaths: [convertedPath],
+      documentIds: [convertedDocument.id],
+    });
     await supabase
       .from('partner_application_uploads')
       .update({ status: 'failed', updated_by: profile.id })

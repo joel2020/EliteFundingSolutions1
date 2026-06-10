@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
@@ -155,7 +156,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       .select('*')
       .single();
 
-    if (documentError) return NextResponse.json({ success: false, error: `Unable to record regenerated Elite application PDF: ${documentError.message}` }, { status: 500 });
+    if (documentError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [storagePath],
+      });
+      return NextResponse.json({ success: false, error: `Unable to record regenerated Elite application PDF: ${documentError.message}` }, { status: 500 });
+    }
 
     convertedDocument = document;
     const { error: partnerApplicationUpdateError } = await supabase
@@ -164,10 +171,20 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       .eq('id', existing.id)
       .eq('organization_id', profile.organization_id);
     if (partnerApplicationUpdateError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [storagePath],
+        documentIds: [document.id],
+      });
       return NextResponse.json({ success: false, error: `Elite PDF was regenerated, but the partner application record could not be finalized: ${partnerApplicationUpdateError.message}` }, { status: 500 });
     }
 
     if (!existing.application_id) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [storagePath],
+        documentIds: [document.id],
+      });
       return NextResponse.json({ success: false, error: 'Elite PDF was regenerated, but no CRM application record is linked to this partner upload.' }, { status: 500 });
     }
 
@@ -184,6 +201,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       .eq('id', existing.application_id)
       .eq('organization_id', profile.organization_id);
     if (applicationSyncError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [storagePath],
+        documentIds: [document.id],
+      });
       return NextResponse.json({ success: false, error: `Elite PDF was regenerated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
     }
   }

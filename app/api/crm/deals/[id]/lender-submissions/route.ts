@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildCompletedApplicationDocumentSyncUpdate } from '@/lib/application-document-sync';
+import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
 import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
@@ -258,6 +259,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .single();
 
     if (applicationDocError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [generatedApplicationPath],
+      });
       return NextResponse.json({ success: false, error: `Unable to record funder application PDF: ${applicationDocError.message}` }, { status: 500 });
     }
     generatedApplicationDocument = createdApplicationDocument;
@@ -269,6 +274,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
         .eq('id', (latestPartnerApplication as any).id)
         .eq('organization_id', profile.organization_id);
       if (partnerApplicationUpdateError) {
+        await cleanupGeneratedApplicationArtifacts(supabase, {
+          organizationId: profile.organization_id,
+          storagePaths: [generatedApplicationPath],
+          documentIds: [createdApplicationDocument.id],
+        });
         return NextResponse.json({ success: false, error: `Funder package PDF was generated, but the partner application record could not be finalized: ${partnerApplicationUpdateError.message}` }, { status: 500 });
       }
     }
@@ -294,6 +304,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .eq('id', targetApplicationId)
       .eq('organization_id', profile.organization_id);
     if (applicationSyncError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [generatedApplicationPath],
+        documentIds: [createdApplicationDocument.id],
+      });
       return NextResponse.json({ success: false, error: `Funder package PDF was generated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
     }
   }

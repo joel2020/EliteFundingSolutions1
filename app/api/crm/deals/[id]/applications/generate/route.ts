@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildCompletedApplicationDocumentSyncUpdate } from '@/lib/application-document-sync';
+import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
@@ -141,7 +142,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('*')
     .single();
 
-    if (documentError) return NextResponse.json({ success: false, error: `Unable to save generated PDF record: ${documentError.message}` }, { status: 500 });
+    if (documentError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [storagePath],
+      });
+      return NextResponse.json({ success: false, error: `Unable to save generated PDF record: ${documentError.message}` }, { status: 500 });
+    }
 
     if (partnerApplication) {
       const { error: partnerApplicationUpdateError } = await supabase
@@ -150,6 +157,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
         .eq('id', partnerApplication.id)
         .eq('organization_id', profile.organization_id);
       if (partnerApplicationUpdateError) {
+        await cleanupGeneratedApplicationArtifacts(supabase, {
+          organizationId: profile.organization_id,
+          storagePaths: [storagePath],
+          documentIds: [document.id],
+        });
         return NextResponse.json({ success: false, error: `Elite PDF was generated, but the partner application record could not be finalized: ${partnerApplicationUpdateError.message}` }, { status: 500 });
       }
     }
@@ -175,6 +187,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .eq('id', targetApplicationId)
       .eq('organization_id', profile.organization_id);
     if (applicationSyncError) {
+      await cleanupGeneratedApplicationArtifacts(supabase, {
+        organizationId: profile.organization_id,
+        storagePaths: [storagePath],
+        documentIds: [document.id],
+      });
       return NextResponse.json({ success: false, error: `Elite PDF was generated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
     }
 
