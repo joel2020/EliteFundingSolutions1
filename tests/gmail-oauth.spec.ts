@@ -72,9 +72,12 @@ test.describe('Google OAuth verification readiness', () => {
     expect(connectionSource).toContain('missing_gmail_send_scope');
     expect(connectionSource).toContain('gmail_token_expired');
     expect(connectionSource).toContain('Reconnect required');
+    expect(settingsToastSource).toContain("searchParams?.get('gmail_error')");
     expect(settingsToastSource).toContain('missing_gmail_send_scope');
-    expect(settingsToastSource).toContain('invalid_state');
-    expect(settingsToastSource).toContain('callback_error');
+    expect(settingsToastSource).toContain('invalid_oauth_state');
+    expect(settingsToastSource).toContain('state_user_mismatch');
+    expect(settingsToastSource).toContain('storage_failed');
+    expect(settingsToastSource).toContain('auth_failed');
     expect(checklistSource).toContain('Settings shows a clear reconnect warning');
   });
 
