@@ -560,15 +560,15 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   check(!fields.isSeasonal, 1210, 1207);
 
   const drawOwner = (owner: ResolvedOwnerPdfFields, x: number) => {
-    drawBoxText(owner.name, x + 115, 899, 560, 24, { size: 13.2 });
-    drawBoxText(owner.street, x + 135, 859, 540, 30, { size: 12.2, maxLines: 2 });
+    drawBoxText(owner.name, x + 150, 899, 525, 24, { size: 13.2 });
+    drawBoxText(owner.street, x + 155, 859, 520, 30, { size: 12.2, maxLines: 2 });
     drawBoxText(owner.cityLine, x + 225, 831, 450, 24, { size: 13.2 });
     drawBoxText(owner.phone, x + 155, 796, 290, 24, { size: 13.2 });
     drawBoxText(owner.email, x + 155, 756, 410, 30, { size: 11.2, maxLines: 2 });
     drawBoxText(owner.ownershipPercentage, x + 245, 727, 150, 24, { size: 13.2 });
     drawBoxText(owner.dob, x + 230, 693, 210, 24, { size: 13.2 });
     drawBoxText(owner.ssn, x + 155, 659, 240, 24, { size: 13.2 });
-    drawBoxText(owner.driversLicense, x + 210, 624, 260, 24, { size: 13.2 });
+    drawBoxText(owner.driversLicense, x + 250, 624, 225, 24, { size: 13.2 });
   };
   drawOwner(fields.owner1, 0);
   drawOwner(fields.owner2, 755);
