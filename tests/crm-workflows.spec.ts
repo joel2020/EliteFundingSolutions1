@@ -516,4 +516,37 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => calls.some((call) => call.table === 'document_signed_url' && call.body.disposition === 'preview')).toBe(true);
     expect(signedUrlResponse.url).toBe('https://signed.example/atlas-bank-statements.pdf');
   });
+
+  test('uploads multiple deal documents without requiring manual categories', async ({ page }) => {
+    const { state, calls } = await mockCrmApis(page);
+
+    await page.goto(`/crm/deals/${DEAL_ID}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
+    await page.getByRole('tab', { name: 'Documents' }).click();
+
+    await page.getByTestId('deal-upload-document').click();
+    await expect(page.getByText('Document files')).toBeVisible();
+    await expect(page.getByText(/Category|Document type/i)).toHaveCount(0);
+    await page.getByTestId('deal-document-file').setInputFiles([
+      {
+        name: 'march-bank-statement.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 march bank statement'),
+      },
+      {
+        name: 'owner-driver-license.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 driver license'),
+      },
+    ]);
+    await page.getByTestId('deal-save-document').click();
+
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'march-bank-statement.pdf' && doc.document_type === 'bank_statements')).toBe(true);
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'owner-driver-license.pdf' && doc.document_type === 'drivers_license')).toBe(true);
+    const uploadCalls = calls.filter((call) => call.table === 'deal_documents_api' && ['march-bank-statement.pdf', 'owner-driver-license.pdf'].includes(call.body.file_name));
+    expect(uploadCalls).toHaveLength(2);
+    expect(uploadCalls.every((call) => call.body.manual_document_type_present === false)).toBe(true);
+    await expect(page.getByText('march-bank-statement.pdf').first()).toBeVisible();
+    await expect(page.getByText('owner-driver-license.pdf').first()).toBeVisible();
+  });
 });

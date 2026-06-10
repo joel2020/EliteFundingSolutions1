@@ -468,7 +468,15 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     };
     state.documents.unshift(document);
     state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'document_event', title: `Document uploaded: ${document.label}`, body: fileName, created_at: now });
-    calls.push({ method: route.request().method(), table: 'deal_documents_api', body: { file_name: fileName, document_type: documentType } });
+    calls.push({
+      method: route.request().method(),
+      table: 'deal_documents_api',
+      body: {
+        file_name: fileName,
+        document_type: documentType,
+        manual_document_type_present: /name="document_type"/.test(body),
+      },
+    });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document, classification: { document_type: documentType, label, confidence: 'medium', provider: 'rules' }, aiExtraction: document.ai_extraction }) });
   });
 
