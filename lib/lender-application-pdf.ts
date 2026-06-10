@@ -609,9 +609,9 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   drawTemplateCorrection(
     'This Funding Application must include a copy of a voided check. By signing before submission, you certify that all information and documents provided are accurate, true, correct and complete. You authorize Elite Funding Solutions and its funders, partners, representatives, successors, assigns, designees, agents and affiliates to obtain information about you, your business, its owners, bank statements, processor statements, business credit reports, personal credit reports where authorized, and other information needed to review funding options. You also authorize Elite Funding Solutions to transmit this application and supporting information to its funding partners for review.',
     62,
-    66,
+    36,
     1380,
-    128,
+    198,
     10.5,
     205,
   );
@@ -647,8 +647,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   disclosurePage.drawImage(logo, { x: disclosureMargin, y: firstPageSize.height - 126, width: 170, height: 95 });
   disclosurePage.drawText('Application Disclosures and Consent', { x: disclosureMargin + 205, y: firstPageSize.height - 88, size: 21, font: boldFont, color: disclosureNavy });
   disclosurePage.drawText('Elite Funding Solutions', { x: disclosureMargin + 205, y: firstPageSize.height - 115, size: 12, font: boldFont, color: disclosureTextColor });
-  cursorY = firstPageSize.height - 166;
-  drawDisclosureParagraph('This page is intentionally printed in dark, readable type. The applicant should be able to review these disclosures on screen, mobile, and paper before signing or submitting an application.', 11, 17);
+  cursorY = firstPageSize.height - 154;
 
   APPLICATION_DISCLOSURE_SECTIONS.forEach((section) => {
     ensureSpace(64);

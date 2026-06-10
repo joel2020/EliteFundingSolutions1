@@ -2187,7 +2187,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                         </div>
                       </div>
                     );
-                  }) : <EmptyState title="No partner applications uploaded." body="Upload a partner app to create an Elite-branded review copy and PDF." />}
+                  }) : <EmptyState title="No partner applications uploaded." body="Upload a partner app to create an Elite-branded application PDF." />}
                 </div>
               </CrmCard>
               <CrmCard className="p-4">
