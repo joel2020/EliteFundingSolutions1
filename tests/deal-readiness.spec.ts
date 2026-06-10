@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
+import { hasApplicationSignatureEvidence, isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
 
 test.describe('deal readiness and funder requirements', () => {
@@ -26,6 +26,40 @@ test.describe('deal readiness and funder requirements', () => {
       label: 'Application signature captured',
       passed: false,
       blocksSubmission: true,
+    })).toBe(true);
+  });
+
+  test('requires completed signed application evidence before funder submission', () => {
+    expect(hasApplicationSignatureEvidence({
+      application: {
+        signed_name: 'Jordan Lee',
+        signature_date: '2026-06-10',
+        application_payload: { signature: 'Jordan Lee', signature_date: '2026-06-10' },
+      },
+      completedApplicationDocuments: [],
+    })).toBe(false);
+
+    expect(hasApplicationSignatureEvidence({
+      application: {
+        signed_name: 'Jordan Lee',
+        signature_date: '2026-06-10',
+      },
+      completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
+    })).toBe(true);
+
+    expect(hasApplicationSignatureEvidence({
+      application: {
+        signature_status: 'signed',
+        signature_data_storage_path: 'org/deal/signatures/signature.png',
+      },
+      completedApplicationDocuments: [],
+    })).toBe(true);
+
+    expect(hasApplicationSignatureEvidence({
+      application: {
+        signed_application_document_id: 'doc-application-1',
+      },
+      completedApplicationDocuments: [],
     })).toBe(true);
   });
 

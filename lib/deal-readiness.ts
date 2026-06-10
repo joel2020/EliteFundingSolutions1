@@ -15,6 +15,7 @@ export type DealReadinessResult = {
 
 const LAST4_PATTERN = /^\d{4}$/;
 const COMPLETE_REQUIRED_DOCUMENT_STATUSES = new Set(['uploaded', 'in_review', 'approved', 'waived']);
+const SIGNED_APPLICATION_STATUSES = new Set(['signed', 'completed', 'converted']);
 
 function normalizeDigits(value: string | null | undefined) {
   return (value || '').replace(/\D/g, '');
@@ -28,6 +29,31 @@ export function isSubmissionBlockingReadinessCheck(check: ReadinessCheck) {
   return !check.passed && check.blocksSubmission !== false;
 }
 
+export function hasApplicationSignatureEvidence(args: {
+  application?: Record<string, any> | null;
+  completedApplicationDocuments?: Array<Record<string, any>>;
+}) {
+  const application = args.application || {};
+  const payload = application.application_payload || {};
+  const hasCompletedApplicationDocument = (args.completedApplicationDocuments || []).some((document) =>
+    document?.document_type === 'completed_application' &&
+    isRequiredDocumentCompleteStatus(document.status)
+  );
+  const hasSignedStatus = SIGNED_APPLICATION_STATUSES.has(String(application.signature_status || '').toLowerCase());
+  const hasStoredDrawnSignature = Boolean(application.signature_data_storage_path);
+  const hasSignedApplicationDocument = Boolean(application.signed_application_document_id);
+  const hasSignatureNameAndDate = Boolean(
+    (application.signed_name || application.e_signature || payload.signature) &&
+    (application.signature_date || payload.signature_date)
+  );
+
+  return Boolean(
+    hasSignedApplicationDocument ||
+    (hasSignedStatus && hasStoredDrawnSignature) ||
+    (hasCompletedApplicationDocument && hasSignatureNameAndDate)
+  );
+}
+
 export async function evaluateDealReadinessForLenderSubmission(args: {
   supabase: SupabaseClient;
   organizationId: string;
@@ -38,7 +64,23 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
 }) {
   const { supabase, organizationId, dealId, applicationId, businessId, allowAdminOverride } = args;
 
-  const [docsRes, appRes, businessRes, ownerRes, uwRes] = await Promise.all([
+  const completedApplicationQuery = applicationId
+    ? supabase
+      .from('documents')
+      .select('id,document_type,status,deal_id,application_id')
+      .eq('organization_id', organizationId)
+      .or(`deal_id.eq.${dealId},application_id.eq.${applicationId}`)
+      .eq('document_type', 'completed_application')
+      .limit(10)
+    : supabase
+      .from('documents')
+      .select('id,document_type,status,deal_id,application_id')
+      .eq('organization_id', organizationId)
+      .eq('deal_id', dealId)
+      .eq('document_type', 'completed_application')
+      .limit(10);
+
+  const [docsRes, appRes, completedAppDocsRes, businessRes, ownerRes, uwRes] = await Promise.all([
     supabase
       .from('document_requests')
       .select('id,label,required,status')
@@ -48,11 +90,12 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
     applicationId
       ? supabase
         .from('applications')
-        .select('id,signed_name,signature_date')
+        .select('id,signed_name,e_signature,signature_date,signature_status,signature_data_storage_path,signed_application_document_id,application_payload')
         .eq('organization_id', organizationId)
         .eq('id', applicationId)
         .maybeSingle()
       : Promise.resolve({ data: null } as any),
+    completedApplicationQuery,
     businessId
       ? supabase
         .from('businesses')
@@ -81,7 +124,10 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
 
   const requiredDocRows = docsRes.data || [];
   const openRequired = requiredDocRows.filter((row: any) => !isRequiredDocumentCompleteStatus(row.status));
-  const hasSignature = Boolean(appRes.data?.signed_name || appRes.data?.signature_date);
+  const hasSignature = hasApplicationSignatureEvidence({
+    application: appRes.data,
+    completedApplicationDocuments: completedAppDocsRes.data || [],
+  });
   const einLast4 = normalizeDigits(businessRes.data?.ein_last4 || '');
   const owner = (ownerRes.data || [])[0] as any;
   const ssnLast4 = normalizeDigits(owner?.owners?.ssn_last4 || '');
@@ -100,7 +146,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       label: 'Application signature captured',
       passed: hasSignature,
       blocksSubmission: true,
-      detail: hasSignature ? 'Signature metadata is present on the application.' : 'No signature metadata found on the application.',
+      detail: hasSignature ? 'Signed or converted application evidence is attached to the deal.' : 'No completed signed application or stored signature evidence found on the deal.',
     },
     {
       key: 'ein_verified',

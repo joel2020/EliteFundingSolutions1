@@ -1,4 +1,5 @@
 import { sameCrmDocumentType } from './document-classification';
+import { hasApplicationSignatureEvidence } from './deal-readiness';
 
 type RecordMap = Record<string, any>;
 export type AiProvider = 'azure-openai' | 'openai' | 'rules';
@@ -320,7 +321,7 @@ function buildApplicationQa(context: RecordMap) {
     ['Owner DOB', boolPresent(firstOwner.dob, payload.dob)],
     ['Owner ownership percentage', boolPresent(firstOwner.ownership_percentage, firstOwner.ownership_pct, payload.ownership_percentage, payload.ownership_pct)],
     ['Owner SSN evidence', boolPresent(firstOwner.ssn_last4, firstOwner.ssn, payload.ssn)],
-    ['Signature', boolPresent(application.signature_status === 'signed', application.signed_name, application.e_signature, payload.signature, hasDocType(documents, 'completed_application'))],
+    ['Signature', hasApplicationSignatureEvidence({ application, completedApplicationDocuments: documents })],
   ];
   const blockers = checks.filter(([, passed]) => !passed).map(([label]) => `${label} missing`);
   const verifiedFields = checks.filter(([, passed]) => passed).map(([label]) => String(label));
