@@ -181,19 +181,24 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .update(`${application.id}:${application.signed_name || ''}:${signaturePath}:${now}`)
     .digest('hex');
 
+  const { error: applicationUpdateError } = await supabase
+    .from('applications')
+    .update({
+      signature_status: 'signed',
+      signature_type: 'drawn',
+      signature_data_storage_path: signaturePath,
+      signed_application_document_id: document.id,
+      disclosure_acceptance: acceptance,
+      signed_at: application.signed_at || now,
+    })
+    .eq('id', application.id)
+    .eq('organization_id', DEFAULT_ORG_ID);
+
+  if (applicationUpdateError) {
+    return NextResponse.json({ success: false, error: `Signed PDF was created, but the application signature record could not be finalized: ${applicationUpdateError.message}` }, { status: 500 });
+  }
+
   await Promise.allSettled([
-    supabase
-      .from('applications')
-      .update({
-        signature_status: 'signed',
-        signature_type: 'drawn',
-        signature_data_storage_path: signaturePath,
-        signed_application_document_id: document.id,
-        disclosure_acceptance: acceptance,
-        signed_at: application.signed_at || now,
-      })
-      .eq('id', application.id)
-      .eq('organization_id', DEFAULT_ORG_ID),
     supabase.from('application_signatures').insert({
       organization_id: DEFAULT_ORG_ID,
       application_id: application.id,

@@ -511,6 +511,21 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.drawnSignaturePng).toBe(signaturePng);
   });
 
+  test('generates a completed application when a valid drawn signature PNG is present', async () => {
+    const validSignaturePng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+      'base64',
+    );
+    const pdfBuffer = await generateLenderApplicationPdf({
+      ...sampleApplicationData,
+      drawnSignaturePng: validSignaturePng,
+    });
+    const pdf = await PDFDocument.load(pdfBuffer);
+
+    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2);
+    expect(pdfBuffer.length).toBeGreaterThan(100_000);
+  });
+
   test('generates a branded multi-page PDF from the resolved data contract', async () => {
     const pdfBuffer = await generateLenderApplicationPdf(sampleApplicationData);
     const pdf = await PDFDocument.load(pdfBuffer);
