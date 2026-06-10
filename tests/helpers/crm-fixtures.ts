@@ -425,12 +425,27 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     const body = route.request().postData() || '';
     const fileName = body.match(/filename="([^"]+)"/)?.[1] || 'uploaded-document.pdf';
     const id = new URL(route.request().url()).pathname.split('/').at(-2);
+    const lower = `${fileName} ${body}`.toLowerCase();
+    const documentType = lower.includes('voided') || lower.includes('check')
+      ? 'voided_check'
+      : lower.includes('license') || lower.includes('driver') || lower.includes('id')
+        ? 'drivers_license'
+        : lower.includes('bank') || lower.includes('statement')
+          ? 'bank_statements'
+          : 'other';
+    const label = documentType === 'voided_check'
+      ? 'Voided Check'
+      : documentType === 'drivers_license'
+        ? "Driver's License"
+        : documentType === 'bank_statements'
+          ? 'Bank Statements'
+          : 'Uploaded Document';
     const document = {
       id: `document-${state.documents.length + 1}`,
       organization_id: ORG_ID,
       deal_id: id,
-      document_type: body.includes('voided_check') ? 'voided_check' : 'other',
-      label: body.includes('Voided Check') ? 'Voided Check' : 'Uploaded Document',
+      document_type: documentType,
+      label,
       file_name: fileName,
       file_size: 128000,
       mime_type: 'application/pdf',
@@ -441,8 +456,8 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     };
     state.documents.unshift(document);
     state.activities.unshift({ id: `activity-${state.activities.length + 1}`, organization_id: ORG_ID, deal_id: id, activity_type: 'document_event', title: `Document uploaded: ${document.label}`, body: fileName, created_at: now });
-    calls.push({ method: route.request().method(), table: 'deal_documents_api', body: { file_name: fileName } });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document }) });
+    calls.push({ method: route.request().method(), table: 'deal_documents_api', body: { file_name: fileName, document_type: documentType } });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document, classification: { document_type: documentType, label, confidence: 'medium', provider: 'rules' } }) });
   });
 
   await page.route('**/api/crm/deals/*/partner-applications', async (route) => {

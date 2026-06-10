@@ -195,13 +195,26 @@ const emptyDeal = {
 
 
 const DETAIL_DOCUMENT_TYPES = [
+  { value: 'completed_application', label: 'Completed Application' },
   { value: 'bank_statement', label: 'Bank Statement' },
   { value: 'bank_statements', label: 'Bank Statements' },
   { value: 'license_verification', label: 'License Verification' },
   { value: 'drivers_license', label: "Driver's License" },
   { value: 'voided_check', label: 'Voided Check' },
+  { value: 'bank_letter', label: 'Bank Letter' },
   { value: 'tax_return', label: 'Tax Return' },
   { value: 'processing_statement', label: 'Processing Statement' },
+  { value: 'financial_statement', label: 'Financial Statement' },
+  { value: 'business_verification', label: 'Business Verification' },
+  { value: 'advance_statements', label: 'Advance Statements' },
+  { value: 'invoice', label: 'Invoice' },
+  { value: 'signed_contract', label: 'Signed Contract' },
+  { value: 'final_bank_verification', label: 'Final Bank Verification' },
+  { value: 'final_owner_id_verification', label: 'Final Owner ID Verification' },
+  { value: 'payoff_letter', label: 'Payoff Letter' },
+  { value: 'stipulation', label: 'Stipulation' },
+  { value: 'signed_application', label: 'Signed Application' },
+  { value: 'partner_application', label: 'Partner Application' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -1604,7 +1617,6 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [generatedApplicationLink, setGeneratedApplicationLink] = useState('');
   const [revealedSensitiveData, setRevealedSensitiveData] = useState<RecordMap | null>(null);
   const [revealingSensitiveData, setRevealingSensitiveData] = useState(false);
-  const [documentType, setDocumentType] = useState('bank_statement');
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentFilter, setDocumentFilter] = useState('all');
   const [noteBody, setNoteBody] = useState('');
@@ -1721,7 +1733,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     console.debug('Activity logging is handled by server APIs.', { activity_type, title, body });
   };
 
-  const resetDocumentDialog = () => { setDocumentFile(null); setDocumentDescription(''); setDocumentType('bank_statement'); };
+  const resetDocumentDialog = () => { setDocumentFile(null); setDocumentDescription(''); };
   const resetPartnerApplicationDialog = () => { setPartnerApplicationFile(null); setPartnerApplicationSource(''); setPartnerApplicationNotes(''); };
 
   const uploadDealDocument = async () => {
@@ -1731,18 +1743,14 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     if (documentFile.size > 10 * 1024 * 1024 || (!allowed.includes(documentFile.type) && !['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension || ''))) { toast.error('Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.'); return; }
     setUploadingDocument(true);
     try {
-      const linkedRequest = dealRequests.find((request: RecordMap) => sameDocType(documentType, request.document_type) || sameDocType(request.document_type, documentType));
-      const label = detailDocTypeLabel(documentType);
       const formData = new FormData();
       formData.set('file', documentFile);
-      formData.set('document_type', documentType);
-      formData.set('label', label);
       formData.set('review_notes', documentDescription);
-      if (linkedRequest?.id) formData.set('document_request_id', linkedRequest.id);
       const response = await fetch(`/api/crm/deals/${deal.id}/documents`, { method: 'POST', body: formData });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload document');
-      toast.success('Deal document uploaded');
+      const classifiedType = result.document?.document_type || result.classification?.document_type;
+      toast.success(classifiedType ? `Document uploaded as ${detailDocTypeLabel(classifiedType)}` : 'Deal document uploaded');
       setDocumentDialogOpen(false); resetDocumentDialog(); reload();
     } catch (error: any) { toast.error(error.message || 'Failed to upload document'); } finally { setUploadingDocument(false); }
   };
@@ -2185,7 +2193,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           <TabsContent value="activity"><SimpleRows rows={dealActivity} empty="No activity yet." render={(row) => <div><b>{row.title || row.action || 'Activity'}</b><p className="text-[#334155]">{row.body}</p><p className="text-xs text-[#64748B]">{row.activity_type ? `${row.activity_type.replaceAll('_', ' ')} · ` : ''}{date(row.created_at)}{row.performed_by ? ` · User ${shortId(row.performed_by)}` : ''}</p></div>} /></TabsContent>
         </Tabs>
       </CrmCard>
-      <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload or replace deal document</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document file</Label><Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Document type</Label><Select value={documentType} onValueChange={setDocumentType}><SelectTrigger data-testid="deal-document-type" className="mt-1 rounded-[7px]"><SelectValue /></SelectTrigger><SelectContent>{DETAIL_DOCUMENT_TYPES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={documentDialogOpen} onOpenChange={(open) => { setDocumentDialogOpen(open); if (!open) resetDocumentDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload or replace deal document</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Document file</Label><Input data-testid="deal-document-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{documentFile && <p className="mt-1 text-xs text-[#64748B]">{documentFile.name} · {formatBytes(documentFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Description / replacement note</Label><Input data-testid="deal-document-description" value={documentDescription} onChange={(event) => setDocumentDescription(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Optional document note" /></div></div><DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-document" onClick={uploadDealDocument} disabled={uploadingDocument || !documentFile}>{uploadingDocument ? 'Uploading...' : 'Upload document'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={partnerApplicationDialogOpen} onOpenChange={(open) => { setPartnerApplicationDialogOpen(open); if (!open) resetPartnerApplicationDialog(); }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Upload Partner Application</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Application file</Label><Input data-testid="partner-application-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.doc,.docx,.csv" onChange={(event) => setPartnerApplicationFile(event.target.files?.[0] || null)} className="mt-1 rounded-[7px]" />{partnerApplicationFile && <p className="mt-1 text-xs text-[#64748B]">{partnerApplicationFile.name} · {formatBytes(partnerApplicationFile.size)}</p>}</div><div><Label className="text-xs text-[#64748B]">Source partner</Label><Input data-testid="partner-application-source" value={partnerApplicationSource} onChange={(event) => setPartnerApplicationSource(event.target.value)} className="mt-1 rounded-[7px]" placeholder="Funding partner or broker name" /></div><div><Label className="text-xs text-[#64748B]">Notes</Label><Textarea data-testid="partner-application-notes" value={partnerApplicationNotes} onChange={(event) => setPartnerApplicationNotes(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="What came in, missing fields, or conversion notes" /></div><div className="rounded-[8px] border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">Upload stores the original partner file on this deal and immediately creates an Elite Funding Solutions application PDF. That Elite application is automatically included when this deal is sent to funders. Review/edit fields and regenerate if the partner file has newer details.</div></div><DialogFooter><Button variant="outline" onClick={() => setPartnerApplicationDialogOpen(false)}>Cancel</Button><Button data-testid="save-partner-application" onClick={uploadPartnerApplication} disabled={uploadingPartnerApplication || !partnerApplicationFile}>{uploadingPartnerApplication ? 'Converting...' : 'Upload and Create Elite Application'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={partnerApplicationReviewOpen} onOpenChange={(open) => { setPartnerApplicationReviewOpen(open); if (!open) setReviewingPartnerApplication(null); }}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto rounded-[8px]">

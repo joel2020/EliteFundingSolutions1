@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireCrmAccess, requireSameOrigin } from '@/lib/server-auth';
 import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
+import { classifyDealDocumentUpload } from '@/lib/document-classification';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!formData) return NextResponse.json({ success: false, error: 'Invalid document payload.' }, { status: 400 });
 
   const file = formData.get('file');
-  const documentType = String(formData.get('document_type') || 'other');
-  const label = String(formData.get('label') || documentType.replaceAll('_', ' '));
+  const explicitDocumentType = String(formData.get('document_type') || '').trim();
+  const explicitLabel = String(formData.get('label') || '').trim();
   const reviewNotes = String(formData.get('review_notes') || '').trim();
   const documentRequestId = String(formData.get('document_request_id') || '').trim() || null;
   if (!(file instanceof File) || file.size <= 0) {
@@ -33,6 +34,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (file.size > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(file.type) && !allowedExtensions.has(extension))) {
     return NextResponse.json({ success: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
   }
+  const bytes = Buffer.from(await file.arrayBuffer());
 
   const { data: deal } = await supabase
     .from('deals')
@@ -53,16 +55,32 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
+  let documentRequestQuery = supabase
+    .from('document_requests')
+    .select('id,label,document_type,category,status,required,notes,description')
+    .eq('organization_id', profile.organization_id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  documentRequestQuery = deal.application_id
+    ? documentRequestQuery.or(`deal_id.eq.${deal.id},application_id.eq.${deal.application_id}`)
+    : documentRequestQuery.eq('deal_id', deal.id);
+  const { data: documentRequests } = await documentRequestQuery;
+
   if (documentRequestId) {
-    const { data: requestRow } = await supabase
-      .from('document_requests')
-      .select('id')
-      .eq('id', documentRequestId)
-      .eq('organization_id', profile.organization_id)
-      .eq('deal_id', deal.id)
-      .maybeSingle();
+    const requestRow = (documentRequests || []).find((row) => row.id === documentRequestId);
     if (!requestRow) return NextResponse.json({ success: false, error: 'Document request not found for this deal.' }, { status: 404 });
   }
+
+  const classification = await classifyDealDocumentUpload({
+    fileName: file.name,
+    mimeType: file.type || null,
+    bytes,
+    requests: documentRequests || [],
+    explicitDocumentType,
+  });
+  const documentType = classification.document_type;
+  const linkedRequestId = documentRequestId || classification.matched_request_id || null;
+  const label = explicitLabel || classification.label;
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `${profile.organization_id}/${deal.id}/${Date.now()}-${safeName}`;
@@ -78,7 +96,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       organization_id: profile.organization_id,
       deal_id: deal.id,
       application_id: deal.application_id,
-      document_request_id: documentRequestId,
+      document_request_id: linkedRequestId,
       document_type: documentType,
       label,
       file_name: file.name,
@@ -90,16 +108,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
       review_notes: reviewNotes || null,
       visibility: isInternalCrmRole(profile.role) ? 'internal' : 'shared',
     })
-    .select('id,file_name,label,status,created_at')
+    .select('id,file_name,label,document_type,status,created_at')
     .single();
 
   if (documentError) return NextResponse.json({ success: false, error: documentError.message }, { status: 500 });
 
-  if (documentRequestId) {
+  if (linkedRequestId) {
     await supabase
       .from('document_requests')
       .update({ status: 'uploaded', related_document_id: document.id, notes: reviewNotes || null, updated_by: profile.id })
-      .eq('id', documentRequestId)
+      .eq('id', linkedRequestId)
       .eq('organization_id', profile.organization_id);
   }
 
@@ -121,9 +139,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       action: isInternalCrmRole(profile.role) ? 'deal_document_uploaded' : 'external_partner_document_uploaded',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: documentRequestId, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
+      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: linkedRequestId, classification, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
     }),
   ]);
 
-  return NextResponse.json({ success: true, document });
+  return NextResponse.json({ success: true, document, classification });
 }
