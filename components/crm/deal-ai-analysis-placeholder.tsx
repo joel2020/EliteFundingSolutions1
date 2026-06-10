@@ -29,6 +29,37 @@ type AiAnalysis = {
   };
   questionsForMerchant: string[];
   confidence: 'low' | 'medium' | 'high';
+  applicationQa?: {
+    status: 'ready' | 'needs_review' | 'blocked';
+    score: number;
+    blockers: string[];
+    warnings: string[];
+    verifiedFields: string[];
+    fixes: string[];
+  };
+  documentIntelligence?: {
+    status: 'ready' | 'needs_review' | 'blocked';
+    documentsReviewed: Array<{ id: string; label: string; documentType: string; confidence: 'low' | 'medium' | 'high'; signals: string[]; nextAction: string }>;
+    extractedSignals: string[];
+    missingDocumentTypes: string[];
+    bankStatementAnalysis: { status: string; monthlyRevenue: string; negativeDays: string; nsfCount: string; notes: string[] };
+  };
+  funderMatches?: Array<{ fundingPartnerId: string; name: string; score: number; reasons: string[]; warnings: string[]; missingRequirements: string[]; submissionRoute: string }>;
+  packageBuilder?: {
+    status: 'ready' | 'needs_review' | 'blocked';
+    readyToSend: boolean;
+    includedDocumentIds: string[];
+    requiredDocumentTypes: string[];
+    missingDocumentTypes: string[];
+    warnings: string[];
+    emailSubject: string;
+    emailBody: string;
+  };
+  copilot?: {
+    answer: string;
+    suggestedQuestions: string[];
+    sourceNotes: string[];
+  };
 };
 
 const REQUIRED_DOCUMENTS = [
@@ -75,6 +106,7 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState<'azure-openai' | 'openai' | 'rules' | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
+  const [copilotQuestion, setCopilotQuestion] = useState('');
   const [state, setState] = useState<LoadState>({
     deal: null,
     application: null,
@@ -197,6 +229,7 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
       const response = await fetch(`/api/crm/deals/${dealId}/ai-analysis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: copilotQuestion }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.success) throw new Error(result.error || 'Unable to generate AI analysis.');
@@ -223,7 +256,7 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
                 {aiProvider === 'azure-openai' ? 'Azure OpenAI connected' : aiProvider === 'openai' ? 'OpenAI connected' : aiAnalysis ? 'Rules fallback' : 'Ready to generate'}
               </span>
             </div>
-            <p className="mt-1 text-sm text-[#475569]">Generate a staff-only deal summary, risk scan, missing items, next actions, and a funder email draft from live CRM records.</p>
+            <p className="mt-1 text-sm text-[#475569]">Generate application QA, document intelligence, funder matching, package planning, copilot guidance, and a funder email draft from live CRM records.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
             <div className="grid grid-cols-2 gap-2 text-right text-xs sm:flex sm:text-left">
@@ -242,6 +275,20 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
             </Button>
           </div>
         </div>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input
+            data-testid="ai-copilot-question"
+            value={copilotQuestion}
+            onChange={(event) => setCopilotQuestion(event.target.value)}
+            className="min-h-9 flex-1 rounded-[7px] border border-[#CBD5E1] px-3 text-sm outline-none focus:border-[#0F2B5B]"
+            placeholder="Ask the deal copilot a question"
+          />
+          {aiAnalysis?.copilot?.suggestedQuestions?.slice(0, 2).map((question) => (
+            <button key={question} type="button" className="rounded-[7px] border border-[#CBD5E1] px-3 py-2 text-xs text-[#334155]" onClick={() => setCopilotQuestion(question)}>
+              {question}
+            </button>
+          ))}
+        </div>
 
         {error ? (
           <div className="mt-3 rounded-[7px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-sm text-[#991B1B]">{error}</div>
@@ -249,6 +296,7 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
           <div>
             {aiError && <div className="mt-3 rounded-[7px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{aiError}</div>}
             {aiAnalysis ? (
+              <>
               <div className="mt-4 grid gap-3 lg:grid-cols-4">
                 <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase text-[#64748B]"><Sparkles className="h-3.5 w-3.5" />Deal summary</div>
@@ -271,6 +319,42 @@ export function DealAiAnalysisPlaceholder({ dealId }: { dealId: string }) {
                   <p className="mt-2 whitespace-pre-line text-xs text-[#64748B]">{aiAnalysis.funderEmailDraft.body}</p>
                 </div>
               </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-4">
+                <div className="rounded-[8px] border border-[#E2E8F0] bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold uppercase text-[#64748B]">Application QA</span>
+                    <span className="rounded-[6px] bg-[#F1F5F9] px-2 py-1 text-xs font-semibold text-[#0F172A]">{percent(aiAnalysis.applicationQa?.score || 0)}</span>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-[#0F172A]">{aiAnalysis.applicationQa?.status?.replaceAll('_', ' ') || 'Not reviewed'}</p>
+                  <p className="mt-2 text-xs text-[#64748B]">{aiAnalysis.applicationQa?.blockers?.length ? aiAnalysis.applicationQa.blockers.join('; ') : 'No blockers returned.'}</p>
+                </div>
+                <div className="rounded-[8px] border border-[#E2E8F0] bg-white p-3">
+                  <div className="text-[11px] font-semibold uppercase text-[#64748B]">Document Intelligence</div>
+                  <p className="mt-2 text-sm font-semibold text-[#0F172A]">{aiAnalysis.documentIntelligence?.status?.replaceAll('_', ' ') || 'Not reviewed'}</p>
+                  <p className="mt-2 text-xs text-[#64748B]">{aiAnalysis.documentIntelligence?.bankStatementAnalysis?.status || 'No bank statement analysis.'}</p>
+                  <p className="mt-1 text-xs text-[#64748B]">Missing: {aiAnalysis.documentIntelligence?.missingDocumentTypes?.length ? aiAnalysis.documentIntelligence.missingDocumentTypes.join(', ') : 'None listed'}</p>
+                </div>
+                <div className="rounded-[8px] border border-[#E2E8F0] bg-white p-3">
+                  <div className="text-[11px] font-semibold uppercase text-[#64748B]">Best Funder Match</div>
+                  <p className="mt-2 text-sm font-semibold text-[#0F172A]">{aiAnalysis.funderMatches?.[0]?.name || 'No funder match'}</p>
+                  <p className="mt-2 text-xs text-[#64748B]">{aiAnalysis.funderMatches?.[0] ? `${aiAnalysis.funderMatches[0].score}% match · ${aiAnalysis.funderMatches[0].submissionRoute}` : 'Add active funder profiles.'}</p>
+                  <p className="mt-1 text-xs text-[#64748B]">{aiAnalysis.funderMatches?.[0]?.warnings?.join('; ')}</p>
+                </div>
+                <div className="rounded-[8px] border border-[#E2E8F0] bg-white p-3">
+                  <div className="text-[11px] font-semibold uppercase text-[#64748B]">Package Builder</div>
+                  <p className="mt-2 text-sm font-semibold text-[#0F172A]">{aiAnalysis.packageBuilder?.readyToSend ? 'Ready to send' : aiAnalysis.packageBuilder?.status?.replaceAll('_', ' ') || 'Not planned'}</p>
+                  <p className="mt-2 text-xs text-[#64748B]">{aiAnalysis.packageBuilder?.includedDocumentIds?.length || 0} document(s) planned.</p>
+                  <p className="mt-1 text-xs text-[#64748B]">{aiAnalysis.packageBuilder?.warnings?.slice(0, 3).join('; ')}</p>
+                </div>
+              </div>
+              {aiAnalysis.copilot?.answer ? (
+                <div className="mt-3 rounded-[8px] border border-[#CBD5E1] bg-white p-3">
+                  <div className="text-[11px] font-semibold uppercase text-[#64748B]">Deal Copilot</div>
+                  <p className="mt-2 text-sm font-medium text-[#0F172A]">{aiAnalysis.copilot.answer}</p>
+                  {aiAnalysis.copilot.sourceNotes?.length ? <p className="mt-2 text-xs text-[#64748B]">{aiAnalysis.copilot.sourceNotes.join(' · ')}</p> : null}
+                </div>
+              ) : null}
+              </>
             ) : (
               <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">

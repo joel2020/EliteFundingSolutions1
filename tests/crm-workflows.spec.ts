@@ -383,10 +383,9 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.getByTestId('deal-upload-document').click();
     await page.getByTestId('deal-document-file').setInputFiles({ name: 'voided-check.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 voided check') });
-    await page.getByTestId('deal-document-type').click();
-    await page.getByRole('option', { name: 'Other' }).click();
     await page.getByTestId('deal-save-document').click();
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'voided-check.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
+    await expect.poll(() => state.documents.find((doc) => doc.file_name === 'voided-check.pdf')?.document_type).toBe('voided_check');
 
     await page.getByRole('tab', { name: 'Notes' }).click();
     await page.getByTestId('deal-add-note').click();
