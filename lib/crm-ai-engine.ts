@@ -161,6 +161,16 @@ function list(value: unknown) {
   return value.map(text).filter(Boolean);
 }
 
+function redactSensitiveText(value: unknown) {
+  return text(value)
+    .replace(/\b\d{3}[- ]?\d{2}[- ]?(\d{4})\b/g, '***-**-$1')
+    .replace(/\b\d{2}[- ]?\d{3}[- ]?(\d{4})\b/g, '**-***$1');
+}
+
+function safeList(value: unknown) {
+  return list(value).map(redactSensitiveText).filter(Boolean);
+}
+
 function clampScore(value: unknown) {
   const score = Math.round(numberValue(value));
   return Math.max(0, Math.min(100, score));
@@ -575,76 +585,158 @@ function normalizeAiAnalysis(value: RecordMap, fallback: RecordMap) {
   const applicationQa = {
     status: ['ready', 'needs_review', 'blocked'].includes(value?.applicationQa?.status) ? value.applicationQa.status : fallback.applicationQa.status,
     score: clampScore(value?.applicationQa?.score ?? fallback.applicationQa.score),
-    blockers: list(value?.applicationQa?.blockers).slice(0, 12),
-    warnings: list(value?.applicationQa?.warnings).slice(0, 12),
-    verifiedFields: list(value?.applicationQa?.verifiedFields).slice(0, 20),
-    fixes: list(value?.applicationQa?.fixes).slice(0, 12),
+    blockers: safeList(value?.applicationQa?.blockers).slice(0, 12),
+    warnings: safeList(value?.applicationQa?.warnings).slice(0, 12),
+    verifiedFields: safeList(value?.applicationQa?.verifiedFields).slice(0, 20),
+    fixes: safeList(value?.applicationQa?.fixes).slice(0, 12),
   };
   const documentIntelligence = {
     status: ['ready', 'needs_review', 'blocked'].includes(value?.documentIntelligence?.status) ? value.documentIntelligence.status : fallback.documentIntelligence.status,
     documentsReviewed: Array.isArray(value?.documentIntelligence?.documentsReviewed) ? value.documentIntelligence.documentsReviewed.slice(0, 12).map((doc: RecordMap) => ({
       id: text(doc.id),
-      label: text(doc.label),
-      documentType: text(doc.documentType),
+      label: redactSensitiveText(doc.label),
+      documentType: redactSensitiveText(doc.documentType),
       confidence: ['low', 'medium', 'high'].includes(doc.confidence) ? doc.confidence : 'medium',
-      signals: list(doc.signals).slice(0, 6),
-      nextAction: text(doc.nextAction),
+      signals: safeList(doc.signals).slice(0, 6),
+      nextAction: redactSensitiveText(doc.nextAction),
     })) : fallback.documentIntelligence.documentsReviewed,
-    extractedSignals: list(value?.documentIntelligence?.extractedSignals).slice(0, 20),
-    missingDocumentTypes: list(value?.documentIntelligence?.missingDocumentTypes).slice(0, 20),
+    extractedSignals: safeList(value?.documentIntelligence?.extractedSignals).slice(0, 20),
+    missingDocumentTypes: safeList(value?.documentIntelligence?.missingDocumentTypes).slice(0, 20),
     bankStatementAnalysis: {
-      status: text(value?.documentIntelligence?.bankStatementAnalysis?.status || fallback.documentIntelligence.bankStatementAnalysis.status),
-      monthlyRevenue: text(value?.documentIntelligence?.bankStatementAnalysis?.monthlyRevenue || fallback.documentIntelligence.bankStatementAnalysis.monthlyRevenue),
-      negativeDays: text(value?.documentIntelligence?.bankStatementAnalysis?.negativeDays || fallback.documentIntelligence.bankStatementAnalysis.negativeDays),
-      nsfCount: text(value?.documentIntelligence?.bankStatementAnalysis?.nsfCount || fallback.documentIntelligence.bankStatementAnalysis.nsfCount),
-      notes: list(value?.documentIntelligence?.bankStatementAnalysis?.notes).slice(0, 8),
+      status: redactSensitiveText(value?.documentIntelligence?.bankStatementAnalysis?.status || fallback.documentIntelligence.bankStatementAnalysis.status),
+      monthlyRevenue: redactSensitiveText(value?.documentIntelligence?.bankStatementAnalysis?.monthlyRevenue || fallback.documentIntelligence.bankStatementAnalysis.monthlyRevenue),
+      negativeDays: redactSensitiveText(value?.documentIntelligence?.bankStatementAnalysis?.negativeDays || fallback.documentIntelligence.bankStatementAnalysis.negativeDays),
+      nsfCount: redactSensitiveText(value?.documentIntelligence?.bankStatementAnalysis?.nsfCount || fallback.documentIntelligence.bankStatementAnalysis.nsfCount),
+      notes: safeList(value?.documentIntelligence?.bankStatementAnalysis?.notes).slice(0, 8),
     },
   };
   const funderMatches = Array.isArray(value?.funderMatches) ? value.funderMatches.slice(0, 6).map((match: RecordMap) => ({
     fundingPartnerId: text(match.fundingPartnerId),
-    name: text(match.name),
+    name: redactSensitiveText(match.name),
     score: clampScore(match.score),
-    reasons: list(match.reasons).slice(0, 6),
-    warnings: list(match.warnings).slice(0, 6),
-    missingRequirements: list(match.missingRequirements).slice(0, 8),
-    submissionRoute: text(match.submissionRoute),
+    reasons: safeList(match.reasons).slice(0, 6),
+    warnings: safeList(match.warnings).slice(0, 6),
+    missingRequirements: safeList(match.missingRequirements).slice(0, 8),
+    submissionRoute: redactSensitiveText(match.submissionRoute),
   })) : fallback.funderMatches;
   const packageBuilder = {
     status: ['ready', 'needs_review', 'blocked'].includes(value?.packageBuilder?.status) ? value.packageBuilder.status : fallback.packageBuilder.status,
     readyToSend: Boolean(value?.packageBuilder?.readyToSend),
     includedDocumentIds: list(value?.packageBuilder?.includedDocumentIds),
-    requiredDocumentTypes: list(value?.packageBuilder?.requiredDocumentTypes),
-    missingDocumentTypes: list(value?.packageBuilder?.missingDocumentTypes),
-    warnings: list(value?.packageBuilder?.warnings).slice(0, 12),
-    emailSubject: text(value?.packageBuilder?.emailSubject || fallback.packageBuilder.emailSubject),
-    emailBody: text(value?.packageBuilder?.emailBody || fallback.packageBuilder.emailBody),
+    requiredDocumentTypes: safeList(value?.packageBuilder?.requiredDocumentTypes),
+    missingDocumentTypes: safeList(value?.packageBuilder?.missingDocumentTypes),
+    warnings: safeList(value?.packageBuilder?.warnings).slice(0, 12),
+    emailSubject: redactSensitiveText(value?.packageBuilder?.emailSubject || fallback.packageBuilder.emailSubject),
+    emailBody: redactSensitiveText(value?.packageBuilder?.emailBody || fallback.packageBuilder.emailBody),
   };
   const analysis = {
-    summary: text(value?.summary || fallback.summary),
-    fundingReadiness: text(value?.fundingReadiness || fallback.fundingReadiness),
-    riskFlags: list(value?.riskFlags).slice(0, 12),
-    missingItems: list(value?.missingItems).slice(0, 15),
-    recommendedNextActions: list(value?.recommendedNextActions).slice(0, 8),
+    summary: redactSensitiveText(value?.summary || fallback.summary),
+    fundingReadiness: redactSensitiveText(value?.fundingReadiness || fallback.fundingReadiness),
+    riskFlags: safeList(value?.riskFlags).slice(0, 12),
+    missingItems: safeList(value?.missingItems).slice(0, 15),
+    recommendedNextActions: safeList(value?.recommendedNextActions).slice(0, 8),
     funderEmailDraft: {
-      subject: text(value?.funderEmailDraft?.subject || packageBuilder.emailSubject || fallback.funderEmailDraft.subject),
-      body: text(value?.funderEmailDraft?.body || packageBuilder.emailBody || fallback.funderEmailDraft.body),
+      subject: redactSensitiveText(value?.funderEmailDraft?.subject || packageBuilder.emailSubject || fallback.funderEmailDraft.subject),
+      body: redactSensitiveText(value?.funderEmailDraft?.body || packageBuilder.emailBody || fallback.funderEmailDraft.body),
     },
-    questionsForMerchant: list(value?.questionsForMerchant).slice(0, 8),
+    questionsForMerchant: safeList(value?.questionsForMerchant).slice(0, 8),
     confidence: ['low', 'medium', 'high'].includes(value?.confidence) ? value.confidence : 'medium',
     applicationQa,
     documentIntelligence,
     funderMatches,
     packageBuilder,
     copilot: {
-      answer: text(value?.copilot?.answer || fallback.copilot.answer),
-      suggestedQuestions: list(value?.copilot?.suggestedQuestions).slice(0, 8),
-      sourceNotes: list(value?.copilot?.sourceNotes).slice(0, 8),
+      answer: redactSensitiveText(value?.copilot?.answer || fallback.copilot.answer),
+      suggestedQuestions: safeList(value?.copilot?.suggestedQuestions).slice(0, 8),
+      sourceNotes: safeList(value?.copilot?.sourceNotes).slice(0, 8),
     },
   };
   if (!analysis.riskFlags.length) analysis.riskFlags = fallback.riskFlags;
   if (!analysis.missingItems.length) analysis.missingItems = fallback.missingItems;
   if (!analysis.recommendedNextActions.length) analysis.recommendedNextActions = fallback.recommendedNextActions;
   if (!analysis.questionsForMerchant.length) analysis.questionsForMerchant = fallback.questionsForMerchant;
+  return enforceDeterministicAiGuardrails(analysis, fallback);
+}
+
+function mergeFunderMatchesWithFallback(matches: RecordMap[], fallbackMatches: RecordMap[]) {
+  const merged = matches.map((match) => {
+    const fallbackMatch = fallbackMatches.find((item) => item.fundingPartnerId === match.fundingPartnerId);
+    if (!fallbackMatch) return match;
+    const deterministicMissing = (fallbackMatch.missingRequirements || []).map(redactSensitiveText);
+    return {
+      ...match,
+      score: deterministicMissing.length ? Math.min(match.score, fallbackMatch.score) : match.score,
+      warnings: unique([...(match.warnings || []), ...(fallbackMatch.warnings || []).map(redactSensitiveText)]).slice(0, 8),
+      missingRequirements: unique([...(match.missingRequirements || []), ...deterministicMissing]).slice(0, 10),
+    };
+  });
+  const mergedIds = new Set(merged.map((match) => match.fundingPartnerId));
+  return [
+    ...merged,
+    ...fallbackMatches.filter((match) => !mergedIds.has(match.fundingPartnerId)),
+  ].slice(0, 6);
+}
+
+function enforceDeterministicAiGuardrails(analysis: RecordMap, fallback: RecordMap) {
+  const fallbackApplicationBlockers = safeList(fallback.applicationQa?.blockers);
+  const fallbackApplicationWarnings = safeList(fallback.applicationQa?.warnings);
+  const fallbackDocumentMissing = safeList(fallback.documentIntelligence?.missingDocumentTypes);
+  const fallbackPackageMissing = safeList(fallback.packageBuilder?.missingDocumentTypes);
+  const fallbackPackageWarnings = safeList(fallback.packageBuilder?.warnings);
+  const forcedMissingItems = unique([
+    ...safeList(fallback.missingItems),
+    ...fallbackApplicationBlockers,
+    ...fallbackDocumentMissing.map((type) => type.replaceAll('_', ' ')),
+    ...fallbackPackageMissing.map((type) => type.replaceAll('_', ' ')),
+  ]);
+
+  analysis.applicationQa.blockers = unique([...analysis.applicationQa.blockers, ...fallbackApplicationBlockers]).slice(0, 16);
+  analysis.applicationQa.warnings = unique([...analysis.applicationQa.warnings, ...fallbackApplicationWarnings]).slice(0, 16);
+  analysis.applicationQa.fixes = unique([
+    ...analysis.applicationQa.fixes,
+    ...safeList(fallback.applicationQa?.fixes),
+  ]).slice(0, 16);
+  if (fallbackApplicationBlockers.length) {
+    analysis.applicationQa.status = 'blocked';
+    analysis.applicationQa.score = Math.min(analysis.applicationQa.score, clampScore(fallback.applicationQa?.score));
+  }
+
+  analysis.documentIntelligence.missingDocumentTypes = unique([
+    ...analysis.documentIntelligence.missingDocumentTypes,
+    ...fallbackDocumentMissing,
+  ]).slice(0, 24);
+  if (fallbackDocumentMissing.length && analysis.documentIntelligence.status === 'ready') {
+    analysis.documentIntelligence.status = 'needs_review';
+  }
+
+  analysis.packageBuilder.requiredDocumentTypes = unique([
+    ...safeList(fallback.packageBuilder?.requiredDocumentTypes),
+    ...analysis.packageBuilder.requiredDocumentTypes,
+  ]);
+  analysis.packageBuilder.missingDocumentTypes = unique([
+    ...analysis.packageBuilder.missingDocumentTypes,
+    ...fallbackPackageMissing,
+  ]).slice(0, 24);
+  analysis.packageBuilder.warnings = unique([
+    ...analysis.packageBuilder.warnings,
+    ...fallbackPackageWarnings,
+    ...fallbackApplicationBlockers,
+    ...fallbackDocumentMissing.map((type) => `${type.replaceAll('_', ' ')} missing`),
+  ]).slice(0, 18);
+
+  if (!fallback.packageBuilder?.readyToSend) {
+    analysis.packageBuilder.readyToSend = false;
+    analysis.packageBuilder.status = analysis.packageBuilder.warnings.length || fallbackApplicationBlockers.length || fallbackPackageMissing.length ? 'blocked' : 'needs_review';
+  }
+
+  analysis.missingItems = unique([...analysis.missingItems, ...forcedMissingItems]).slice(0, 20);
+  if (forcedMissingItems.length && !analysis.recommendedNextActions.some((item: string) => item.toLowerCase().includes('resolve'))) {
+    analysis.recommendedNextActions = unique([
+      `Resolve ${forcedMissingItems[0].toLowerCase()}.`,
+      ...analysis.recommendedNextActions,
+    ]).slice(0, 8);
+  }
+  analysis.funderMatches = mergeFunderMatchesWithFallback(analysis.funderMatches || [], fallback.funderMatches || []);
   return analysis;
 }
 
