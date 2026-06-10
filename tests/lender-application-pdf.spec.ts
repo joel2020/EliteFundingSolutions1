@@ -156,6 +156,38 @@ test.describe('lender application PDF data mapping', () => {
     expect(last4OnlyFields.ein).toBe('');
   });
 
+  test('maps common partner Tax ID and business address aliases into the PDF fields', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      application: {
+        application_payload: {
+          legal_business_name: 'Alias Intake Merchant LLC',
+          company_address: '700 Main Street',
+          business_city: 'Dallas',
+          business_state: 'TX',
+          business_zip_code: '75201',
+          tax_id: '112223333',
+          date_business_started: '2022-08-09',
+        },
+      },
+      business: {
+        legal_name: 'Old Business LLC',
+        address: '1 Old Street',
+        city: 'Miami',
+        state: 'FL',
+        zip: '33101',
+      },
+      ein: '999887777',
+    });
+
+    expect(fields.businessLegalName).toBe('Alias Intake Merchant LLC');
+    expect(fields.businessStreet).toBe('700 Main Street');
+    expect(fields.businessCityLine).toBe('Dallas, TX 75201');
+    expect(fields.businessState).toBe('TX');
+    expect(fields.businessZip).toBe('75201');
+    expect(fields.ein).toBe('11-2223333');
+    expect(fields.businessStartDate).toBe('8/9/2022');
+  });
+
   test('uses reviewed partner signature fields when converting to Elite PDF', () => {
     const fields = resolveLenderApplicationPdfFields({
       ...sampleApplicationData,
@@ -308,6 +340,35 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.owner2.ownershipPercentage).toBe('40%');
     expect(fields.owner2.dob).toBe('7/12/1987');
     expect(fields.owner2.ssn).toBe('987-65-4321');
+  });
+
+  test('resolves flat co-owner aliases into the second owner PDF column', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      application: {
+        application_payload: {
+          legal_name: 'Flat Co Owner Merchant LLC',
+          co_owner_full_name: 'Riley Flat Partner',
+          co_owner_home_address: '440 Second Owner Road, Austin, TX 78702',
+          co_owner_cell_phone: '5125550188',
+          co_owner_email: 'riley.flat@example.test',
+          co_owner_ownership_percentage: '25',
+          co_owner_dob: '1982-05-06',
+          co_owner_ssn: '222334444',
+          co_owner_driver_license: 'TX-222334444',
+        },
+      },
+      owners: [sampleApplicationData.owners[0]],
+    });
+
+    expect(fields.owner2.name).toBe('Riley Flat Partner');
+    expect(fields.owner2.street).toBe('440 Second Owner Road');
+    expect(fields.owner2.cityLine).toBe('Austin, TX 78702');
+    expect(fields.owner2.phone).toBe('5125550188');
+    expect(fields.owner2.email).toBe('riley.flat@example.test');
+    expect(fields.owner2.ownershipPercentage).toBe('25%');
+    expect(fields.owner2.dob).toBe('5/6/1982');
+    expect(fields.owner2.ssn).toBe('222-33-4444');
+    expect(fields.owner2.driversLicense).toBe('TX-222334444');
   });
 
   test('summarizes up to three open advances without dropping balances', () => {

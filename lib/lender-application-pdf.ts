@@ -206,6 +206,14 @@ function ownerName(owner?: Owner) {
   );
 }
 
+function splitName(value: unknown) {
+  const parts = text(value).split(/\s+/).filter(Boolean);
+  return {
+    first_name: parts[0] || '',
+    last_name: parts.slice(1).join(' '),
+  };
+}
+
 function wrap(value: string, max = 42) {
   if (value.length <= max) return [value];
   const words = value.split(/\s+/);
@@ -375,13 +383,14 @@ function resolveOwnerPdfFields(owner: Owner, combinedAddress: string, payload: R
     ownershipPercentage: formatOwnership(firstText(
       owner.ownership_pct,
       owner.ownership_percentage,
+      owner.owner_percentage,
       owner.percent_ownership,
       owner.percent_of_ownership,
       allowPayloadFallback ? firstText(payload.ownership_pct, payload.ownership_percentage, payload.percent_ownership, payload.percent_of_ownership) : '',
     )),
     dob: dateValue(firstText(owner.dob_decrypted, owner.dob, owner.date_of_birth, allowPayloadFallback ? firstText(payload.dob, payload.date_of_birth, payload.owner_dob) : '')),
     ssn: formatFullSsn(firstText(owner.ssn_decrypted, owner.ssn, owner.social_security_number, owner.owner_ssn, allowPayloadFallback ? firstText(payload.ssn, payload.social_security_number, payload.owner_ssn) : '')),
-    driversLicense: firstText(owner.drivers_license, owner.driver_license, owner.drivers_license_number, owner.driver_license_number, allowPayloadFallback ? firstText(payload.drivers_license, payload.driver_license, payload.owner_drivers_license, payload.driver_license_number) : ''),
+    driversLicense: firstText(owner.drivers_license, owner.driver_license, owner.drivers_license_number, owner.driver_license_number, owner.license_number, allowPayloadFallback ? firstText(payload.drivers_license, payload.driver_license, payload.owner_drivers_license, payload.driver_license_number, payload.license_number) : ''),
   };
 }
 
@@ -392,21 +401,35 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
   const deal = data.deal || {};
   const owners = data.owners || [];
   const owner1 = mergeWithNonEmptyOverride(owners[0] || {}, payload.owner1 || {});
-  const owner2 = mergeWithNonEmptyOverride(owners[1] || {}, payload.owner2 || {});
+  const owner2NameParts = splitName(payload.co_owner_full_name || payload.owner2_full_name || payload.second_owner_name);
+  const owner2Aliases = {
+    ...owner2NameParts,
+    address: firstText(payload.co_owner_home_address, payload.co_owner_address, payload.owner2_home_address, payload.owner2_address),
+    city: firstText(payload.co_owner_city, payload.owner2_city),
+    state: firstText(payload.co_owner_state, payload.owner2_state),
+    zip: firstText(payload.co_owner_zip, payload.owner2_zip, payload.co_owner_zip_code, payload.owner2_zip_code),
+    phone: firstText(payload.co_owner_cell_phone, payload.co_owner_phone, payload.owner2_cell_phone, payload.owner2_phone),
+    email: firstText(payload.co_owner_email, payload.owner2_email),
+    ownership_pct: firstText(payload.co_owner_ownership_percentage, payload.co_owner_ownership_pct, payload.co_owner_percent_ownership, payload.owner2_ownership_percentage, payload.owner2_ownership_pct, payload.owner2_percent_ownership),
+    dob: firstText(payload.co_owner_dob, payload.co_owner_date_of_birth, payload.owner2_dob, payload.owner2_date_of_birth),
+    ssn: firstText(payload.co_owner_ssn, payload.co_owner_social_security_number, payload.owner2_ssn, payload.owner2_social_security_number),
+    drivers_license: firstText(payload.co_owner_drivers_license, payload.co_owner_driver_license, payload.owner2_drivers_license, payload.owner2_driver_license),
+  };
+  const owner2 = mergeWithNonEmptyOverride(mergeWithNonEmptyOverride(owners[1] || {}, owner2Aliases), payload.owner2 || {});
   const existingAdvances = normalizeExistingAdvances(payload);
   const existingAdvance = existingAdvances[0] || null;
-  const businessAddress = firstText(payload.address, payload.business_address, business.address);
-  const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address);
-  const owner2Address = firstText(owner2.address, owner2.home_address);
-  const businessCity = fieldWithAddressFallback(firstText(payload.city, business.city), businessAddress, 'city');
-  const businessState = fieldWithAddressFallback(firstText(payload.state, business.state), businessAddress, 'state');
-  const businessZip = fieldWithAddressFallback(firstText(payload.zip, business.zip), businessAddress, 'zip');
+  const businessAddress = firstText(payload.address, payload.business_address, payload.company_address, payload.business_street, business.address);
+  const owner1Address = firstText(owner1.address, owner1.home_address, payload.home_address, payload.owner_address);
+  const owner2Address = firstText(owner2.address, owner2.home_address, payload.co_owner_home_address, payload.owner2_home_address);
+  const businessCity = fieldWithAddressFallback(firstText(payload.city, payload.business_city, payload.company_city, business.city), businessAddress, 'city');
+  const businessState = fieldWithAddressFallback(firstText(payload.state, payload.business_state, payload.company_state, business.state), businessAddress, 'state');
+  const businessZip = fieldWithAddressFallback(firstText(payload.zip, payload.zip_code, payload.business_zip, payload.business_zip_code, payload.company_zip, business.zip), businessAddress, 'zip');
   const signatureDate = dateValue(application.signature_date || payload.signature_date || application.submitted_at);
 
   return {
-    businessLegalName: firstText(payload.legal_name, payload.company_name, business.legal_name, deal.title),
+    businessLegalName: firstText(payload.legal_name, payload.legal_business_name, payload.company_name, payload.business_name, business.legal_name, deal.title),
     businessDba: firstText(payload.dba, business.dba),
-    businessStreet: fieldWithAddressFallback(firstText(payload.address, payload.business_address, business.address), businessAddress, 'address'),
+    businessStreet: fieldWithAddressFallback(firstText(payload.address, payload.business_address, payload.company_address, payload.business_street, business.address), businessAddress, 'address'),
     businessCityLine: cityStateZip(businessCity, businessState, businessZip),
     businessState,
     businessZip,
@@ -416,8 +439,8 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     businessFax: text(payload.fax),
     businessWebsite: firstText(payload.website, business.website),
     businessEmail: firstText(payload.business_email, business.email, owner1.email),
-    ein: formatFullEin(firstText(payload.ein, data.ein)),
-    businessStartDate: dateValue(firstText(payload.start_date, payload.business_start_date, business.start_date)),
+    ein: formatFullEin(firstText(payload.ein, payload.tax_id, payload.tax_id_ein, payload.federal_tax_id, payload.fein, data.ein)),
+    businessStartDate: dateValue(firstText(payload.start_date, payload.business_start_date, payload.date_business_started, business.start_date)),
     productsServices: firstText(payload.products_services, payload.industry, business.industry),
     posContact: [payload.pos_contact_name, payload.pos_contact_phone].filter(Boolean).join(' / '),
     posSystem: text(payload.pos_system),
