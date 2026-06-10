@@ -510,7 +510,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
         business_id: deal?.business_id || BUSINESS_ID,
         status: 'submitted',
         application_source: 'partner_upload',
-        application_review_status: 'converted_from_partner_app',
+        application_review_status: 'partner_review_needed',
         submitted_at: now,
         created_at: now,
         updated_at: now,
@@ -527,7 +527,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       original_file_mime_type: 'application/pdf',
       original_file_size: 128000,
       converted_document_id: null as string | null,
-      status: 'converted',
+      status: 'draft_ready',
       extracted_payload: {
         company_name: 'Atlas Retail LLC',
         legal_name: 'Atlas Retail LLC',
@@ -566,29 +566,10 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       created_at: now,
       updated_at: now,
     };
-    const convertedDocument = {
-      id: `document-${state.documents.length + 2}`,
-      organization_id: ORG_ID,
-      deal_id: id,
-      application_id: applicationId,
-      document_type: 'completed_application',
-      label: 'Elite Funding Solutions converted application',
-      file_name: 'atlas-retail-llc-elite-application.pdf',
-      file_size: 56000,
-      mime_type: 'application/pdf',
-      storage_path: `${ORG_ID}/${id}/generated-applications/atlas-retail-llc-elite-application.pdf`,
-      status: 'uploaded',
-      application_source: 'partner_upload',
-      application_variant: 'elite_converted_partner',
-      related_partner_application_upload_id: upload.id,
-      created_at: now,
-      updated_at: now,
-    };
-    upload.converted_document_id = convertedDocument.id;
     state.partner_application_uploads.unshift(upload);
-    state.documents.unshift(convertedDocument, document);
+    state.documents.unshift(document);
     calls.push({ method: route.request().method(), table: 'partner_application_uploads_api', body: { file_name: fileName } });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationId, partnerApplication: upload, document, convertedDocument }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, applicationId, partnerApplication: upload, document, convertedDocument: null }) });
   });
 
   await page.route('**/api/crm/partner-applications/*', async (route) => {

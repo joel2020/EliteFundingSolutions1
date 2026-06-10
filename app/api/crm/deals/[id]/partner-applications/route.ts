@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
-import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
-import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { extractPartnerApplicationPayloadFromUpload } from '@/lib/partner-application-extraction';
-import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
-import { decryptSensitiveField } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,14 +28,6 @@ function safeName(value: string) {
 
 function text(value: FormDataEntryValue | null) {
   return String(value || '').trim();
-}
-
-function safeDealName(value?: string | null) {
-  return (value || 'merchant-application')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 64) || 'merchant-application';
 }
 
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
@@ -165,19 +153,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     mimeType: file.type || null,
     bytes: fileBytes,
     fallback: {
-    company_name: (dealBusiness as any)?.legal_name || deal.title || '',
-    legal_name: (dealBusiness as any)?.legal_name || deal.title || '',
-    business_address: (dealBusiness as any)?.address || '',
-    address: (dealBusiness as any)?.address || '',
-    city: (dealBusiness as any)?.city || '',
-    state: (dealBusiness as any)?.state || '',
-    zip: (dealBusiness as any)?.zip || '',
-    business_phone: (dealBusiness as any)?.phone || '',
-    business_email: (dealBusiness as any)?.email || '',
-    start_date: (dealBusiness as any)?.start_date || '',
-    requested_amount: deal.requested_amount || '',
-    source_partner_name: sourcePartnerName,
-    extraction_note: extension === 'csv' ? 'CSV uploaded and mapped from the first data row. Review/edit fields before sending if the partner file has multiple merchants or unusual headers.' : 'Elite PDF generated from current CRM fields. Review and edit fields if the partner file has newer data.',
+      company_name: (dealBusiness as any)?.legal_name || deal.title || '',
+      legal_name: (dealBusiness as any)?.legal_name || deal.title || '',
+      business_address: (dealBusiness as any)?.address || '',
+      address: (dealBusiness as any)?.address || '',
+      city: (dealBusiness as any)?.city || '',
+      state: (dealBusiness as any)?.state || '',
+      zip: (dealBusiness as any)?.zip || '',
+      business_phone: (dealBusiness as any)?.phone || '',
+      business_email: (dealBusiness as any)?.email || '',
+      start_date: (dealBusiness as any)?.start_date || '',
+      requested_amount: deal.requested_amount || '',
+      source_partner_name: sourcePartnerName,
+      extraction_note: extension === 'csv' ? 'CSV uploaded and mapped from the first data row. Review/edit fields before sending if the partner file has multiple merchants or unusual headers.' : 'Fields were extracted from the partner application. Review and edit fields before generating the Elite Funding Solutions application.',
     },
   });
 
@@ -210,149 +198,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: uploadRecordError.message }, { status: 500 });
   }
 
-  const [{ data: application }, { data: business }, { data: ownerLinks }] = await Promise.all([
-    supabase
-      .from('applications')
-      .select('*')
-      .eq('id', applicationId)
-      .eq('organization_id', profile.organization_id)
-      .maybeSingle(),
-    Promise.resolve({ data: dealBusiness }),
-    deal.business_id
-      ? supabase
-        .from('business_owners')
-        .select('is_primary,ownership_percentage,owners(id,first_name,last_name,email,phone,address,city,state,zip,dob_encrypted,ssn_encrypted,ssn_last4,ownership_percentage,credit_score_range)')
-        .eq('organization_id', profile.organization_id)
-        .eq('business_id', deal.business_id)
-        .order('is_primary', { ascending: false })
-      : Promise.resolve({ data: [] }),
-  ]);
-
-  const owners = (ownerLinks || []).map((link: any) => ({
-    ...(link.owners || {}),
-    ownership_percentage: link.ownership_percentage || link.owners?.ownership_percentage,
-    dob_decrypted: decryptSensitiveField(link.owners?.dob_encrypted),
-    ssn_decrypted: decryptSensitiveField(link.owners?.ssn_encrypted),
-  }));
-  const applicationForPdf = {
-    ...(application || {}),
-    application_payload: { ...((application as any)?.application_payload || {}), ...extractedPayload },
-    requested_amount: (application as any)?.requested_amount || deal.requested_amount,
-  };
-  const pdf = await generateLenderApplicationPdf({
-    deal,
-    application: applicationForPdf,
-    business: { ...(business || {}), legal_name: extractedPayload.company_name || (business as any)?.legal_name },
-    owners,
-    ein: decryptSensitiveField((business as any)?.ein_encrypted) || extractedPayload.ein || null,
-    drawnSignaturePng: await loadApplicationSignaturePng(supabase, applicationForPdf),
-  });
-  const fileBase = safeDealName((business as any)?.legal_name || deal.title);
-  const convertedPath = `${profile.organization_id}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-elite-application.pdf`;
-  const { error: convertedUploadError } = await supabase.storage
-    .from('application-documents')
-    .upload(convertedPath, pdf, { contentType: 'application/pdf', upsert: false });
-
-  if (convertedUploadError) {
-    await supabase
-      .from('partner_application_uploads')
-      .update({ status: 'failed', updated_by: profile.id })
-      .eq('id', upload.id)
-      .eq('organization_id', profile.organization_id);
-    return NextResponse.json({ success: false, error: `Partner app uploaded, but Elite PDF generation failed: ${convertedUploadError.message}` }, { status: 500 });
-  }
-
-  const { data: convertedDocument, error: convertedDocumentError } = await supabase
-    .from('documents')
-    .insert({
-      organization_id: profile.organization_id,
-      deal_id: deal.id,
-      application_id: applicationId,
-      uploaded_by_user_id: user.id,
-      document_type: 'completed_application',
-      label: 'Elite Funding Solutions converted application',
-      file_name: `${fileBase}-elite-application.pdf`,
-      file_size: pdf.length,
-      mime_type: 'application/pdf',
-      storage_path: convertedPath,
-      status: 'uploaded',
-      application_source: 'partner_upload',
-      application_variant: 'elite_converted_partner',
-      related_partner_application_upload_id: upload.id,
-      review_notes: 'Generated automatically from the uploaded partner application workflow.',
-    })
-    .select('*')
-    .single();
-
-  if (convertedDocumentError) {
-    await cleanupGeneratedApplicationArtifacts(supabase, {
-      organizationId: profile.organization_id,
-      storagePaths: [convertedPath],
-    });
-    await supabase
-      .from('partner_application_uploads')
-      .update({ status: 'failed', updated_by: profile.id })
-      .eq('id', upload.id)
-      .eq('organization_id', profile.organization_id);
-    return NextResponse.json({ success: false, error: `Partner app uploaded, but Elite PDF record failed: ${convertedDocumentError.message}` }, { status: 500 });
-  }
-
-  const { data: convertedUpload, error: convertedUploadRecordError } = await supabase
-    .from('partner_application_uploads')
-    .update({ converted_document_id: convertedDocument.id, status: 'converted', updated_by: profile.id })
-    .eq('id', upload.id)
-    .eq('organization_id', profile.organization_id)
-    .select('*')
-    .single();
-
-  if (convertedUploadRecordError) {
-    await cleanupGeneratedApplicationArtifacts(supabase, {
-      organizationId: profile.organization_id,
-      storagePaths: [convertedPath],
-      documentIds: [convertedDocument.id],
-    });
-    await supabase
-      .from('partner_application_uploads')
-      .update({ status: 'failed', updated_by: profile.id })
-      .eq('id', upload.id)
-      .eq('organization_id', profile.organization_id);
-    return NextResponse.json({
-      success: false,
-      error: `Partner app was uploaded and converted, but the upload record could not be finalized: ${convertedUploadRecordError.message}`,
-    }, { status: 500 });
-  }
-
-  const applicationSyncPayload = {
-    ...buildPartnerApplicationSyncUpdate({
-      existingApplicationPayload: (application as any)?.application_payload,
-      editedPayload: extractedPayload,
-      convertedDocumentId: convertedDocument.id,
-    }),
-    converted_from_partner_upload_id: upload.id,
-  };
-  const { error: applicationSyncError } = await supabase
-    .from('applications')
-    .update(applicationSyncPayload)
-    .eq('id', applicationId)
-    .eq('organization_id', profile.organization_id);
-
-  if (applicationSyncError) {
-    await cleanupGeneratedApplicationArtifacts(supabase, {
-      organizationId: profile.organization_id,
-      storagePaths: [convertedPath],
-      documentIds: [convertedDocument.id],
-    });
-    await supabase
-      .from('partner_application_uploads')
-      .update({ status: 'failed', updated_by: profile.id })
-      .eq('id', upload.id)
-      .eq('organization_id', profile.organization_id);
-    return NextResponse.json({
-      success: false,
-      error: `Partner app was uploaded and converted, but the CRM application record could not be finalized: ${applicationSyncError.message}`,
-    }, { status: 500 });
-  }
-
   await Promise.allSettled([
     supabase.from('documents').update({ related_partner_application_upload_id: upload.id }).eq('id', document.id),
     supabase.from('activities').insert({
@@ -362,19 +207,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
       business_id: deal.business_id,
       lead_id: deal.lead_id,
       activity_type: 'document_event',
-      title: 'Partner application converted',
-      body: `${file.name}${sourcePartnerName ? ` from ${sourcePartnerName}` : ''} was converted into an Elite Funding application.`,
+      title: 'Partner application uploaded for review',
+      body: `${file.name}${sourcePartnerName ? ` from ${sourcePartnerName}` : ''} was uploaded and extracted. Review fields before generating the Elite Funding application.`,
       performed_by: profile.id,
     }),
     supabase.from('audit_logs').insert({
       organization_id: profile.organization_id,
       user_id: user.id,
-      action: 'partner_application_uploaded',
+      action: 'partner_application_uploaded_for_review',
       resource_type: 'partner_application_uploads',
       resource_id: upload.id,
-      new_data: { deal_id: deal.id, document_id: document.id, converted_document_id: convertedDocument.id, file_name: file.name, source_partner_name: sourcePartnerName || null },
+      new_data: { deal_id: deal.id, document_id: document.id, converted_document_id: null, file_name: file.name, source_partner_name: sourcePartnerName || null },
     }),
   ]);
 
-  return NextResponse.json({ success: true, applicationId, partnerApplication: convertedUpload || upload, document, convertedDocument });
+  return NextResponse.json({ success: true, applicationId, partnerApplication: upload, document, convertedDocument: null });
 }

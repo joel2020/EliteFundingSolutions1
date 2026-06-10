@@ -218,9 +218,11 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('save-partner-application').click();
 
     await expect.poll(() => state.partner_application_uploads.some((row) => row.original_file_name === 'partner-app.pdf')).toBe(true);
+    await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.status).toBe('draft_ready');
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'atlas-retail-llc-elite-application.pdf')).toBe(false);
     await page.getByRole('tab', { name: 'Applications' }).click();
     await expect(page.getByText('Original partner application')).toBeVisible();
-    await expect(page.getByText('Elite Funding Solutions converted application')).toBeVisible();
+    await expect(page.getByText('Elite Funding Solutions converted application')).toHaveCount(0);
     await page.getByRole('button', { name: /Review fields/i }).click();
     await expect(page.getByRole('dialog', { name: 'Elite Application Review' })).toBeVisible();
     await page.getByLabel('Company legal name').fill('Atlas Retail Group LLC');
@@ -275,9 +277,16 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await expect.poll(() => state.deals.find((deal) => deal.id === DEAL_ID)?.application_id).toBe('application-1');
     await expect.poll(() => state.applications.some((app) => app.id === 'application-1' && app.application_source === 'partner_upload')).toBe(true);
+    await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'new-record-partner-app.pdf')?.status).toBe('draft_ready');
+    await page.getByRole('tab', { name: 'Applications' }).click();
     await expect(page.getByText('Original partner application')).toBeVisible();
-    await expect(page.getByText('Elite Funding Solutions converted application')).toBeVisible();
+    await expect(page.getByText('Elite Funding Solutions converted application')).toHaveCount(0);
     await expect(page.getByText('new-record-partner-app.pdf')).toBeVisible();
+    await page.getByRole('button', { name: /Review fields/i }).click();
+    await expect(page.getByRole('dialog', { name: 'Elite Application Review' })).toBeVisible();
+    await page.getByRole('button', { name: 'Save & Regenerate Elite Application' }).click();
+    await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'new-record-partner-app.pdf')?.status).toBe('converted');
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'atlas-retail-regenerated-elite-application.pdf')).toBe(true);
   });
 
   test('loads earnings and reports pages', async ({ page }) => {
