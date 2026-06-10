@@ -179,6 +179,7 @@ test.describe('public funding application', () => {
       requested_amount: '$75,000',
       industry: 'Retail',
       consent_accepted: true,
+      signature_data_url: 'data:image/png;base64,signature',
     };
     const normalized = normalizeIncomingPayload(completePublicPayload);
 
@@ -194,6 +195,7 @@ test.describe('public funding application', () => {
       state: 'NY',
       zip: '10002',
     }));
+    expect(normalized.signature_data_url).toBe('data:image/png;base64,signature');
     expect(applicationSchema.safeParse(normalized).success).toBe(true);
 
     const incomplete = applicationSchema.safeParse(normalizeIncomingPayload({

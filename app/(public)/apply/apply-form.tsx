@@ -551,13 +551,15 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Application submission failed.');
 
-      const signatureResponse = await fetch(`/api/applications/${result.applicationId}/signature`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature_data_url: form.signature_data_url, consent_version: CONSENT_VERSION }),
-      });
-      const signatureResult = await signatureResponse.json();
-      if (!signatureResponse.ok || !signatureResult.success) throw new Error(signatureResult.error || 'Application was saved, but the signed PDF could not be generated. Please contact support.');
+      if (!result.signedApplicationDocumentId) {
+        const signatureResponse = await fetch(`/api/applications/${result.applicationId}/signature`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signature_data_url: form.signature_data_url, consent_version: CONSENT_VERSION }),
+        });
+        const signatureResult = await signatureResponse.json();
+        if (!signatureResponse.ok || !signatureResult.success) throw new Error(signatureResult.error || 'Application was saved, but the signed PDF could not be generated. Please contact support.');
+      }
 
       setCurrentStep(4);
     } catch (err) {

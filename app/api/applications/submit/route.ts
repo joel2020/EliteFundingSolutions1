@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createHash } from 'crypto';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
 import { CONSENT_VERSION } from '@/lib/company';
 import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
+import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
+import { decodePngDataUrl } from '@/lib/pdf-signature';
 
 export const dynamic = 'force-dynamic';
 
@@ -116,6 +119,7 @@ export const applicationSchema = z.object({
   sms_consent: z.boolean().default(false),
   signature: z.string().optional().default(''),
   signature_date: z.string().min(1),
+  signature_data_url: z.string().optional().default(''),
   consent_version: z.string().optional().default(CONSENT_VERSION),
   bot_field: z.string().optional().default(''),
   referral_code: referralCodeSchema,
@@ -177,11 +181,12 @@ function sanitizeOwnerForPayload<T extends { ssn?: string; dob?: string }>(owner
 }
 
 function sanitizePayloadForCrm(form: z.infer<typeof applicationSchema>, uploadedTypes: string[]) {
+  const { signature_data_url, ...safeForm } = form;
   return {
-    ...form,
-    ein: maskDigits(form.ein),
-    owner1: sanitizeOwnerForPayload(form.owner1),
-    owner2: sanitizeOwnerForPayload(form.owner2),
+    ...safeForm,
+    ein: maskDigits(safeForm.ein),
+    owner1: sanitizeOwnerForPayload(safeForm.owner1),
+    owner2: sanitizeOwnerForPayload(safeForm.owner2),
     bot_field: undefined,
     authorization_text_version: CONSENT_VERSION,
     consent_version: form.consent_version,
@@ -454,6 +459,28 @@ function splitUsAddress(value: unknown) {
   return parseInlineAddress(raw);
 }
 
+function safeDealName(value?: string | null) {
+  return (value || 'merchant-application')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 64) || 'merchant-application';
+}
+
+function disclosureAcceptance(form: z.infer<typeof applicationSchema>, acceptedAt: string) {
+  return {
+    accepted_at: acceptedAt,
+    consent_version: form.consent_version || null,
+    certification_accepted: Boolean(form.certification_accepted),
+    credit_authorization_accepted: Boolean(form.credit_authorization_accepted),
+    esign_consent_accepted: Boolean(form.esign_consent_accepted),
+    terms_accepted: Boolean(form.terms_accepted),
+    privacy_policy_accepted: Boolean(form.privacy_policy_accepted),
+    authorization_consent: Boolean(form.authorization_consent),
+    sms_consent_accepted: Boolean(form.sms_consent_accepted),
+  };
+}
+
 export function normalizeIncomingPayload(payload: any) {
   if (!payload || typeof payload !== 'object' || !('full_name' in payload)) return payload;
 
@@ -573,6 +600,7 @@ export function normalizeIncomingPayload(payload: any) {
     sms_consent: false,
     signature: String(payload.full_name || ''),
     signature_date: new Date().toISOString().slice(0, 10),
+    signature_data_url: String(payload.signature_data_url || ''),
     consent_version: payload.consent_version || CONSENT_VERSION,
     bot_field: String(payload.bot_field || ''),
     referral_code: payload.referral_code || '',
@@ -615,6 +643,10 @@ export async function POST(request: Request) {
   const contactPhone = form.owner1.mobile || form.owner1.phone || form.business_phone;
   if (!contactEmail && !contactPhone) {
     return NextResponse.json({ success: false, error: 'Please provide at least one email or phone number.' }, { status: 400 });
+  }
+  const submittedSignaturePng = form.signature_data_url ? decodePngDataUrl(form.signature_data_url) : null;
+  if (form.signature_data_url && !submittedSignaturePng) {
+    return NextResponse.json({ success: false, error: 'A valid drawn signature is required before submission.' }, { status: 400 });
   }
 
   const referralProfile = await resolveReferralProfile(supabase, form.referral_code);
@@ -850,6 +882,165 @@ export async function POST(request: Request) {
       return { type: key, name: file.name, path: storagePath };
     }));
 
+    let completedApplicationDocumentId: string | null = null;
+    if (submittedSignaturePng) {
+      const signedAt = applicationPayload.signed_at;
+      const dealForPdf = { ...deal, title: form.legal_name, requested_amount: toNumber(form.requested_amount) };
+      const fileBase = safeDealName(form.legal_name);
+      const signaturePath = `${DEFAULT_ORG_ID}/${deal.id}/signatures/${Date.now()}-${fileBase}-signature.png`;
+      const { error: signatureUploadError } = await supabase.storage
+        .from('application-documents')
+        .upload(signaturePath, submittedSignaturePng, { contentType: 'image/png', upsert: false });
+      if (signatureUploadError) throw signatureUploadError;
+      created.storagePaths.push(signaturePath);
+
+      const ownersForPdf = [
+        {
+          ...form.owner1,
+          full_name: [form.owner1.first_name, form.owner1.last_name].filter(Boolean).join(' '),
+          ownership_percentage: form.owner1.ownership_pct,
+          ssn_decrypted: form.owner1.ssn,
+          dob_decrypted: form.owner1.dob,
+        },
+        form.owner2?.first_name && form.owner2?.last_name ? {
+          ...form.owner2,
+          full_name: [form.owner2.first_name, form.owner2.last_name].filter(Boolean).join(' '),
+          ownership_percentage: form.owner2.ownership_pct,
+          ssn_decrypted: form.owner2.ssn,
+          dob_decrypted: form.owner2.dob,
+        } : null,
+      ].filter(Boolean) as Record<string, any>[];
+
+      const businessForPdf = {
+        id: biz.id,
+        legal_name: form.legal_name,
+        dba: form.dba,
+        entity_type: normalizeEntityType(form.entity_type),
+        industry: form.industry,
+        start_date: form.start_date,
+        phone: form.business_phone,
+        email: form.business_email,
+        website: form.website,
+        address: form.address,
+        city: form.city,
+        state: form.state,
+        zip: form.zip,
+        monthly_gross_revenue: toNumber(form.monthly_gross_revenue),
+        has_tax_lien: form.has_tax_lien,
+        has_bankruptcy: form.has_bankruptcy,
+      };
+      const applicationForPdf = {
+        id: app.id,
+        ...applicationPayload,
+        signature_status: 'signed',
+        signature_type: 'drawn',
+        signature_data_storage_path: signaturePath,
+        application_payload: {
+          ...payloadForCrm,
+          signature_type: 'drawn',
+        },
+      };
+      const pdf = await generateLenderApplicationPdf({
+        deal: dealForPdf,
+        application: applicationForPdf,
+        business: businessForPdf,
+        owners: ownersForPdf,
+        ein: form.ein,
+        drawnSignaturePng: submittedSignaturePng,
+      });
+
+      const pdfPath = `${DEFAULT_ORG_ID}/${deal.id}/generated-applications/${Date.now()}-${fileBase}-signed-application.pdf`;
+      const { error: pdfUploadError } = await supabase.storage
+        .from('application-documents')
+        .upload(pdfPath, pdf, { contentType: 'application/pdf', upsert: false });
+      if (pdfUploadError) throw pdfUploadError;
+      created.storagePaths.push(pdfPath);
+
+      const { data: completedDocument, error: completedDocumentError } = await supabase
+        .from('documents')
+        .insert({
+          organization_id: DEFAULT_ORG_ID,
+          deal_id: deal.id,
+          application_id: app.id,
+          lead_id: lead.id,
+          document_type: 'completed_application',
+          label: 'Signed Elite Funding Solutions application',
+          file_name: `${fileBase}-signed-elite-application.pdf`,
+          file_size: pdf.length,
+          mime_type: 'application/pdf',
+          storage_path: pdfPath,
+          status: 'uploaded',
+          application_source: applicationSource,
+          application_variant: 'elite_signed_website',
+          visibility: 'internal',
+          review_notes: 'Generated automatically from the signed website application submission.',
+        })
+        .select('id,file_name,storage_path')
+        .single();
+      if (completedDocumentError) throw completedDocumentError;
+      completedApplicationDocumentId = completedDocument.id;
+
+      const acceptance = disclosureAcceptance(form, signedAt);
+      const signatureHash = createHash('sha256')
+        .update(`${app.id}:${signedName}:${signaturePath}:${signedAt}`)
+        .digest('hex');
+      const { error: completedApplicationUpdateError } = await supabase
+        .from('applications')
+        .update({
+          signature_status: 'signed',
+          signature_type: 'drawn',
+          signature_data_storage_path: signaturePath,
+          signed_application_document_id: completedDocument.id,
+          disclosure_acceptance: acceptance,
+          signed_at: signedAt,
+        })
+        .eq('id', app.id)
+        .eq('organization_id', DEFAULT_ORG_ID);
+      if (completedApplicationUpdateError) throw completedApplicationUpdateError;
+
+      await Promise.allSettled([
+        supabase.from('application_signatures').insert({
+          organization_id: DEFAULT_ORG_ID,
+          application_id: app.id,
+          deal_id: deal.id,
+          business_id: biz.id,
+          lead_id: lead.id,
+          document_id: completedDocument.id,
+          signature_status: 'signed',
+          signature_type: 'drawn',
+          signature_name: signedName || 'Applicant',
+          signature_date: form.signature_date,
+          signed_at: signedAt,
+          signature_ip: clientIp,
+          signature_user_agent: userAgent,
+          consent_version: form.consent_version || null,
+          application_version: 1,
+          disclosure_acceptance: acceptance,
+          application_payload_snapshot: payloadForCrm,
+          signature_hash: signatureHash,
+        }),
+        supabase.from('activities').insert({
+          organization_id: DEFAULT_ORG_ID,
+          deal_id: deal.id,
+          application_id: app.id,
+          business_id: biz.id,
+          lead_id: lead.id,
+          activity_type: 'document_event',
+          title: 'Signed application PDF generated',
+          body: completedDocument.file_name,
+        }),
+        supabase.from('audit_logs').insert({
+          organization_id: DEFAULT_ORG_ID,
+          action: 'website_application_signed_pdf_generated',
+          resource_type: 'applications',
+          resource_id: app.id,
+          ip_address: clientIp,
+          user_agent: userAgent,
+          new_data: { deal_id: deal.id, document_id: completedDocument.id, signature_storage_path: signaturePath, source: 'application_submit' },
+        }),
+      ]);
+    }
+
     await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
     await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.length ? uploadedDocuments.map((doc) => doc.name).join(', ') : 'none yet'}` });
     await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
@@ -867,7 +1058,7 @@ export async function POST(request: Request) {
       ...internalRecipients.map((to) => sendEmail({ to, subject: `New funding application: ${form.legal_name}`, html: internalHtml })),
     ]);
 
-    return NextResponse.json({ success: true, applicationId: app.id });
+    return NextResponse.json({ success: true, applicationId: app.id, signedApplicationDocumentId: completedApplicationDocumentId });
   } catch (error: any) {
     await cleanupPartialSubmission(supabase, created);
     console.error('Application submission failed.', error?.message || error);
