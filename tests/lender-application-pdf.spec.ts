@@ -176,6 +176,22 @@ test.describe('lender application PDF data mapping', () => {
     expect(fields.signatureDate).toBe('6/1/2026');
   });
 
+  test('uses the stored electronic signature name when signed_name is unavailable', () => {
+    const fields = resolveLenderApplicationPdfFields({
+      ...sampleApplicationData,
+      application: {
+        ...sampleApplicationData.application,
+        signed_name: '',
+        e_signature: 'Stored E-Sign Owner',
+        application_payload: {
+          signature: '',
+        },
+      },
+    });
+
+    expect(fields.signer).toBe('Stored E-Sign Owner');
+  });
+
   test('prints the full SSN from decrypted owner or application payload sources only', () => {
     const decryptedFields = resolveLenderApplicationPdfFields({
       application: { application_payload: {} },

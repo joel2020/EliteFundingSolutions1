@@ -313,7 +313,7 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     bankContact: text(payload.bank_contact),
     bankPhone: text(payload.bank_phone),
     accountType: firstText(application.account_type, payload.account_type),
-    signer: text(application.signed_name || payload.signature || ownerName(owner1)),
+    signer: text(application.signed_name || application.e_signature || payload.signature || ownerName(owner1)),
     signatureDate,
     drawnSignaturePng: data.drawnSignaturePng || pngDataFromUrl(payload.signature_data_url),
   };
@@ -493,10 +493,10 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   };
 
   summaryPage.drawImage(logo, { x: summaryMargin, y: firstPageSize.height - 150, width: 135, height: 75 });
-  drawSummaryText('Complete Funding Application', summaryMargin + 160, firstPageSize.height - 100, 25, true, summaryNavy);
-  drawSummaryText('Elite Funding Solutions - clear, legible application data generated from the completed record.', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
+  drawSummaryText('Funding Application', summaryMargin + 160, firstPageSize.height - 100, 25, true, summaryNavy);
+  drawSummaryText('Elite Funding Solutions', summaryMargin + 160, firstPageSize.height - 128, 12.5, false, summaryMuted);
   summaryPage.drawRectangle({ x: summaryMargin, y: firstPageSize.height - 188, width: firstPageSize.width - summaryMargin * 2, height: 42, color: summaryFill, borderColor: summaryBorder, borderWidth: 1 });
-  drawSummaryText('This page contains the complete application details. The signed application and consent pages follow in this same PDF.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
+  drawSummaryText('Application details, signature evidence, and authorization/consent disclosures are included in this PDF.', summaryMargin + 18, firstPageSize.height - 164, 14, true, summaryText);
   summaryY = firstPageSize.height - 226;
 
   drawSummarySection('Business Information');
@@ -532,13 +532,16 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   drawSummaryRow('Risk / seasonal', `${fields.hasRisk ? 'Risk items reported' : 'No risk items reported'} / ${fields.isSeasonal ? 'Seasonal' : 'Not seasonal'}`, 'Risk notes', fields.riskNotes);
   drawSummaryRow('Signer', fields.signer, 'Signature date', fields.signatureDate);
 
+  summaryPage.drawText('Signature', { x: summaryMargin + 14, y: summaryY - 10, size: 10.5, font: boldFont, color: summaryMuted });
+  summaryPage.drawRectangle({ x: summaryMargin + 14, y: summaryY - 92, width: 420, height: 74, borderColor: summaryBorder, borderWidth: 1, color: rgb(1, 1, 1) });
   if (fields.drawnSignaturePng) {
     const summarySignatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
     const imageDims = summarySignatureImage.scale(1);
     const scale = Math.min(300 / imageDims.width, 70 / imageDims.height, 1);
-    summaryPage.drawText('Drawn signature', { x: summaryMargin + 14, y: summaryY - 10, size: 10.5, font: boldFont, color: summaryMuted });
-    summaryPage.drawRectangle({ x: summaryMargin + 14, y: summaryY - 92, width: 340, height: 74, borderColor: summaryBorder, borderWidth: 1, color: rgb(1, 1, 1) });
     summaryPage.drawImage(summarySignatureImage, { x: summaryMargin + 30, y: summaryY - 84, width: imageDims.width * scale, height: imageDims.height * scale });
+  } else {
+    drawSummaryText(fields.signer || 'Not provided', summaryMargin + 30, summaryY - 54, 22, true, summaryText);
+    drawSummaryText('Electronic signature', summaryMargin + 30, summaryY - 76, 10.5, false, summaryMuted);
   }
 
   let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
