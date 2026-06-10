@@ -41,6 +41,16 @@ function disclosureAcceptance(application: Record<string, any>, consentVersion?:
   };
 }
 
+async function cleanupGeneratedSignatureArtifacts(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  args: { storagePaths: string[]; documentId?: string | null },
+) {
+  await Promise.allSettled([
+    args.documentId ? supabase.from('documents').delete().eq('id', args.documentId).eq('organization_id', DEFAULT_ORG_ID) : Promise.resolve(),
+    args.storagePaths.length ? supabase.storage.from('application-documents').remove(args.storagePaths) : Promise.resolve(),
+  ]);
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -111,6 +121,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const now = new Date().toISOString();
   const fileBase = safeDealName((business as any)?.legal_name || deal.title);
   const signaturePath = `${DEFAULT_ORG_ID}/${deal.id}/signatures/${Date.now()}-${fileBase}-signature.png`;
+  const generatedStoragePaths: string[] = [];
+  let generatedDocumentId: string | null = null;
 
   const { error: signatureUploadError } = await supabase.storage
     .from('application-documents')
@@ -119,6 +131,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (signatureUploadError) {
     return NextResponse.json({ success: false, error: `Unable to save signature: ${signatureUploadError.message}` }, { status: 500 });
   }
+  generatedStoragePaths.push(signaturePath);
 
   const applicationForPdf = {
     ...application,
@@ -147,8 +160,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .upload(pdfPath, pdf, { contentType: 'application/pdf', upsert: false });
 
   if (pdfUploadError) {
+    await cleanupGeneratedSignatureArtifacts(supabase, { storagePaths: generatedStoragePaths });
     return NextResponse.json({ success: false, error: `Unable to save signed PDF: ${pdfUploadError.message}` }, { status: 500 });
   }
+  generatedStoragePaths.push(pdfPath);
 
   const { data: document, error: documentError } = await supabase
     .from('documents')
@@ -173,8 +188,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .single();
 
   if (documentError) {
+    await cleanupGeneratedSignatureArtifacts(supabase, { storagePaths: generatedStoragePaths });
     return NextResponse.json({ success: false, error: `Unable to attach signed PDF: ${documentError.message}` }, { status: 500 });
   }
+  generatedDocumentId = document.id;
 
   const acceptance = disclosureAcceptance(application, body.consent_version);
   const signatureHash = createHash('sha256')
@@ -195,6 +212,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq('organization_id', DEFAULT_ORG_ID);
 
   if (applicationUpdateError) {
+    await cleanupGeneratedSignatureArtifacts(supabase, { storagePaths: generatedStoragePaths, documentId: generatedDocumentId });
     return NextResponse.json({ success: false, error: `Signed PDF was created, but the application signature record could not be finalized: ${applicationUpdateError.message}` }, { status: 500 });
   }
 
