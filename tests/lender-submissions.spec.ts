@@ -26,4 +26,15 @@ test.describe('funder submission hardening', () => {
     expect(routeSource).toContain("let emailDeliveryStatus = canSendViaGmail ? 'failed' : 'manual_send_required'");
     expect(routeSource).toContain('if (canSendViaGmail)');
   });
+
+  test('blocks draft partner application uploads from automatic funder package conversion', () => {
+    const routeSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
+
+    expect(routeSource).toContain('REVIEWED_PARTNER_APPLICATION_STATUSES');
+    expect(routeSource).toContain("new Set(['converted', 'saved_to_deal'])");
+    expect(routeSource).toContain('Latest partner application must be reviewed and regenerated into an Elite application before this deal can be sent to funders.');
+    expect(routeSource).toContain('latestPartnerApplication && !REVIEWED_PARTNER_APPLICATION_STATUSES.has(latestPartnerApplicationStatus)');
+    expect(routeSource).toContain('partnerApplication: {');
+    expect(routeSource).toContain('{ status: 409 }');
+  });
 });

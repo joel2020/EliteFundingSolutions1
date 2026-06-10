@@ -21,6 +21,7 @@ const DOCUMENT_PACKAGE_SELECT = 'id,file_name,document_type,label,status,deal_id
 const EXCLUDED_PACKAGE_DOCUMENT_STATUSES = new Set(['rejected', 'needs_replacement', 'expired', 'deleted']);
 const ORIGINAL_PARTNER_APPLICATION_TYPES = new Set(['partner_application', 'original_partner_application']);
 const ORIGINAL_PARTNER_APPLICATION_VARIANTS = new Set(['original_partner']);
+const REVIEWED_PARTNER_APPLICATION_STATUSES = new Set(['converted', 'saved_to_deal']);
 
 const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
@@ -202,6 +203,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
   let generatedApplicationDocument: any = null;
   {
     const editedPayload = (latestPartnerApplication as any)?.edited_payload || {};
+    const latestPartnerApplicationStatus = String((latestPartnerApplication as any)?.status || '').toLowerCase();
+    if (latestPartnerApplication && !REVIEWED_PARTNER_APPLICATION_STATUSES.has(latestPartnerApplicationStatus)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Latest partner application must be reviewed and regenerated into an Elite application before this deal can be sent to funders.',
+        partnerApplication: {
+          id: (latestPartnerApplication as any).id,
+          status: (latestPartnerApplication as any).status,
+        },
+      }, { status: 409 });
+    }
     const applicationPayload = (application as any)?.application_payload || {};
     const targetApplicationId = deal.application_id || (latestPartnerApplication as any)?.application_id || null;
     if (!targetApplicationId) {
