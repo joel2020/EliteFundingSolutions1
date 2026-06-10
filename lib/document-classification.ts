@@ -84,17 +84,23 @@ function text(value: unknown) {
 }
 
 export function sameCrmDocumentType(value: unknown, wanted: unknown) {
-  const rawValue = text(value);
-  const rawWanted = text(wanted);
-  const a = normalize(rawValue).replace(/s$/, '');
-  const b = normalize(rawWanted).replace(/s$/, '');
-  return a === b
-    || (['license_verification', 'owner_id_verification', 'drivers_license', 'driver_license'].includes(rawWanted) && ['drivers_license', 'driver_license', 'license_verification', 'owner_id_verification', 'final_owner_id_verification'].includes(rawValue))
-    || (['licenseverification', 'owneridverification', 'driverslicense', 'driverlicense', 'finalowneridverification'].includes(b) && ['driverslicense', 'driverlicense', 'licenseverification', 'owneridverification', 'finalowneridverification'].includes(a))
-    || (['completed_application', 'signed_application', 'application'].includes(rawWanted) && ['completed_application', 'signed_application', 'application'].includes(rawValue))
-    || (['completedapplication', 'signedapplication', 'application'].includes(b) && ['completedapplication', 'signedapplication', 'application'].includes(a))
-    || (['bank_statement', 'bank_statements'].includes(rawWanted) && ['bank_statement', 'bank_statements'].includes(rawValue))
-    || (['bankstatement', 'bankstatements'].includes(b) && ['bankstatement', 'bankstatements'].includes(a));
+  const canonical = (input: unknown) => {
+    const raw = text(input);
+    const compact = normalize(raw).replace(/s$/, '');
+    if (!compact) return '';
+    if (['bankstatement', 'bankstatements', 'mtdstatement', 'mtdbankstatement', 'monthtodatebankstatement'].includes(compact)) return 'bank_statements';
+    if (['licenseverification', 'owneridverification', 'ownerid', 'photoid', 'driverslicense', 'driverlicense', 'finalowneridverification', 'passport'].includes(compact)) return 'drivers_license';
+    if (['completedapplication', 'signedapplication', 'fundingapplication', 'application'].includes(compact)) return 'completed_application';
+    if (['taxdocument', 'taxdocuments', 'taxreturn', 'taxreturns', 'businessreturn', 'personalreturn'].includes(compact)) return 'tax_return';
+    if (['voidedcheck', 'cancelledcheck', 'canceledcheck', 'bankletter', 'bankverificationletter'].includes(compact)) return 'voided_check';
+    if (['payoff', 'payoffletter', 'payoffstatement', 'payoffrequest'].includes(compact)) return 'payoff_letter';
+    if (['advancestatement', 'advancestatements', 'positionstatement', 'positionstatements', 'mcabalance', 'mcabalanceletter'].includes(compact)) return 'advance_statements';
+    if (['processingstatement', 'processingstatements', 'merchantstatement', 'merchantprocessingstatement'].includes(compact)) return 'processing_statement';
+    if (['financialstatement', 'financialstatements', 'pl', 'profitloss', 'balancesheet'].includes(compact)) return 'financial_statement';
+    if (['signedcontract', 'contract', 'agreement', 'signedagreement'].includes(compact)) return 'signed_contract';
+    return compact;
+  };
+  return canonical(value) === canonical(wanted);
 }
 
 function knownType(value: unknown): CrmDocumentType | null {
