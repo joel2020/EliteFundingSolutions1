@@ -488,10 +488,23 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByText(/Required docs:/).first()).toBeVisible();
 
     const createdPartner = state.funding_partners.find((partner) => partner.name === 'Keystone Capital')!;
+    await page.getByTestId(`edit-partner-${createdPartner.id}`).click();
+    await page.getByTestId('partner-status').selectOption('false');
+    await page.getByTestId('partner-required-documents').fill('completed_application, bank_statements, drivers_license, voided_check, payoff_letter');
+    await page.getByTestId('save-partner').click();
+    await expect.poll(() => state.funding_partners.find((partner) => partner.id === createdPartner.id)?.is_active).toBe(false);
+    expect(calls.some((call) => call.method === 'PATCH' && call.table === 'funding_partners_api' && call.body.required_documents.includes('payoff_letter'))).toBe(true);
+
     await page.getByTestId(`partner-card-${createdPartner.id}`).getByRole('button', { name: 'Delete' }).click();
     await page.getByRole('button', { name: 'Yes, Delete' }).click();
     await expect.poll(() => state.funding_partners.find((partner) => partner.id === createdPartner.id)?.deleted_at).toBeTruthy();
     await expect(page.getByText('Keystone Capital')).toHaveCount(0);
+    await page.getByTestId('toggle-archived-partners').click();
+    await expect(page.getByTestId(`partner-card-${createdPartner.id}`)).toContainText('Archived');
+    await page.getByTestId(`restore-partner-${createdPartner.id}`).click();
+    await expect.poll(() => state.funding_partners.find((partner) => partner.id === createdPartner.id)?.deleted_at).toBeNull();
+    await expect(page.getByTestId(`partner-card-${createdPartner.id}`)).toContainText('Active');
+    expect(calls.some((call) => call.table === 'funding_partners_restore_api' && call.body.id === createdPartner.id)).toBe(true);
 
     await page.goto('/crm/offers');
     await page.getByTestId('create-offer').click();

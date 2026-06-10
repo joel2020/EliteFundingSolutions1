@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pencil, Plus } from 'lucide-react';
+import { ArchiveRestore, Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { CrmTopbar } from '@/components/crm/topbar';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ const emptyPartner = {
   portal_url: '',
   avg_approval_days: '',
   notes: '',
+  is_active: 'true',
 };
 
 export default function PartnersPage() {
@@ -39,18 +40,23 @@ export default function PartnersPage() {
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState(emptyPartner);
   const [editingPartner, setEditingPartner] = useState<FundingPartner | null>(null);
 
   const loadPartners = useCallback(async () => {
     if (!organizationId) return;
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('funding_partners')
       .select('*')
       .eq('organization_id', organizationId)
-      .is('deleted_at', null)
       .order('name');
+
+    if (!showArchived) query = query.is('deleted_at', null);
+
+    const { data, error } = await query;
 
     if (error) {
       toast.error('Failed to load funding partners');
@@ -59,7 +65,7 @@ export default function PartnersPage() {
       setPartners((data || []) as FundingPartner[]);
     }
     setLoading(false);
-  }, [organizationId]);
+  }, [organizationId, showArchived]);
 
   useEffect(() => {
     if (crmUserLoading) return;
@@ -87,6 +93,7 @@ export default function PartnersPage() {
     portal_url: partner.portal_url || '',
     avg_approval_days: partner.avg_approval_days ? String(partner.avg_approval_days) : '',
     notes: partner.notes || '',
+    is_active: partner.is_active === false ? 'false' : 'true',
   });
 
   const openAddPartner = () => {
@@ -128,7 +135,7 @@ export default function PartnersPage() {
         min_monthly_revenue: form.min_monthly_revenue || null,
         min_time_in_business_months: form.min_time_in_business_months || null,
         avg_approval_days: form.avg_approval_days || null,
-        is_active: editingPartner?.is_active ?? true,
+        is_active: form.is_active !== 'false',
       }),
     });
     const result = await response.json().catch(() => ({}));
@@ -143,14 +150,39 @@ export default function PartnersPage() {
     setSaving(false);
   };
 
+  const restorePartner = async (partner: FundingPartner) => {
+    setRestoringId(partner.id);
+    try {
+      const response = await fetch(`/api/crm/partners/${partner.id}/restore`, { method: 'POST' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        toast.error(result.error || 'Unable to restore funding partner');
+      } else {
+        toast.success(`${partner.name} restored`);
+        await loadPartners();
+      }
+    } catch {
+      toast.error('Network error while restoring funding partner');
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
   const fmt = (n: number | null) => (n ? `$${(n / 1000).toFixed(0)}K` : '-');
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <CrmTopbar
         title="Funding Partners"
-        subtitle="Manage your lender and funder network"
-        actions={<Button data-testid="add-partner" className="h-9 rounded-[8px] bg-[#2563EB]" onClick={openAddPartner}><Plus className="mr-2 h-4 w-4" />Add Partner</Button>}
+        subtitle="Manage your funder network, requirements, and submission rules"
+        actions={(
+          <div className="flex items-center gap-2">
+            <Button data-testid="toggle-archived-partners" variant="outline" className="h-9 rounded-[8px]" onClick={() => setShowArchived((value) => !value)}>
+              {showArchived ? 'Hide Archived' : 'Show Archived'}
+            </Button>
+            <Button data-testid="add-partner" className="h-9 rounded-[8px] bg-[#2563EB]" onClick={openAddPartner}><Plus className="mr-2 h-4 w-4" />Add Partner</Button>
+          </div>
+        )}
       />
       <div className="flex-1 overflow-y-auto p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -170,8 +202,8 @@ export default function PartnersPage() {
                   <h3 className="text-[15px] font-semibold text-[#09090B]">{partner.name}</h3>
                   <p className="text-[13px] text-[#71717A]">{partner.contact_name ?? '-'}</p>
                 </div>
-                <span className={`badge-${partner.is_active ? 'success' : 'default'}`}>
-                  {partner.is_active ? 'Active' : 'Inactive'}
+                <span className={`badge-${partner.deleted_at ? 'default' : partner.is_active ? 'success' : 'default'}`}>
+                  {partner.deleted_at ? 'Archived' : partner.is_active ? 'Active' : 'Inactive'}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
@@ -200,12 +232,27 @@ export default function PartnersPage() {
                 </a>
               )}
               <div className="mt-4 border-t pt-4">
-                <Button data-testid={`edit-partner-${partner.id}`} variant="outline" className="mb-2 h-9 w-full rounded-[7px]" onClick={() => openEditPartner(partner)}><Pencil className="mr-2 h-4 w-4" />Edit Funder Rules</Button>
-                <DeleteConfirmButton
-                  itemLabel={`funder ${partner.name}`}
-                  endpoint={`/api/crm/partners/${partner.id}`}
-                  onDeleted={loadPartners}
-                />
+                {partner.deleted_at ? (
+                  <Button
+                    data-testid={`restore-partner-${partner.id}`}
+                    variant="outline"
+                    className="h-9 w-full rounded-[7px] border-emerald-200 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50"
+                    onClick={() => restorePartner(partner)}
+                    disabled={restoringId === partner.id}
+                  >
+                    <ArchiveRestore className="mr-2 h-4 w-4" />
+                    {restoringId === partner.id ? 'Restoring...' : 'Restore Funder'}
+                  </Button>
+                ) : (
+                  <>
+                    <Button data-testid={`edit-partner-${partner.id}`} variant="outline" className="mb-2 h-9 w-full rounded-[7px]" onClick={() => openEditPartner(partner)}><Pencil className="mr-2 h-4 w-4" />Edit Funder Rules</Button>
+                    <DeleteConfirmButton
+                      itemLabel={`funder ${partner.name}`}
+                      endpoint={`/api/crm/partners/${partner.id}`}
+                      onDeleted={loadPartners}
+                    />
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -230,6 +277,7 @@ export default function PartnersPage() {
             <div><Label>Min Monthly Revenue</Label><Input type="number" value={form.min_monthly_revenue} onChange={(event) => setForm({ ...form, min_monthly_revenue: event.target.value })} /></div>
             <div><Label>Min Months in Business</Label><Input type="number" value={form.min_time_in_business_months} onChange={(event) => setForm({ ...form, min_time_in_business_months: event.target.value })} /></div>
             <div><Label>Average Decision Days</Label><Input type="number" value={form.avg_approval_days} onChange={(event) => setForm({ ...form, avg_approval_days: event.target.value })} /></div>
+            <div><Label>Status</Label><select data-testid="partner-status" className="mt-1 h-10 w-full rounded-[7px] border border-input bg-background px-3 text-sm" value={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.value })}><option value="true">Active</option><option value="false">Inactive</option></select></div>
             <div><Label>States Served</Label><Input placeholder="NY, NJ, FL" value={form.states_served} onChange={(event) => setForm({ ...form, states_served: event.target.value })} /></div>
             <div><Label>Product Types</Label><Input value={form.product_types} onChange={(event) => setForm({ ...form, product_types: event.target.value })} /></div>
             <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
