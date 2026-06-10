@@ -480,22 +480,26 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('partner-name').fill('Keystone Capital');
     await page.getByTestId('partner-contact-name').fill('Kim Partner');
     await page.getByTestId('partner-email').fill('kim@keystone.test');
+    await page.getByTestId('partner-preferred-industries').fill('Retail, construction');
+    await page.getByTestId('partner-min-credit-score').fill('620');
     await page.getByTestId('partner-required-documents').fill('completed_application, bank_statements, drivers_license, voided_check');
+    await page.getByTestId('partner-criteria-notes').fill('No excessive negative days; payoff letter required for stacked files.');
     const partnerResponse = page.waitForResponse('**/api/crm/partners');
     await page.getByTestId('save-partner').click();
     await expect.poll(async () => (await partnerResponse).ok()).toBe(true);
     await expect.poll(() => state.funding_partners.some((partner) => partner.name === 'Keystone Capital')).toBe(true);
-    expect(calls.some((call) => call.table === 'funding_partners_api' && call.body.name === 'Keystone Capital' && call.body.required_documents.includes('voided_check'))).toBe(true);
+    expect(calls.some((call) => call.table === 'funding_partners_api' && call.body.name === 'Keystone Capital' && call.body.required_documents.includes('voided_check') && call.body.preferred_industries.includes('Retail') && call.body.min_credit_score === '620')).toBe(true);
     await expect(page.getByText('Keystone Capital')).toBeVisible();
     await expect(page.getByText(/Required docs:/).first()).toBeVisible();
 
     const createdPartner = state.funding_partners.find((partner) => partner.name === 'Keystone Capital')!;
     await page.getByTestId(`edit-partner-${createdPartner.id}`).click();
     await page.getByTestId('partner-status').selectOption('false');
+    await page.getByTestId('partner-min-credit-score').fill('650');
     await page.getByTestId('partner-required-documents').fill('completed_application, bank_statements, drivers_license, voided_check, payoff_letter');
     await page.getByTestId('save-partner').click();
     await expect.poll(() => state.funding_partners.find((partner) => partner.id === createdPartner.id)?.is_active).toBe(false);
-    expect(calls.some((call) => call.method === 'PATCH' && call.table === 'funding_partners_api' && call.body.required_documents.includes('payoff_letter'))).toBe(true);
+    expect(calls.some((call) => call.method === 'PATCH' && call.table === 'funding_partners_api' && call.body.required_documents.includes('payoff_letter') && call.body.min_credit_score === '650')).toBe(true);
 
     await page.getByTestId(`partner-card-${createdPartner.id}`).getByRole('button', { name: 'Delete' }).click();
     await page.getByRole('button', { name: 'Yes, Delete' }).click();

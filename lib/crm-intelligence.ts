@@ -345,6 +345,7 @@ export function getPartnerMatches(deal: RecordMap, partners: RecordMap[], docume
     .map((partner) => {
       const misses: string[] = [];
       const restricted = (partner.restricted_industries || []).map(normalize).filter(Boolean);
+      const preferred = (partner.preferred_industries || []).map(normalize).filter(Boolean);
       const states = (partner.states_served || []).map((item: string) => item.trim().toUpperCase()).filter(Boolean);
       if (partner.min_funding_amount && requested < Number(partner.min_funding_amount)) misses.push('Below minimum funding');
       if (partner.max_funding_amount && requested > Number(partner.max_funding_amount)) misses.push('Above maximum funding');
@@ -352,7 +353,8 @@ export function getPartnerMatches(deal: RecordMap, partners: RecordMap[], docume
       if (partner.min_time_in_business_months && score.timeInBusiness && score.timeInBusiness < Number(partner.min_time_in_business_months)) misses.push('Time in business below minimum');
       if (states.length && state && !states.includes(state)) misses.push('State not served');
       if (restricted.some((item: string) => industry.includes(item))) misses.push('Restricted industry');
-      const fitScore = Math.max(0, score.score - misses.length * 18 + (partner.avg_approval_days && Number(partner.avg_approval_days) <= 2 ? 4 : 0));
+      const industryBonus = preferred.length && preferred.some((item: string) => industry.includes(item)) ? 6 : 0;
+      const fitScore = Math.max(0, score.score - misses.length * 18 + industryBonus + (partner.avg_approval_days && Number(partner.avg_approval_days) <= 2 ? 4 : 0));
       return { partner, fitScore, misses };
     })
     .sort((a, b) => b.fitScore - a.fitScore);

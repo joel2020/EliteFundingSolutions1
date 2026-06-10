@@ -29,7 +29,14 @@ const emptyPartner = {
   required_documents: 'completed_application, bank_statements, drivers_license',
   submission_email: '',
   portal_url: '',
+  preferred_submission_method: 'email',
   avg_approval_days: '',
+  preferred_industries: '',
+  min_credit_score: '',
+  max_existing_positions: '',
+  max_negative_days: '',
+  max_nsf_count: '',
+  criteria_notes: '',
   notes: '',
   is_active: 'true',
 };
@@ -91,7 +98,14 @@ export default function PartnersPage() {
     required_documents: Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : '',
     submission_email: partner.submission_email || '',
     portal_url: partner.portal_url || '',
+    preferred_submission_method: (partner as any).preferred_submission_method || 'email',
     avg_approval_days: partner.avg_approval_days ? String(partner.avg_approval_days) : '',
+    preferred_industries: Array.isArray((partner as any).preferred_industries) && (partner as any).preferred_industries.length ? (partner as any).preferred_industries.join(', ') : '',
+    min_credit_score: (partner as any).min_credit_score ? String((partner as any).min_credit_score) : '',
+    max_existing_positions: (partner as any).max_existing_positions ? String((partner as any).max_existing_positions) : '',
+    max_negative_days: (partner as any).max_negative_days ? String((partner as any).max_negative_days) : '',
+    max_nsf_count: (partner as any).max_nsf_count ? String((partner as any).max_nsf_count) : '',
+    criteria_notes: (partner as any).criteria_notes || '',
     notes: partner.notes || '',
     is_active: partner.is_active === false ? 'false' : 'true',
   });
@@ -134,6 +148,10 @@ export default function PartnersPage() {
         max_funding_amount: form.max_funding_amount || null,
         min_monthly_revenue: form.min_monthly_revenue || null,
         min_time_in_business_months: form.min_time_in_business_months || null,
+        min_credit_score: form.min_credit_score || null,
+        max_existing_positions: form.max_existing_positions || null,
+        max_negative_days: form.max_negative_days || null,
+        max_nsf_count: form.max_nsf_count || null,
         avg_approval_days: form.avg_approval_days || null,
         is_active: form.is_active !== 'false',
       }),
@@ -222,6 +240,8 @@ export default function PartnersPage() {
               </div>
               <div className="mt-3 grid gap-2 text-xs text-[#475569]">
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Revenue min: <span className="font-semibold text-[#0F172A]">{fmt(partner.min_monthly_revenue)}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Credit min: <span className="font-semibold text-[#0F172A]">{(partner as any).min_credit_score || 'Not set'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Preferred industries: <span className="font-semibold text-[#0F172A]">{Array.isArray((partner as any).preferred_industries) && (partner as any).preferred_industries.length ? (partner as any).preferred_industries.join(', ') : 'Any eligible industry'}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">States: <span className="font-semibold text-[#0F172A]">{partner.states_served?.length ? partner.states_served.join(', ') : 'All states'}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Required docs: <span className="font-semibold text-[#0F172A]">{Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : 'Default package'}</span></div>
@@ -272,17 +292,24 @@ export default function PartnersPage() {
             <div><Label>Phone Number</Label><Input data-testid="partner-phone" type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></div>
             <div><Label>Submission Email</Label><Input value={form.submission_email} onChange={(event) => setForm({ ...form, submission_email: event.target.value })} /></div>
             <div><Label>Portal URL</Label><Input value={form.portal_url} onChange={(event) => setForm({ ...form, portal_url: event.target.value })} /></div>
+            <div><Label>Preferred Submission Method</Label><select className="mt-1 h-10 w-full rounded-[7px] border border-input bg-background px-3 text-sm" value={form.preferred_submission_method} onChange={(event) => setForm({ ...form, preferred_submission_method: event.target.value })}><option value="email">Email</option><option value="portal">Portal</option><option value="api">API</option><option value="manual">Manual</option></select></div>
+            <div><Label>Preferred Industries</Label><Input data-testid="partner-preferred-industries" placeholder="Retail, restaurant, construction" value={form.preferred_industries} onChange={(event) => setForm({ ...form, preferred_industries: event.target.value })} /></div>
             <div><Label>Min Funding</Label><Input type="number" value={form.min_funding_amount} onChange={(event) => setForm({ ...form, min_funding_amount: event.target.value })} /></div>
             <div><Label>Max Funding</Label><Input type="number" value={form.max_funding_amount} onChange={(event) => setForm({ ...form, max_funding_amount: event.target.value })} /></div>
             <div><Label>Min Monthly Revenue</Label><Input type="number" value={form.min_monthly_revenue} onChange={(event) => setForm({ ...form, min_monthly_revenue: event.target.value })} /></div>
             <div><Label>Min Months in Business</Label><Input type="number" value={form.min_time_in_business_months} onChange={(event) => setForm({ ...form, min_time_in_business_months: event.target.value })} /></div>
+            <div><Label>Min Credit / FICO</Label><Input data-testid="partner-min-credit-score" type="number" min="300" max="850" value={form.min_credit_score} onChange={(event) => setForm({ ...form, min_credit_score: event.target.value })} /></div>
+            <div><Label>Max Existing Positions</Label><Input type="number" value={form.max_existing_positions} onChange={(event) => setForm({ ...form, max_existing_positions: event.target.value })} /></div>
+            <div><Label>Max Negative Days</Label><Input type="number" value={form.max_negative_days} onChange={(event) => setForm({ ...form, max_negative_days: event.target.value })} /></div>
+            <div><Label>Max NSF Count</Label><Input type="number" value={form.max_nsf_count} onChange={(event) => setForm({ ...form, max_nsf_count: event.target.value })} /></div>
             <div><Label>Average Decision Days</Label><Input type="number" value={form.avg_approval_days} onChange={(event) => setForm({ ...form, avg_approval_days: event.target.value })} /></div>
             <div><Label>Status</Label><select data-testid="partner-status" className="mt-1 h-10 w-full rounded-[7px] border border-input bg-background px-3 text-sm" value={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.value })}><option value="true">Active</option><option value="false">Inactive</option></select></div>
             <div><Label>States Served</Label><Input placeholder="NY, NJ, FL" value={form.states_served} onChange={(event) => setForm({ ...form, states_served: event.target.value })} /></div>
             <div><Label>Product Types</Label><Input value={form.product_types} onChange={(event) => setForm({ ...form, product_types: event.target.value })} /></div>
             <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Required Documents</Label><Input data-testid="partner-required-documents" placeholder="completed_application, bank_statements, drivers_license, voided_check" value={form.required_documents} onChange={(event) => setForm({ ...form, required_documents: event.target.value })} /></div>
-            <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea data-testid="partner-criteria-notes" value={form.criteria_notes} onChange={(event) => setForm({ ...form, criteria_notes: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Notes / Rules</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={closeDialog}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : editingPartner ? 'Update Partner' : 'Save Partner'}</Button></DialogFooter>
         </DialogContent>

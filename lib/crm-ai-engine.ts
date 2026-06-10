@@ -448,6 +448,10 @@ function scoreFunder(context: RecordMap, partner: RecordMap, requiredTypes: stri
     score -= 30;
     warnings.push('Industry may be restricted by this funder.');
   }
+  if (Array.isArray(partner.preferred_industries) && partner.preferred_industries.some((item: string) => industry.includes(text(item).toLowerCase()))) {
+    score += 8;
+    reasons.push('Industry matches saved funder preference.');
+  }
 
   score -= missingRequirements.length * 6;
   if (!missingRequirements.length) reasons.push('Required package docs appear available.');
