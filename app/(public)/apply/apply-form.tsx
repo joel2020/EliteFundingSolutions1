@@ -32,6 +32,10 @@ type ApplicationFormData = {
   use_of_funds: string;
   existing_advance_funder: string;
   existing_advance_balance: string;
+  existing_advance_2_funder: string;
+  existing_advance_2_balance: string;
+  existing_advance_3_funder: string;
+  existing_advance_3_balance: string;
   consent_accepted: boolean;
   signature_data_url: string;
   bot_field: string;
@@ -63,6 +67,10 @@ const initialForm: ApplicationFormData = {
   use_of_funds: '',
   existing_advance_funder: '',
   existing_advance_balance: '',
+  existing_advance_2_funder: '',
+  existing_advance_2_balance: '',
+  existing_advance_3_funder: '',
+  existing_advance_3_balance: '',
   consent_accepted: false,
   signature_data_url: '',
   bot_field: '',
@@ -116,6 +124,14 @@ function hasCoOwnerData(data: ApplicationFormData) {
     data.co_owner_email.trim() ||
     data.co_owner_ownership_percentage.trim(),
   );
+}
+
+function existingAdvanceRows(data: ApplicationFormData) {
+  return [
+    { funder: data.existing_advance_funder, balance: data.existing_advance_balance },
+    { funder: data.existing_advance_2_funder, balance: data.existing_advance_2_balance },
+    { funder: data.existing_advance_3_funder, balance: data.existing_advance_3_balance },
+  ];
 }
 
 function InputField({
@@ -326,8 +342,18 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', prettyMoney(value))} placeholder="$75,000" required={false} />
         <InputField label="Industry" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." required={false} />
         <InputField label="Use of Funds" value={data.use_of_funds} onChange={(value) => update('use_of_funds', value)} placeholder="Payroll, inventory, expansion..." required={false} />
-        <InputField label="Open Advance Funder" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Current funder, if any" required={false} />
-        <InputField label="Open Advance Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', prettyMoney(value))} placeholder="$12,500" required={false} />
+        <div className="md:col-span-2 rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
+          <h3 className="text-[16px] font-bold text-[#0F172A]">Open advances</h3>
+          <p className="mt-1 text-[13px] font-medium leading-5 text-[#334155]">List up to three current advance balances so the generated application is complete for funder review.</p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <InputField label="Open Advance Funder" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Current funder, if any" required={false} />
+            <InputField label="Open Advance Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', prettyMoney(value))} placeholder="$12,500" required={false} />
+            <InputField label="Open Advance 2 Funder" value={data.existing_advance_2_funder} onChange={(value) => update('existing_advance_2_funder', value)} placeholder="Second current funder" required={false} />
+            <InputField label="Open Advance 2 Balance" value={data.existing_advance_2_balance} onChange={(value) => update('existing_advance_2_balance', prettyMoney(value))} placeholder="$8,000" required={false} />
+            <InputField label="Open Advance 3 Funder" value={data.existing_advance_3_funder} onChange={(value) => update('existing_advance_3_funder', value)} placeholder="Third current funder" required={false} />
+            <InputField label="Open Advance 3 Balance" value={data.existing_advance_3_balance} onChange={(value) => update('existing_advance_3_balance', prettyMoney(value))} placeholder="$4,500" required={false} />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -354,7 +380,10 @@ function StepReview({ data, update }: { data: ApplicationFormData; update: <K ex
         <ReviewRow label="Requested amount" value={data.requested_amount} />
         <ReviewRow label="Industry" value={data.industry} />
         <ReviewRow label="Use of funds" value={data.use_of_funds} />
-        <ReviewRow label="Open advance" value={[data.existing_advance_funder, data.existing_advance_balance].filter(Boolean).join(' - ')} />
+        {existingAdvanceRows(data).map((advance, index) => {
+          const value = [advance.funder, advance.balance].filter(Boolean).join(' - ');
+          return value ? <ReviewRow key={index} label={`Open advance ${index + 1}`} value={value} /> : null;
+        })}
         {showCoOwner && <ReviewRow label="Co-owner" value={data.co_owner_full_name} />}
         {showCoOwner && <ReviewRow label="Co-owner ownership" value={data.co_owner_ownership_percentage ? `${data.co_owner_ownership_percentage}%` : ''} />}
         {showCoOwner && <ReviewRow label="Co-owner address" value={data.co_owner_home_address} />}
@@ -476,7 +505,8 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       if (digitsOnly(form.ein).length !== 9) return 'Please enter a valid 9 digit Tax ID / EIN.';
       if (!form.business_start_date || Number.isNaN(new Date(form.business_start_date).getTime())) return 'Please enter a valid business start date.';
       if (form.requested_amount && Number(digitsOnly(form.requested_amount)) <= 0) return 'Please enter a valid requested funding amount.';
-      if (form.existing_advance_balance && Number(digitsOnly(form.existing_advance_balance)) <= 0) return 'Please enter a valid open advance balance.';
+      const invalidAdvanceBalance = existingAdvanceRows(form).some((advance) => advance.balance && Number(digitsOnly(advance.balance)) <= 0);
+      if (invalidAdvanceBalance) return 'Please enter valid open advance balances.';
     }
     if (currentStep === 3) {
       if (!form.signature_data_url) return 'Please draw your signature before submitting.';

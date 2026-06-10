@@ -38,6 +38,10 @@ test.describe('public funding application', () => {
     await page.getByTestId('application-use-of-funds').fill('Inventory and payroll');
     await page.getByTestId('application-open-advance-funder').fill('Old Advance Co');
     await page.getByTestId('application-open-advance-balance').fill('12500');
+    await page.getByTestId('application-open-advance-2-funder').fill('Second Capital');
+    await page.getByTestId('application-open-advance-2-balance').fill('8000');
+    await page.getByTestId('application-open-advance-3-funder').fill('Third Advance');
+    await page.getByTestId('application-open-advance-3-balance').fill('4500');
     await page.getByRole('button', { name: /continue/i }).click();
 
     await expect(page.getByText('***-6789')).toHaveCount(2);
@@ -81,6 +85,10 @@ test.describe('public funding application', () => {
       use_of_funds: 'Inventory and payroll',
       existing_advance_funder: 'Old Advance Co',
       existing_advance_balance: '$12,500',
+      existing_advance_2_funder: 'Second Capital',
+      existing_advance_2_balance: '$8,000',
+      existing_advance_3_funder: 'Third Advance',
+      existing_advance_3_balance: '$4,500',
     }));
   });
 
@@ -107,6 +115,12 @@ test.describe('public funding application', () => {
       requested_amount: '$75,000',
       industry: 'Retail',
       use_of_funds: 'Inventory and payroll',
+      existing_advance_funder: 'Old Advance Co',
+      existing_advance_balance: '$12,500',
+      existing_advance_2_funder: 'Second Capital',
+      existing_advance_2_balance: '$8,000',
+      existing_advance_3_funder: 'Third Advance',
+      existing_advance_3_balance: '$4,500',
       consent_accepted: true,
     });
 
@@ -139,7 +153,14 @@ test.describe('public funding application', () => {
       city: 'New York',
       state: 'NY',
       zip: '10001',
+      has_existing_advances: true,
     }));
+    expect(normalized.existing_advances).toEqual([
+      expect.objectContaining({ funder_name: 'Old Advance Co', current_balance: '$12,500' }),
+      expect.objectContaining({ funder_name: 'Second Capital', current_balance: '$8,000' }),
+      expect.objectContaining({ funder_name: 'Third Advance', current_balance: '$4,500' }),
+    ]);
+    expect(normalized.notes).toContain('Open advance 3: Third Advance - $4,500');
   });
 
   test('requires the minimum identity and business fields', async ({ page }) => {

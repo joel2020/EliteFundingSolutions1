@@ -423,9 +423,23 @@ export function normalizeIncomingPayload(payload: any) {
     String(payload.co_owner_ownership_percentage || '').trim(),
   );
   const consentAccepted = Boolean(payload.consent_accepted);
-  const existingAdvanceFunder = String(payload.existing_advance_funder || '').trim();
-  const existingAdvanceBalance = String(payload.existing_advance_balance || '').trim();
-  const hasExistingAdvance = Boolean(existingAdvanceFunder || existingAdvanceBalance);
+  const publicAdvanceInputs = [
+    { funder_name: payload.existing_advance_funder, current_balance: payload.existing_advance_balance },
+    { funder_name: payload.existing_advance_2_funder, current_balance: payload.existing_advance_2_balance },
+    { funder_name: payload.existing_advance_3_funder, current_balance: payload.existing_advance_3_balance },
+  ];
+  const existingAdvances = publicAdvanceInputs
+    .map((advance) => ({
+      funder_name: String(advance.funder_name || '').trim(),
+      current_balance: String(advance.current_balance || '').trim(),
+      original_amount: '',
+      daily_payment: '',
+      payment_frequency: '',
+      notes: 'Submitted from public application.',
+    }))
+    .filter((advance) => advance.funder_name || advance.current_balance)
+    .slice(0, 3);
+  const hasExistingAdvance = existingAdvances.length > 0;
 
   return {
     legal_name: String(payload.company_name || ''),
@@ -493,19 +507,12 @@ export function normalizeIncomingPayload(payload: any) {
     average_visa_mc_sales: '',
     monthly_gross_revenue: '',
     has_existing_advances: hasExistingAdvance,
-    existing_advances: hasExistingAdvance ? [{
-      funder_name: existingAdvanceFunder,
-      current_balance: existingAdvanceBalance,
-      original_amount: '',
-      daily_payment: '',
-      payment_frequency: '',
-      notes: 'Submitted from public application.',
-    }] : [],
+    existing_advances: existingAdvances,
     notes: [
       'Submitted from public funding application.',
       payload.industry ? `Industry: ${payload.industry}` : '',
       payload.use_of_funds ? `Use of funds: ${payload.use_of_funds}` : '',
-      hasExistingAdvance ? `Open advance: ${[existingAdvanceFunder, existingAdvanceBalance].filter(Boolean).join(' - ')}` : '',
+      ...existingAdvances.map((advance, index) => `Open advance ${index + 1}: ${[advance.funder_name, advance.current_balance].filter(Boolean).join(' - ')}`),
     ].filter(Boolean).join('\n'),
     certification_accepted: consentAccepted,
     credit_authorization_accepted: consentAccepted,
