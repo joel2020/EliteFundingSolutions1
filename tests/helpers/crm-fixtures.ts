@@ -430,6 +430,8 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     const lower = `${fileName} ${body}`.toLowerCase();
     const documentType = lower.includes('voided') || lower.includes('check')
       ? 'voided_check'
+      : lower.includes('a/r') || lower.includes(' ar-') || lower.includes('ar aging') || lower.includes('receivable') || lower.includes('aging-report')
+        ? 'ar_report'
       : lower.includes('license') || lower.includes('driver') || lower.includes('id')
         ? 'drivers_license'
         : lower.includes('bank') || lower.includes('statement')
@@ -437,6 +439,8 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
           : 'other';
     const label = documentType === 'voided_check'
       ? 'Voided Check'
+      : documentType === 'ar_report'
+        ? 'A/R Report'
       : documentType === 'drivers_license'
         ? "Driver's License"
         : documentType === 'bank_statements'

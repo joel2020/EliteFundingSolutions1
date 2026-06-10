@@ -574,15 +574,22 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
         mimeType: 'application/pdf',
         buffer: Buffer.from('%PDF-1.4 driver license'),
       },
+      {
+        name: 'ar-aging-report.pdf',
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.4 accounts receivable aging report'),
+      },
     ]);
     await page.getByTestId('deal-save-document').click();
 
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'march-bank-statement.pdf' && doc.document_type === 'bank_statements')).toBe(true);
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'owner-driver-license.pdf' && doc.document_type === 'drivers_license')).toBe(true);
-    const uploadCalls = calls.filter((call) => call.table === 'deal_documents_api' && ['march-bank-statement.pdf', 'owner-driver-license.pdf'].includes(call.body.file_name));
-    expect(uploadCalls).toHaveLength(2);
+    await expect.poll(() => state.documents.some((doc) => doc.file_name === 'ar-aging-report.pdf' && doc.document_type === 'ar_report')).toBe(true);
+    const uploadCalls = calls.filter((call) => call.table === 'deal_documents_api' && ['march-bank-statement.pdf', 'owner-driver-license.pdf', 'ar-aging-report.pdf'].includes(call.body.file_name));
+    expect(uploadCalls).toHaveLength(3);
     expect(uploadCalls.every((call) => call.body.manual_document_type_present === false)).toBe(true);
     await expect(page.getByText('march-bank-statement.pdf').first()).toBeVisible();
     await expect(page.getByText('owner-driver-license.pdf').first()).toBeVisible();
+    await expect(page.getByText('ar-aging-report.pdf').first()).toBeVisible();
   });
 });

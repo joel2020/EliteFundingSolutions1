@@ -80,9 +80,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .limit(100);
   const funderRequirements = Array.from(new Set((fundingPartners || []).flatMap((partner: any) => [
     ...normalizeRequirementList(partner.required_documents),
-    ...normalizeRequirementList(partner.product_types).filter((item) => /document|statement|license|check|tax|invoice|payoff|stip/i.test(item)),
-    ...normalizeRequirementList(partner.notes).filter((item) => /statement|license|check|tax|invoice|payoff|stip|processing|contract/i.test(item)),
-    ...normalizeRequirementList(partner.criteria_notes).filter((item) => /statement|license|check|tax|invoice|payoff|stip|processing|contract/i.test(item)),
+    ...normalizeRequirementList(partner.product_types).filter((item) => /document|statement|license|check|tax|invoice|payoff|stip|receivable|aging|a\/?r/i.test(item)),
+    ...normalizeRequirementList(partner.notes).filter((item) => /statement|license|check|tax|invoice|payoff|stip|processing|contract|receivable|aging|a\/?r/i.test(item)),
+    ...normalizeRequirementList(partner.criteria_notes).filter((item) => /statement|license|check|tax|invoice|payoff|stip|processing|contract|receivable|aging|a\/?r/i.test(item)),
   ])));
 
   if (documentRequestId) {

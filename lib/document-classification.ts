@@ -14,6 +14,7 @@ export const CRM_DOCUMENT_TYPES = [
   'tax_return',
   'processing_statement',
   'financial_statement',
+  'ar_report',
   'business_verification',
   'advance_statements',
   'invoice',
@@ -50,6 +51,7 @@ const labelByType: Record<CrmDocumentType, string> = {
   tax_return: 'Tax Return',
   processing_statement: 'Processing Statement',
   financial_statement: 'Financial Statement',
+  ar_report: 'A/R Report',
   business_verification: 'Business Verification',
   advance_statements: 'Advance Statements',
   invoice: 'Invoice',
@@ -96,6 +98,7 @@ export function sameCrmDocumentType(value: unknown, wanted: unknown) {
     if (['payoff', 'payoffletter', 'payoffstatement', 'payoffrequest'].includes(compact)) return 'payoff_letter';
     if (['advancestatement', 'advancestatements', 'positionstatement', 'positionstatements', 'mcabalance', 'mcabalanceletter'].includes(compact)) return 'advance_statements';
     if (['processingstatement', 'processingstatements', 'merchantstatement', 'merchantprocessingstatement'].includes(compact)) return 'processing_statement';
+    if (['arreport', 'araging', 'aragingreport', 'accountsreceivable', 'accountsreceivablereport', 'receivables', 'receivablesaging', 'agingreport', 'customeraging'].includes(compact)) return 'ar_report';
     if (['financialstatement', 'financialstatements', 'pl', 'profitloss', 'balancesheet'].includes(compact)) return 'financial_statement';
     if (['signedcontract', 'contract', 'agreement', 'signedagreement'].includes(compact)) return 'signed_contract';
     return compact;
@@ -121,6 +124,7 @@ function fallbackClassify(fileName: string, requestContext = ''): DocumentClassi
     [/\b(driver|drivers|license|licence|owner\s*id|photo\s*id|passport)\b/, 'drivers_license'],
     [/\b(tax|return|1040|1120|1065|schedule\s*c)\b/, 'tax_return'],
     [/\b(processing|processor|merchant\s*statement|merchant\s*processing)\b/, 'processing_statement'],
+    [/\b(a\/?r|accounts?\s*receivable|receivables?|aging\s*report|customer\s*aging)\b/, 'ar_report'],
     [/\b(financial|p\s*&\s*l|profit|loss|balance\s*sheet)\b/, 'financial_statement'],
     [/\b(invoice|equipment\s*quote|quote)\b/, 'invoice'],
     [/\b(payoff|pay\s*off)\b/, 'payoff_letter'],
@@ -166,7 +170,7 @@ function buildPrompt({ fileName, requests, funderRequirements }: { fileName: str
     'Return only JSON that matches the schema. Choose exactly one document_type from the allowed enum.',
     'Do not invent a new document type. If the file is unclear, use other with low confidence.',
     'Prefer the document category that would satisfy an open requested item or funder requirement when the file content supports it.',
-    'Examples: bank statements, driver license/owner ID, voided check, tax return, processing statement, invoice, payoff letter, signed contract, business verification, advance statement.',
+    'Examples: bank statements, driver license/owner ID, voided check, tax return, processing statement, invoice, A/R aging report, payoff letter, signed contract, business verification, advance statement.',
     `Filename: ${fileName}`,
     `Open CRM document requests: ${JSON.stringify(requestContext).slice(0, 4000)}`,
     `Known funder-required document types: ${JSON.stringify(funderRequirements).slice(0, 1000)}`,

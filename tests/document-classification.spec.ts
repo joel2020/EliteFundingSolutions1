@@ -16,6 +16,8 @@ test.describe('CRM document classification aliases', () => {
     expect(sameCrmDocumentType('voided_check', 'bank letter')).toBe(true);
     expect(sameCrmDocumentType('payoff_letter', 'payoff statement')).toBe(true);
     expect(sameCrmDocumentType('advance_statements', 'MCA balance letter')).toBe(true);
+    expect(sameCrmDocumentType('ar_report', 'A/R aging report')).toBe(true);
+    expect(sameCrmDocumentType('ar_report', 'accounts receivable')).toBe(true);
   });
 
   test('links classified uploads to open requests that use funder wording aliases', async () => {
@@ -46,6 +48,16 @@ test.describe('CRM document classification aliases', () => {
     });
     expect(taxDocs.document_type).toBe('tax_return');
     expect(taxDocs.matched_request_id).toBe('request-tax-docs');
+
+    const arReport = await classifyDealDocumentUpload({
+      fileName: 'ar-aging-report.pdf',
+      mimeType: 'application/pdf',
+      bytes: Buffer.from('%PDF-1.4 accounts receivable aging'),
+      requests: [{ id: 'request-ar', document_type: 'accounts_receivable', label: 'A/R aging report', status: 'requested' }],
+    });
+    expect(arReport.document_type).toBe('ar_report');
+    expect(arReport.matched_request_id).toBe('request-ar');
+    expect(arReport.label).toBe('A/R aging report');
   });
 
   test('uses Azure OpenAI classification when filename rules are unclear', async () => {

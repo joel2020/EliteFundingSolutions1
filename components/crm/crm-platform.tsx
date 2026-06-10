@@ -205,6 +205,7 @@ const DETAIL_DOCUMENT_TYPES = [
   { value: 'tax_return', label: 'Tax Return' },
   { value: 'processing_statement', label: 'Processing Statement' },
   { value: 'financial_statement', label: 'Financial Statement' },
+  { value: 'ar_report', label: 'A/R Report' },
   { value: 'business_verification', label: 'Business Verification' },
   { value: 'advance_statements', label: 'Advance Statements' },
   { value: 'invoice', label: 'Invoice' },
@@ -291,6 +292,7 @@ function lenderRequiredDocTypes(partner?: RecordMap | null) {
   const required = new Set(['completed_application', 'bank_statement', 'bank_statements', 'drivers_license', 'license_verification', ...savedRequirements.map((item: string) => item.trim()).filter(Boolean)]);
   if (productTypes.includes('mca') || productTypes.includes('merchant') || notes.includes('voided')) required.add('voided_check');
   if (productTypes.includes('equipment')) required.add('invoice');
+  if (productTypes.includes('invoice') || notes.includes('a/r') || notes.includes('receivable') || notes.includes('aging')) required.add('ar_report');
   if (notes.includes('tax')) required.add('tax_return');
   if (notes.includes('processing') || notes.includes('processor')) required.add('processing_statement');
   return Array.from(required);
@@ -1486,10 +1488,12 @@ const FUNDING_REQUIRED_ITEMS = [
 function sameDocType(docType: string, wanted: string) {
   const a = normalize(docType || '').replace(/s$/, '');
   const b = normalize(wanted || '').replace(/s$/, '');
+  const arAliases = ['arreport', 'araging', 'aragingreport', 'accountsreceivable', 'accountsreceivablereport', 'receivableaging', 'receivablesaging', 'agingreport'];
   return a === b
     || (wanted === 'license_verification' && ['drivers_license', 'driver_license', 'owner_id_verification'].includes(docType))
     || (wanted === 'owner_id_verification' && ['drivers_license', 'driver_license', 'license_verification'].includes(docType))
-    || (wanted === 'completed_application' && ['signed_application', 'application'].includes(docType));
+    || (wanted === 'completed_application' && ['signed_application', 'application'].includes(docType))
+    || (arAliases.includes(a) && arAliases.includes(b));
 }
 
 function docStatusForReadiness(doc?: RecordMap) {
