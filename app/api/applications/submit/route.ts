@@ -378,11 +378,41 @@ function splitFullName(fullName: string) {
   };
 }
 
+function splitUsAddress(value: unknown) {
+  const raw = String(value || '').trim();
+  if (!raw) return { address: '', city: '', state: '', zip: '' };
+  const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  const parseStateZip = (part: string) => {
+    const match = part.match(/\b([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/i);
+    return match ? { state: match[1].toUpperCase(), zip: match[2] } : { state: '', zip: '' };
+  };
+
+  if (parts.length >= 3) {
+    const { state, zip } = parseStateZip(parts[parts.length - 1]);
+    return {
+      address: parts.slice(0, -2).join(', '),
+      city: parts[parts.length - 2] || '',
+      state,
+      zip,
+    };
+  }
+
+  if (parts.length === 2) {
+    const { state, zip } = parseStateZip(parts[1]);
+    return { address: parts[0], city: state || zip ? '' : parts[1], state, zip };
+  }
+
+  return { address: raw, city: '', state: '', zip: '' };
+}
+
 export function normalizeIncomingPayload(payload: any) {
   if (!payload || typeof payload !== 'object' || !('full_name' in payload)) return payload;
 
   const ownerName = splitFullName(String(payload.full_name || ''));
   const coOwnerName = splitFullName(String(payload.co_owner_full_name || ''));
+  const businessAddress = splitUsAddress(payload.business_address);
+  const ownerAddress = splitUsAddress(payload.home_address);
+  const coOwnerAddress = splitUsAddress(payload.co_owner_home_address);
   const hasCoOwnerData = Boolean(
     String(payload.co_owner_full_name || '').trim() ||
     String(payload.co_owner_home_address || '').trim() ||
@@ -409,10 +439,10 @@ export function normalizeIncomingPayload(payload: any) {
     business_mobile: String(payload.cell_phone || ''),
     business_email: String(payload.email || ''),
     website: '',
-    address: String(payload.business_address || ''),
-    city: '',
-    state: '',
-    zip: '',
+    address: businessAddress.address || String(payload.business_address || ''),
+    city: businessAddress.city,
+    state: businessAddress.state,
+    zip: businessAddress.zip,
     business_location: '',
     products_services: String(payload.industry || ''),
     pos_contact_name: '',
@@ -435,10 +465,10 @@ export function normalizeIncomingPayload(payload: any) {
       mobile: String(payload.cell_phone || ''),
       dob: String(payload.dob || ''),
       ssn: String(payload.ssn || ''),
-      address: String(payload.home_address || ''),
-      city: '',
-      state: '',
-      zip: '',
+      address: ownerAddress.address || String(payload.home_address || ''),
+      city: ownerAddress.city,
+      state: ownerAddress.state,
+      zip: ownerAddress.zip,
       credit_range: '',
     },
     owner2: hasCoOwnerData ? {
@@ -450,10 +480,10 @@ export function normalizeIncomingPayload(payload: any) {
       mobile: String(payload.co_owner_cell_phone || ''),
       dob: String(payload.co_owner_dob || ''),
       ssn: String(payload.co_owner_ssn || ''),
-      address: String(payload.co_owner_home_address || ''),
-      city: '',
-      state: '',
-      zip: '',
+      address: coOwnerAddress.address || String(payload.co_owner_home_address || ''),
+      city: coOwnerAddress.city,
+      state: coOwnerAddress.state,
+      zip: coOwnerAddress.zip,
       credit_range: '',
     } : {},
     requested_amount: String(payload.requested_amount || ''),

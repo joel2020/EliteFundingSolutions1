@@ -116,16 +116,29 @@ test.describe('public funding application', () => {
       ownership_pct: '60',
       email: 'taylor@fastsubmit.test',
       ssn: '123-45-6789',
+      address: '20 Broadway',
+      city: 'New York',
+      state: 'NY',
+      zip: '10002',
     }));
     expect(normalized.owner2).toEqual(expect.objectContaining({
       first_name: 'Jordan',
       last_name: 'Reed',
-      address: '40 Partner Ave, Brooklyn, NY 11201',
+      address: '40 Partner Ave',
+      city: 'Brooklyn',
+      state: 'NY',
+      zip: '11201',
       ownership_pct: '40',
       email: 'jordan@fastsubmit.test',
       phone: '(718) 555-0166',
       dob: '1987-07-12',
       ssn: '987-65-4321',
+    }));
+    expect(normalized).toEqual(expect.objectContaining({
+      address: '10 Main Street',
+      city: 'New York',
+      state: 'NY',
+      zip: '10001',
     }));
   });
 
