@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { hasApplicationSignatureEvidence, isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
+import { hasApplicationSignatureEvidence, hasCompleteSensitiveIdentifier, isRequiredDocumentCompleteStatus, isSubmissionBlockingReadinessCheck } from '../lib/deal-readiness';
 import { generateCrmAiAnalysis } from '../lib/crm-ai-engine';
 import { buildPartnerApplicationSyncUpdate } from '../lib/partner-application-sync';
+import { encryptSensitiveField } from '../lib/security';
 
 test.describe('deal readiness and funder requirements', () => {
   test('treats uploaded required documents as complete for funder submission', () => {
@@ -71,6 +72,21 @@ test.describe('deal readiness and funder requirements', () => {
       },
       completedApplicationDocuments: [],
     })).toBe(true);
+  });
+
+  test('requires decryptable full EIN and SSN values for funder send readiness', () => {
+    const originalKey = process.env.FIELD_ENCRYPTION_KEY;
+    process.env.FIELD_ENCRYPTION_KEY = 'deal-readiness-test-key';
+
+    try {
+      expect(hasCompleteSensitiveIdentifier(encryptSensitiveField('12-3456789'))).toBe(true);
+      expect(hasCompleteSensitiveIdentifier(encryptSensitiveField('123-45-6789'))).toBe(true);
+      expect(hasCompleteSensitiveIdentifier(encryptSensitiveField('6789'))).toBe(false);
+      expect(hasCompleteSensitiveIdentifier(null)).toBe(false);
+    } finally {
+      if (originalKey === undefined) delete process.env.FIELD_ENCRYPTION_KEY;
+      else process.env.FIELD_ENCRYPTION_KEY = originalKey;
+    }
   });
 
   test('syncs reviewed partner application signatures onto the CRM application record', () => {
