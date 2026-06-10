@@ -144,6 +144,19 @@ function splitAddress(value: unknown) {
     const match = value.match(/\b([A-Z]{2})\s+(\d{5}(?:-\d{4})?)\b/i);
     return match ? { state: match[1].toUpperCase(), zip: match[2] } : { state: '', zip: '' };
   };
+  const parseInlineAddress = (value: string) => {
+    const match = value.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+    if (!match) return { address: value, city: '', state: '', zip: '' };
+    const beforeState = match[1].trim();
+    const streetMatch = beforeState.match(/^(.+\b(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|court|ct|circle|cir|parkway|pkwy|place|pl|terrace|ter|trail|trl|way|highway|hwy)\b(?:\s+(?:apt|apartment|suite|ste|unit|#)\s*[\w-]+)?)\s+(.+)$/i);
+    if (!streetMatch) return { address: value, city: '', state: match[2].toUpperCase(), zip: match[3] };
+    return {
+      address: streetMatch[1].trim(),
+      city: streetMatch[2].trim(),
+      state: match[2].toUpperCase(),
+      zip: match[3],
+    };
+  };
 
   if (parts.length >= 3) {
     const { state, zip } = parseStateZip(parts[parts.length - 1]);
@@ -160,7 +173,7 @@ function splitAddress(value: unknown) {
     return { address: parts[0], city: state || zip ? '' : parts[1], state, zip };
   }
 
-  return { address: raw, city: '', state: '', zip: '' };
+  return parseInlineAddress(raw);
 }
 
 function firstText(...values: unknown[]) {

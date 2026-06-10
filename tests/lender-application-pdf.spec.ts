@@ -362,6 +362,30 @@ test.describe('lender application PDF data mapping', () => {
     expect(payload.owner1.ssn).toBe('111223333');
   });
 
+  test('splits non-comma business and owner addresses into city state zip', () => {
+    const payload = parsePartnerApplicationCsv(
+      'legal_business_name,company_address,owner_name,home_address,percent_of_ownership,owner_date_of_birth,owner_ssn,tax_id\nInline Address Merchant LLC,700 Main St Dallas TX 75201,Dana Owner,99 Owner Rd Austin TX 78701,75,02/03/1980,111223333,987654321',
+    );
+
+    expect(payload.address).toBe('700 Main St');
+    expect(payload.city).toBe('Dallas');
+    expect(payload.state).toBe('TX');
+    expect(payload.zip).toBe('75201');
+    expect(payload.owner1.address).toBe('99 Owner Rd');
+    expect(payload.owner1.city).toBe('Austin');
+    expect(payload.owner1.state).toBe('TX');
+    expect(payload.owner1.zip).toBe('78701');
+
+    const fields = resolveLenderApplicationPdfFields({
+      application: { application_payload: payload },
+      owners: [],
+    });
+    expect(fields.businessStreet).toBe('700 Main St');
+    expect(fields.businessCityLine).toBe('Dallas, TX 75201');
+    expect(fields.owner1.street).toBe('99 Owner Rd');
+    expect(fields.owner1.cityLine).toBe('Austin, TX 78701');
+  });
+
   test('maps partner CSV co-owner and open advance aliases', () => {
     const payload = parsePartnerApplicationCsv(
       'legal_business_name,owner_name,owner2_first_name,owner2_last_name,owner2_address,owner2_percent_ownership,owner2_date_of_birth,owner2_ssn,open_advance_funder,open_advance_balance,open_advance_2_funder,open_advance_2_balance\nAlias Merchant LLC,Dana Owner,Riley,Partner,\"10 Coowner Rd, Austin, TX 78702\",25,04/05/1982,999887777,Fast Fund,$12000,Second Fund,$7000',
