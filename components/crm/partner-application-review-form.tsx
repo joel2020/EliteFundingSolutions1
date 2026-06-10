@@ -50,6 +50,36 @@ const fieldGroups = [
     ],
   },
   {
+    title: 'Co-owner',
+    fields: [
+      ['Co-owner first name', 'owner2.first_name'],
+      ['Co-owner last name', 'owner2.last_name'],
+      ['Co-owner home address', 'owner2.address'],
+      ['Co-owner city', 'owner2.city'],
+      ['Co-owner state', 'owner2.state'],
+      ['Co-owner ZIP', 'owner2.zip'],
+      ['Co-owner cell phone', 'owner2.phone'],
+      ['Co-owner email', 'owner2.email'],
+      ['Co-owner ownership %', 'owner2.ownership_percentage'],
+      ['Co-owner date of birth', 'owner2.dob'],
+      ['Co-owner SSN', 'owner2.ssn'],
+    ],
+  },
+  {
+    title: 'Open advances',
+    fields: [
+      ['Advance 1 funder', 'existing_advances.0.funder_name'],
+      ['Advance 1 balance', 'existing_advances.0.current_balance'],
+      ['Advance 1 payment', 'existing_advances.0.daily_payment'],
+      ['Advance 2 funder', 'existing_advances.1.funder_name'],
+      ['Advance 2 balance', 'existing_advances.1.current_balance'],
+      ['Advance 2 payment', 'existing_advances.1.daily_payment'],
+      ['Advance 3 funder', 'existing_advances.2.funder_name'],
+      ['Advance 3 balance', 'existing_advances.2.current_balance'],
+      ['Advance 3 payment', 'existing_advances.2.daily_payment'],
+    ],
+  },
+  {
     title: 'Signature',
     fields: [
       ['Signer name', 'signature'],
@@ -64,10 +94,15 @@ function getPath(row: RecordMap, path: string) {
 
 function setPath(row: RecordMap, path: string, value: string) {
   const keys = path.split('.');
-  const next = { ...row };
-  let cursor = next;
-  keys.slice(0, -1).forEach((key) => {
-    cursor[key] = { ...(cursor[key] || {}) };
+  const next = Array.isArray(row) ? [...row] : { ...row };
+  let cursor: any = next;
+  keys.slice(0, -1).forEach((key, index) => {
+    const nextKey = keys[index + 1];
+    const shouldBeArray = /^\d+$/.test(nextKey);
+    const currentValue = cursor[key];
+    cursor[key] = shouldBeArray
+      ? Array.isArray(currentValue) ? [...currentValue] : []
+      : Array.isArray(currentValue) ? [...currentValue] : { ...(currentValue || {}) };
     cursor = cursor[key];
   });
   cursor[keys[keys.length - 1]] = value;

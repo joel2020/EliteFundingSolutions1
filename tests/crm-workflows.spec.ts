@@ -200,8 +200,14 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByRole('button', { name: /Review fields/i }).click();
     await expect(page.getByRole('dialog', { name: 'Elite Application Review' })).toBeVisible();
     await page.getByLabel('Company legal name').fill('Atlas Retail Group LLC');
+    await expect(page.getByLabel('Co-owner first name')).toHaveValue('Riley');
+    await page.getByLabel('Co-owner ownership %').fill('30');
+    await expect(page.getByLabel('Advance 1 funder')).toHaveValue('Fast Fund');
+    await page.getByLabel('Advance 1 balance').fill('$10,500');
     await page.getByRole('button', { name: 'Save & Regenerate Elite Application' }).click();
     await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.edited_payload?.legal_name).toBe('Atlas Retail Group LLC');
+    await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.edited_payload?.owner2?.ownership_percentage).toBe('30');
+    await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.edited_payload?.existing_advances?.[0]?.current_balance).toBe('$10,500');
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'atlas-retail-regenerated-elite-application.pdf')).toBe(true);
     await page.getByRole('tab', { name: 'Applications' }).click();
 
