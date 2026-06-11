@@ -637,6 +637,105 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     205,
   );
 
+  const drawCleanApplicationPage = async () => {
+    const navy = rgb(0.06, 0.17, 0.36);
+    const border = rgb(0.62, 0.68, 0.76);
+    const labelColor = rgb(0.22, 0.28, 0.36);
+    const valueColor = rgb(0.03, 0.07, 0.13);
+    const softFill = rgb(0.98, 0.99, 1);
+    const left = 64;
+    const fullWidth = 1373;
+
+    page.drawRectangle({ x: 55, y: 30, width: 1392, height: 1615, color: rgb(1, 1, 1), opacity: 1 });
+    page.drawRectangle({ x: left, y: 1508, width: fullWidth, height: 28, color: navy });
+    page.drawText('FUNDING APPLICATION', { x: left + 544, y: 1516, size: 13.5, font: boldFont, color: rgb(1, 1, 1) });
+
+    const section = (title: string, y: number) => {
+      page.drawRectangle({ x: left, y, width: fullWidth, height: 25, color: navy });
+      page.drawText(title, { x: left + 10, y: y + 7, size: 11.5, font: boldFont, color: rgb(1, 1, 1) });
+    };
+
+    const field = (label: string, value: unknown, x: number, y: number, width: number, height = 43, options: { size?: number; maxLines?: number } = {}) => {
+      const cleaned = text(value);
+      page.drawRectangle({ x, y, width, height, color: softFill, borderColor: border, borderWidth: 0.9 });
+      page.drawText(label, { x: x + 8, y: y + height - 13, size: 8.8, font: boldFont, color: labelColor });
+      if (!cleaned) return;
+      const preferredSize = options.size || 11.3;
+      const maxLines = options.maxLines || Math.max(1, Math.floor((height - 20) / (preferredSize + 2)));
+      let size = preferredSize;
+      let lines = wrapPdfTextByWidth(cleaned, font, size, width - 16);
+      while (size > 7.6 && lines.length > maxLines) {
+        size -= 0.25;
+        lines = wrapPdfTextByWidth(cleaned, font, size, width - 16);
+      }
+      const lineHeight = size + 2.4;
+      lines.slice(0, maxLines).forEach((line, index) => {
+        page.drawText(line, { x: x + 8, y: y + height - 29 - index * lineHeight, size, font, color: valueColor });
+      });
+    };
+
+    const twoCol = (y: number, leftField: [string, unknown], rightField: [string, unknown], height = 43) => {
+      const gap = 12;
+      const col = (fullWidth - gap) / 2;
+      field(leftField[0], leftField[1], left, y, col, height);
+      field(rightField[0], rightField[1], left + col + gap, y, col, height);
+    };
+
+    section('Business Information', 1467);
+    twoCol(1421, ['Business legal name', fields.businessLegalName], ['Business DBA name', fields.businessDba]);
+    twoCol(1375, ['Business address', fields.businessStreet], ['City, State ZIP', fields.businessCityLine]);
+    twoCol(1329, ['Business phone / mobile', [fields.businessPhone, fields.businessMobile].filter(Boolean).join(' / ')], ['Business email', fields.businessEmail]);
+    twoCol(1283, ['Website', fields.businessWebsite], ['Federal Tax ID / EIN', fields.ein]);
+    twoCol(1237, ['Entity / merchant type', [fields.entityType.toUpperCase(), fields.merchantType].filter(Boolean).join(' / ')], ['Date business started', fields.businessStartDate]);
+    twoCol(1176, ['Business location', fields.businessLocation], ['Products / services sold', fields.productsServices], 58);
+
+    section('Owner / Principal Information', 1136);
+    const ownerColumn = (owner: ResolvedOwnerPdfFields, x: number, y: number, title: string) => {
+      page.drawText(title, { x, y: y + 4, size: 11.5, font: boldFont, color: navy });
+      field('Name', owner.name, x, y - 44, 670);
+      field('Home address', owner.street, x, y - 90, 670);
+      field('City, State ZIP', owner.cityLine, x, y - 136, 670);
+      field('Phone / email', [owner.phone, owner.email].filter(Boolean).join(' / '), x, y - 182, 670);
+      field('Ownership %, DOB, SSN', [owner.ownershipPercentage, owner.dob, owner.ssn].filter(Boolean).join(' / '), x, y - 228, 670);
+      field('Driver license', owner.driversLicense, x, y - 274, 670);
+    };
+    ownerColumn(fields.owner1, left, 1102, 'Owner 1');
+    ownerColumn(fields.owner2, left + 703, 1102, 'Owner 2 / Co-owner');
+
+    section('Funding Information', 762);
+    twoCol(716, ['Amount requested', fields.requestedAmount], ['Average monthly sales', fields.averageMonthlySales]);
+    twoCol(670, ['Existing advances', fields.hasExistingAdvance ? 'Yes' : 'No'], ['Amount of remaining balances', fields.existingAdvanceBalance]);
+    field('Open advance detail', fields.existingAdvanceFunder, left, 590, fullWidth, 76, { size: 10.5, maxLines: 3 });
+
+    section('Authorization and Consent', 548);
+    const consent =
+      'By signing below, the Merchant and its owners/principals certify that all information and documents submitted with this application are true, correct, and complete. The Merchant and owners authorize Elite Funding Solutions, its funding partners, representatives, successors, assigns, designees, agents, partners, and funders to receive credit reports, verify application information, review bank and processor statements, and transmit this application and supporting documents for funding review.';
+    field('Application certification and authorization', consent, left, 431, fullWidth, 105, { size: 10.2, maxLines: 5 });
+
+    const signatureY = 330;
+    page.drawText('Applicant signature', { x: left, y: signatureY + 58, size: 9.5, font: boldFont, color: labelColor });
+    page.drawLine({ start: { x: left, y: signatureY + 10 }, end: { x: left + 420, y: signatureY + 10 }, thickness: 1.2, color: border });
+    if (fields.drawnSignaturePng) {
+      const signatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
+      const imageDims = signatureImage.scale(1);
+      const scale = Math.min(320 / imageDims.width, 58 / imageDims.height, 1);
+      page.drawImage(signatureImage, { x: left + 10, y: signatureY + 13, width: imageDims.width * scale, height: imageDims.height * scale });
+    } else {
+      page.drawText(fields.signer || 'Not provided', { x: left + 10, y: signatureY + 23, size: 14, font, color: valueColor });
+    }
+    page.drawText(`By: ${fields.signer || 'Not provided'}`, { x: left, y: signatureY - 10, size: 10.5, font: boldFont, color: valueColor });
+    page.drawText(`Date: ${fields.signatureDate || 'Not provided'}`, { x: left + 520, y: signatureY - 10, size: 10.5, font: boldFont, color: valueColor });
+    if (fields.owner2.name) {
+      page.drawText(`Co-owner: ${fields.owner2.name}`, { x: left + 790, y: signatureY - 10, size: 10.5, font: boldFont, color: valueColor });
+    }
+
+    const footerText =
+      'This Funding Application must include a copy of a voided check. Text STOP to opt out. Refer to our privacy policy on our website at www.elitefundingsolution.com. Additional disclosures and consent evidence are included on the following page.';
+    field('Submission note', footerText, left, 205, fullWidth, 72, { size: 9.8, maxLines: 3 });
+  };
+
+  await drawCleanApplicationPage();
+
   const firstPageSize = page.getSize();
 
   let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
