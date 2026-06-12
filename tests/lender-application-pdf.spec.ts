@@ -663,15 +663,15 @@ test.describe('lender application PDF data mapping', () => {
     });
     const pdf = await PDFDocument.load(pdfBuffer);
 
-    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2);
+    expect(pdf.getPageCount()).toBe(1);
     expect(pdfBuffer.length).toBeGreaterThan(100_000);
   });
 
-  test('generates a branded multi-page PDF from the resolved data contract', async () => {
+  test('generates a branded one-page PDF from the resolved data contract', async () => {
     const pdfBuffer = await generateLenderApplicationPdf(sampleApplicationData);
     const pdf = await PDFDocument.load(pdfBuffer);
 
-    expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2);
+    expect(pdf.getPageCount()).toBe(1);
     expect(pdfBuffer.length).toBeGreaterThan(100_000);
   });
 });

@@ -34,7 +34,8 @@ test.describe('generated application artifact cleanup', () => {
 
     expect(generateRoute).toContain('documentIds: [document.id]');
     expect(reviewRoute).toContain('documentIds: [document.id]');
-    expect(uploadRoute).toContain('documentIds: [convertedDocument.id]');
+    expect(uploadRoute).toContain('documentIds: [document.id]');
+    expect(uploadRoute).toContain('convertedDocument: null');
     expect(submissionRoute).toContain('documentIds: [createdApplicationDocument.id]');
   });
 });

@@ -1,7 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { APPLICATION_DISCLOSURE_SECTIONS } from './application-disclosures';
 import { decodePngDataUrl, isValidSignaturePng } from './pdf-signature';
 
 type Owner = Record<string, any>;
@@ -645,10 +644,15 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     const softFill = rgb(0.98, 0.99, 1);
     const left = 64;
     const fullWidth = 1373;
+    const { width: pageWidth, height: pageHeight } = page.getSize();
+    const bodyOffset = 160;
+    const y = (value: number) => value + bodyOffset;
 
-    page.drawRectangle({ x: 55, y: 30, width: 1392, height: 1615, color: rgb(1, 1, 1), opacity: 1 });
-    page.drawRectangle({ x: left, y: 1508, width: fullWidth, height: 28, color: navy });
-    page.drawText('FUNDING APPLICATION', { x: left + 544, y: 1516, size: 13.5, font: boldFont, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: 36, y: 36, width: pageWidth - 72, height: pageHeight - 72, color: rgb(1, 1, 1), opacity: 1 });
+    page.drawImage(logo, { x: left, y: pageHeight - 220, width: 160, height: 90 });
+    page.drawText('Elite Funding Solutions, Inc.', { x: left, y: pageHeight - 252, size: 22, font, color: rgb(0.2, 0.24, 0.3) });
+    page.drawRectangle({ x: left, y: y(1508), width: fullWidth, height: 28, color: navy });
+    page.drawText('FUNDING APPLICATION', { x: left + 544, y: y(1516), size: 13.5, font: boldFont, color: rgb(1, 1, 1) });
 
     const section = (title: string, y: number) => {
       page.drawRectangle({ x: left, y, width: fullWidth, height: 25, color: navy });
@@ -681,15 +685,15 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
       field(rightField[0], rightField[1], left + col + gap, y, col, height);
     };
 
-    section('Business Information', 1467);
-    twoCol(1421, ['Business legal name', fields.businessLegalName], ['Business DBA name', fields.businessDba]);
-    twoCol(1375, ['Business address', fields.businessStreet], ['City, State ZIP', fields.businessCityLine]);
-    twoCol(1329, ['Business phone / mobile', [fields.businessPhone, fields.businessMobile].filter(Boolean).join(' / ')], ['Business email', fields.businessEmail]);
-    twoCol(1283, ['Website', fields.businessWebsite], ['Federal Tax ID / EIN', fields.ein]);
-    twoCol(1237, ['Entity / merchant type', [fields.entityType.toUpperCase(), fields.merchantType].filter(Boolean).join(' / ')], ['Date business started', fields.businessStartDate]);
-    twoCol(1176, ['Business location', fields.businessLocation], ['Products / services sold', fields.productsServices], 58);
+    section('Business Information', y(1467));
+    twoCol(y(1421), ['Business legal name', fields.businessLegalName], ['Business DBA name', fields.businessDba]);
+    twoCol(y(1375), ['Business address', fields.businessStreet], ['City, State ZIP', fields.businessCityLine]);
+    twoCol(y(1329), ['Business phone / mobile', [fields.businessPhone, fields.businessMobile].filter(Boolean).join(' / ')], ['Business email', fields.businessEmail]);
+    twoCol(y(1283), ['Website', fields.businessWebsite], ['Federal Tax ID / EIN', fields.ein]);
+    twoCol(y(1237), ['Entity / merchant type', [fields.entityType.toUpperCase(), fields.merchantType].filter(Boolean).join(' / ')], ['Date business started', fields.businessStartDate]);
+    twoCol(y(1176), ['Business location', fields.businessLocation], ['Products / services sold', fields.productsServices], 58);
 
-    section('Owner / Principal Information', 1136);
+    section('Owner / Principal Information', y(1136));
     const ownerColumn = (owner: ResolvedOwnerPdfFields, x: number, y: number, title: string) => {
       page.drawText(title, { x, y: y + 4, size: 11.5, font: boldFont, color: navy });
       field('Name', owner.name, x, y - 44, 670);
@@ -699,20 +703,20 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
       field('Ownership %, DOB, SSN', [owner.ownershipPercentage, owner.dob, owner.ssn].filter(Boolean).join(' / '), x, y - 228, 670);
       field('Driver license', owner.driversLicense, x, y - 274, 670);
     };
-    ownerColumn(fields.owner1, left, 1102, 'Owner 1');
-    ownerColumn(fields.owner2, left + 703, 1102, 'Owner 2 / Co-owner');
+    ownerColumn(fields.owner1, left, y(1102), 'Owner 1');
+    ownerColumn(fields.owner2, left + 703, y(1102), 'Owner 2 / Co-owner');
 
-    section('Funding Information', 762);
-    twoCol(716, ['Amount requested', fields.requestedAmount], ['Average monthly sales', fields.averageMonthlySales]);
-    twoCol(670, ['Existing advances', fields.hasExistingAdvance ? 'Yes' : 'No'], ['Amount of remaining balances', fields.existingAdvanceBalance]);
-    field('Open advance detail', fields.existingAdvanceFunder, left, 590, fullWidth, 76, { size: 10.5, maxLines: 3 });
+    section('Funding Information', y(762));
+    twoCol(y(716), ['Amount requested', fields.requestedAmount], ['Average monthly sales', fields.averageMonthlySales]);
+    twoCol(y(670), ['Existing advances', fields.hasExistingAdvance ? 'Yes' : 'No'], ['Amount of remaining balances', fields.existingAdvanceBalance]);
+    field('Open advance detail', fields.existingAdvanceFunder, left, y(590), fullWidth, 76, { size: 10.5, maxLines: 3 });
 
-    section('Authorization and Consent', 548);
+    section('Authorization and Consent', y(548));
     const consent =
       'By signing below, the Merchant and its owners/principals certify that all information and documents submitted with this application are true, correct, and complete. The Merchant and owners authorize Elite Funding Solutions, its funding partners, representatives, successors, assigns, designees, agents, partners, and funders to receive credit reports, verify application information, review bank and processor statements, and transmit this application and supporting documents for funding review.';
-    field('Application certification and authorization', consent, left, 431, fullWidth, 105, { size: 10.2, maxLines: 5 });
+    field('Application certification and authorization', consent, left, y(431), fullWidth, 105, { size: 10.2, maxLines: 5 });
 
-    const signatureY = 330;
+    const signatureY = y(330);
     page.drawText('Applicant signature', { x: left, y: signatureY + 58, size: 9.5, font: boldFont, color: labelColor });
     page.drawLine({ start: { x: left, y: signatureY + 10 }, end: { x: left + 420, y: signatureY + 10 }, thickness: 1.2, color: border });
     if (fields.drawnSignaturePng) {
@@ -730,65 +734,11 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     }
 
     const footerText =
-      'This Funding Application must include a copy of a voided check. Text STOP to opt out. Refer to our privacy policy on our website at www.elitefundingsolution.com. Additional disclosures and consent evidence are included on the following page.';
-    field('Submission note', footerText, left, 205, fullWidth, 72, { size: 9.8, maxLines: 3 });
+      'This Funding Application must include a copy of a voided check and recent bank statements when requested. By signing, you certify that the application and supporting documents are accurate, true, correct, and complete, and you authorize Elite Funding Solutions, its funding partners, representatives, successors, assigns, designees, agents, and affiliates to obtain and review business, bank, processor, credit, ownership, and identity information needed to evaluate funding options. Text STOP to opt out. Refer to our privacy policy on our website at www.elitefundingsolution.com.';
+    field('Submission note', footerText, left, 64, fullWidth, 210, { size: 9.8, maxLines: 9 });
   };
 
   await drawCleanApplicationPage();
-
-  const firstPageSize = page.getSize();
-
-  let disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
-  const disclosureMargin = 72;
-  const disclosureTextColor = rgb(0.06, 0.09, 0.16);
-  const disclosureNavy = rgb(0.06, 0.17, 0.36);
-  let cursorY = firstPageSize.height - 86;
-
-  const newDisclosurePage = () => {
-    disclosurePage = pdfDoc.addPage([firstPageSize.width, firstPageSize.height]);
-    cursorY = firstPageSize.height - 86;
-  };
-
-  const ensureSpace = (space: number) => {
-    if (cursorY - space < 72) newDisclosurePage();
-  };
-
-  const drawDisclosureParagraph = (paragraph: string, size = 10.5, lineHeight = 16.5) => {
-    const maxChars = Math.max(78, Math.floor((firstPageSize.width - disclosureMargin * 2) / (size * 0.47)));
-    const lines = wrapPdfText(paragraph, maxChars);
-    ensureSpace(lines.length * lineHeight + 8);
-    lines.forEach((line) => {
-      disclosurePage.drawText(line, { x: disclosureMargin, y: cursorY, size, font, color: disclosureTextColor });
-      cursorY -= lineHeight;
-    });
-    cursorY -= 6;
-  };
-
-  disclosurePage.drawImage(logo, { x: disclosureMargin, y: firstPageSize.height - 126, width: 170, height: 95 });
-  disclosurePage.drawText('Application Disclosures and Consent', { x: disclosureMargin + 205, y: firstPageSize.height - 88, size: 21, font: boldFont, color: disclosureNavy });
-  disclosurePage.drawText('Elite Funding Solutions', { x: disclosureMargin + 205, y: firstPageSize.height - 115, size: 12, font: boldFont, color: disclosureTextColor });
-  cursorY = firstPageSize.height - 154;
-
-  APPLICATION_DISCLOSURE_SECTIONS.forEach((section) => {
-    ensureSpace(64);
-    disclosurePage.drawText(section.title, { x: disclosureMargin, y: cursorY, size: 13.5, font: boldFont, color: disclosureNavy });
-    cursorY -= 21;
-    section.paragraphs.forEach((paragraph) => drawDisclosureParagraph(paragraph, 10.5, 16.5));
-    cursorY -= 5;
-  });
-
-  ensureSpace(96);
-  disclosurePage.drawLine({ start: { x: disclosureMargin, y: cursorY }, end: { x: firstPageSize.width - disclosureMargin, y: cursorY }, thickness: 1, color: rgb(0.78, 0.82, 0.88) });
-  cursorY -= 24;
-  if (fields.drawnSignaturePng) {
-    const disclosureSignatureImage = await pdfDoc.embedPng(fields.drawnSignaturePng);
-    const imageDims = disclosureSignatureImage.scale(1);
-    const scale = Math.min(240 / imageDims.width, 44 / imageDims.height, 1);
-    disclosurePage.drawImage(disclosureSignatureImage, { x: disclosureMargin, y: cursorY - 44, width: imageDims.width * scale, height: imageDims.height * scale });
-    cursorY -= 52;
-  }
-  disclosurePage.drawText(`Applicant signature: ${fields.signer || 'Not provided'}`, { x: disclosureMargin, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
-  disclosurePage.drawText(`Date: ${fields.signatureDate || 'Not provided'}`, { x: firstPageSize.width - 330, y: cursorY, size: 10.5, font: boldFont, color: disclosureTextColor });
 
   return Buffer.from(await pdfDoc.save());
 }
