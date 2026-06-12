@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { APPLICATION_CHECKBOX_CONSENT, APPLICATION_DISCLOSURE_SECTIONS } from './application-disclosures';
 import { decodePngDataUrl, isValidSignaturePng } from './pdf-signature';
 
 type Owner = Record<string, any>;
@@ -73,7 +74,7 @@ export type ResolvedOwnerPdfFields = {
 };
 
 const templatePath = path.join(process.cwd(), 'public', 'templates', 'elite-funding-lender-application-template.pdf');
-const logoPath = path.join(process.cwd(), 'public', 'Elite_Funding_Solutions_Logo_Final.jpg');
+const logoPath = path.join(process.cwd(), 'public', 'elite-funding-logo.png');
 
 function text(value: unknown) {
   return String(value ?? '').trim();
@@ -477,7 +478,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
   const page = pdfDoc.getPage(0);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const logo = await pdfDoc.embedJpg(await fs.readFile(logoPath));
+  const logo = await pdfDoc.embedPng(await fs.readFile(logoPath));
 
   const fields = resolveLenderApplicationPdfFields(data);
 
@@ -649,7 +650,7 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
     const y = (value: number) => value + bodyOffset;
 
     page.drawRectangle({ x: 36, y: 36, width: pageWidth - 72, height: pageHeight - 72, color: rgb(1, 1, 1), opacity: 1 });
-    page.drawImage(logo, { x: left, y: pageHeight - 220, width: 160, height: 90 });
+    page.drawImage(logo, { x: left, y: pageHeight - 220, width: 170, height: 96 });
     page.drawText('Elite Funding Solutions, Inc.', { x: left, y: pageHeight - 252, size: 22, font, color: rgb(0.2, 0.24, 0.3) });
     page.drawRectangle({ x: left, y: y(1508), width: fullWidth, height: 28, color: navy });
     page.drawText('FUNDING APPLICATION', { x: left + 544, y: y(1516), size: 13.5, font: boldFont, color: rgb(1, 1, 1) });
@@ -733,9 +734,13 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
       page.drawText(`Co-owner: ${fields.owner2.name}`, { x: left + 790, y: signatureY - 10, size: 10.5, font: boldFont, color: valueColor });
     }
 
-    const footerText =
-      'This Funding Application must include a copy of a voided check and recent bank statements when requested. By signing, you certify that the application and supporting documents are accurate, true, correct, and complete, and you authorize Elite Funding Solutions, its funding partners, representatives, successors, assigns, designees, agents, and affiliates to obtain and review business, bank, processor, credit, ownership, and identity information needed to evaluate funding options. Text STOP to opt out. Refer to our privacy policy on our website at www.elitefundingsolution.com.';
-    field('Submission note', footerText, left, 64, fullWidth, 210, { size: 9.8, maxLines: 9 });
+    const footerText = [
+      'This Funding Application must include a copy of a voided check and recent bank statements when requested.',
+      ...APPLICATION_DISCLOSURE_SECTIONS.map((section) => `${section.title}: ${section.paragraphs.join(' ')}`),
+      APPLICATION_CHECKBOX_CONSENT,
+      'Text STOP to opt out. Refer to our privacy policy on our website at www.elitefundingsolution.com.',
+    ].join(' ');
+    field('Legal disclosures and consent', footerText, left, 64, fullWidth, 210, { size: 8.2, maxLines: 18 });
   };
 
   await drawCleanApplicationPage();

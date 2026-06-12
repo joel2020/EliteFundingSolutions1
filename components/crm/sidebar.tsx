@@ -91,7 +91,7 @@ export function CrmSidebar() {
               alt="Elite Funding Solutions"
               width={40}
               height={40}
-              className="object-cover"
+              className="h-full w-full object-contain p-1"
               priority
             />
           </div>

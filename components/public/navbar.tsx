@@ -60,8 +60,8 @@ export function PublicNavbar() {
           <Image
             src="/elite-funding-logo.png"
             alt="Elite Funding Solutions"
-            width={198}
-            height={112}
+            width={1672}
+            height={941}
             priority
             className="h-[72px] w-auto object-contain md:h-[92px]"
           />

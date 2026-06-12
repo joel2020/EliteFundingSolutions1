@@ -58,7 +58,7 @@ export default function LoginPage() {
                 alt="Elite Funding Solutions"
                 width={36}
                 height={36}
-                className="object-cover"
+                className="h-full w-full object-contain p-1"
               />
             </div>
             <div className="flex flex-col text-left">

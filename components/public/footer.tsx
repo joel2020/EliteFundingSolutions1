@@ -47,7 +47,7 @@ export function PublicFooter() {
         <div className="grid gap-10 border-b border-white/10 pb-9 lg:grid-cols-[1.2fr_1fr_1fr_1fr_1.25fr]">
           <div>
             <Link href="/" className="mb-4 inline-flex" aria-label="Elite Funding Solutions home">
-              <Image src="/elite-funding-logo.png" alt="Elite Funding Solutions" width={220} height={124} className="h-[104px] w-auto object-contain" />
+              <Image src="/elite-funding-logo.png" alt="Elite Funding Solutions" width={1672} height={941} className="h-[104px] w-auto object-contain" />
             </Link>
             <p className="max-w-[260px] text-sm leading-relaxed text-slate-400">
               Fast, flexible capital for ambitious businesses across the U.S.

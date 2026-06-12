@@ -14,7 +14,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 alt="Elite Funding Solutions"
                 width={28}
                 height={28}
-                className="object-cover"
+                className="h-full w-full object-contain p-1"
               />
             </div>
             <div className="flex flex-col">
