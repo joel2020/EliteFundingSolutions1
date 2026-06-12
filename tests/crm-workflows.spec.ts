@@ -20,7 +20,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test('renders the Nexus shell across authenticated CRM routes', async ({ page }) => {
+  test('renders the CRM shell across authenticated CRM routes', async ({ page }) => {
     await mockCrmApis(page);
 
     const routes = [
@@ -40,9 +40,9 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     for (const route of routes) {
       await page.goto(route);
-      const shell = page.getByTestId('crm-nexus-shell');
+      const shell = page.getByTestId('crm-shell');
       await expect(shell).toBeVisible();
-      await expect(shell).toContainText('Elite CRM Nexus v2');
+      await expect(shell).toContainText('Elite CRM');
       await expect(page.getByLabel('Notifications coming soon')).toHaveCount(0);
       for (const label of ['Dashboard', 'Leads', 'Deals', 'Offers', 'Tasks', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users & Access', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
         await expect(shell.getByText(label, { exact: true })).toBeVisible();
@@ -59,7 +59,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByText('/apply/iso/iso_mock_apply_token')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Submit Application' })).toHaveAttribute('href', /\/apply\/iso\/iso_mock_apply_token$/);
 
-    const shell = page.getByTestId('crm-nexus-shell');
+    const shell = page.getByTestId('crm-shell');
     await expect(shell.getByText('Leads', { exact: true })).toHaveCount(0);
     await expect(shell.getByText('Users & Access', { exact: true })).toHaveCount(0);
 

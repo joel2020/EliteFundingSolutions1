@@ -71,11 +71,11 @@ export function CrmSidebar() {
   return (
     <aside
       className={`z-40 flex shrink-0 flex-col border-b border-[#E2E8F0] bg-white text-[#0F172A] shadow-[1px_0_2px_rgba(15,23,42,0.05)] transition-[width] duration-200 lg:h-screen lg:border-b-0 lg:border-r ${collapsed ? 'lg:w-[92px]' : 'lg:w-[276px]'}`}
-      data-testid="crm-nexus-shell"
+      data-testid="crm-shell"
       data-collapsed={collapsed ? 'true' : 'false'}
     >
       <div className="flex min-h-[68px] items-center justify-between gap-3 border-b border-[#E2E8F0] px-4 py-3 lg:min-h-[76px]">
-        <Link href="/crm" prefetch={false} className="flex min-w-0 items-center gap-3" title="Elite CRM Nexus v2">
+        <Link href="/crm" prefetch={false} className="flex min-w-0 items-center gap-3" title="Elite CRM">
           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC]">
             <Image
               src="/elite-funding-logo.png"
@@ -87,7 +87,7 @@ export function CrmSidebar() {
             />
           </div>
           <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
-            <div className="truncate text-[13px] font-semibold leading-tight text-[#0F172A]">Elite CRM Nexus v2</div>
+            <div className="truncate text-[13px] font-semibold leading-tight text-[#0F172A]">Elite CRM</div>
             <div className="truncate text-[11px] font-semibold uppercase leading-tight tracking-normal text-[#C9A84C]">Elite Funding Solutions</div>
           </div>
         </Link>
