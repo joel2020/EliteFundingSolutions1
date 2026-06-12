@@ -2211,7 +2211,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                 <div className="mt-3">
                   <SimpleRows rows={dealSubmissions} empty="No funder submissions yet. Use Send to Funder when the package is ready." render={(row) => {
                     const relatedOffer = dealOffers.find((o: RecordMap) => o.partner_submission_id === row.id || o.funding_partner_id === row.funding_partner_id);
-                    const sentDocs = Array.isArray(row.attachment_document_ids) ? row.attachment_document_ids.map((id: string) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) : [];
+                    const sentDocs = Array.isArray(row.attachment_document_ids) ? row.attachment_document_ids.map((id: string) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter((doc: RecordMap | undefined): doc is RecordMap => Boolean(doc)) : [];
                     return (
                       <div className="grid gap-2 md:grid-cols-[1.2fr_130px_1fr_1fr]">
                         <div><b>{partnerName(row)}</b><p className="text-xs text-[#64748B]">Sent {date(row.submitted_at || row.created_at)}</p><p className="text-xs text-[#64748B]">{row.email_status === 'sent' || row.email_sent_at ? 'Email delivered via Gmail' : 'Logged - manual email follow-up'}</p></div>
