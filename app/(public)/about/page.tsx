@@ -20,7 +20,7 @@ export default function AboutPage() {
         <div className="container-page grid gap-12 py-24 md:py-32 lg:grid-cols-[1fr_0.9fr] lg:items-start">
           <div>
             <p className="eyebrow mb-4">About Elite</p>
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white md:text-7xl">A premium funding desk for ambitious businesses.</h1>
+            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white md:text-7xl">A premium funding desk for growing businesses.</h1>
             <p className="mt-6 text-lg leading-8 text-slate-300">Elite Funding Solutions combines secure intake, disciplined file packaging, and high-touch advisory to help business owners evaluate capital options with clarity and confidence.</p>
           </div>
           <div className="rounded-[28px] border border-white/10 bg-[#05101d]/[0.045] p-6 md:p-8">

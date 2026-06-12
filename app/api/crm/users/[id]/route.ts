@@ -61,6 +61,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ success: false, error: 'Only a super admin can edit a super admin.' }, { status: 403 });
   }
 
+  if (parsed.data.role && ['funder', 'client'].includes(parsed.data.role)) {
+    return NextResponse.json({ success: false, error: 'Funders and clients cannot hold CRM user roles. Manage funders under the Funders section.' }, { status: 400 });
+  }
+
   if (parsed.data.role === 'super_admin' && profile.role !== 'super_admin') {
     return NextResponse.json({ success: false, error: 'Only a super admin can grant super admin.' }, { status: 403 });
   }

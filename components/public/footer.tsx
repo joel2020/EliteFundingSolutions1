@@ -50,7 +50,7 @@ export function PublicFooter() {
               <Image src="/elite-funding-logo.png" alt="Elite Funding Solutions" width={1672} height={941} className="h-[104px] w-auto object-contain" />
             </Link>
             <p className="max-w-[260px] text-sm leading-relaxed text-slate-400">
-              Fast, flexible capital for ambitious businesses across the U.S.
+              Fast, flexible capital for growing businesses across the U.S.
             </p>
             <p className="mt-5 max-w-[270px] text-xs leading-6 text-slate-400">
               Advisor-led funding review from Tampa for established U.S. operators.

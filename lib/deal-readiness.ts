@@ -263,7 +263,14 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
 
   const requiredDocRows = docsRes.data || [];
   const openRequired = requiredDocRows.filter((row: any) => !isRequiredDocumentCompleteStatus(row.status));
-  const hasSignature = hasApplicationSignatureEvidence({
+  const completedApplicationDocuments = (completedAppDocsRes.data || []).filter((document: any) =>
+    document?.document_type === 'completed_application' && isRequiredDocumentCompleteStatus(document.status));
+  // Rohan's rule: when a completed signed application PDF is already attached to the
+  // deal, the package is sendable. The application document itself carries the SSN,
+  // EIN, DOB, ownership, address, and signature, so those field-level checks become
+  // warnings instead of hard blocks.
+  const hasCompletedApplicationDocument = completedApplicationDocuments.length > 0;
+  const hasSignature = hasCompletedApplicationDocument || hasApplicationSignatureEvidence({
     application: appRes.data,
     completedApplicationDocuments: completedAppDocsRes.data || [],
   });
@@ -313,7 +320,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       key: 'ein_verified',
       label: 'Business EIN is complete',
       passed: hasFullEin,
-      blocksSubmission: true,
+      blocksSubmission: !hasCompletedApplicationDocument,
       detail: hasFullEin
         ? 'Full encrypted EIN is present and decryptable for the completed application.'
         : LAST4_PATTERN.test(einLast4)
@@ -324,7 +331,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       key: 'ssn_present',
       label: 'Owner SSN is complete',
       passed: hasFullSsn,
-      blocksSubmission: true,
+      blocksSubmission: !hasCompletedApplicationDocument,
       detail: hasFullSsn
         ? 'Full encrypted owner SSN is present and decryptable for the completed application.'
         : LAST4_PATTERN.test(ssnLast4)
@@ -335,21 +342,21 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       key: 'business_location_complete',
       label: 'Business city, state, and ZIP are complete',
       passed: hasBusinessLocation,
-      blocksSubmission: true,
+      blocksSubmission: !hasCompletedApplicationDocument,
       detail: hasBusinessLocation ? 'Business city, state, and ZIP are available for the completed application.' : 'Business city, state, or ZIP is missing. Fix the application before funder submission.',
     },
     {
       key: 'owner_dob_present',
       label: 'Owner DOB is complete',
       passed: hasOwnerDob,
-      blocksSubmission: true,
+      blocksSubmission: !hasCompletedApplicationDocument,
       detail: hasOwnerDob ? 'Owner DOB is available for the completed application.' : 'Owner DOB is missing. Fix the application before funder submission.',
     },
     {
       key: 'owner_ownership_present',
       label: 'Owner ownership percentage is complete',
       passed: hasOwnerOwnership,
-      blocksSubmission: true,
+      blocksSubmission: !hasCompletedApplicationDocument,
       detail: hasOwnerOwnership ? 'Owner ownership percentage is available for the completed application.' : 'Owner ownership percentage is missing. Fix the application before funder submission.',
     },
     {

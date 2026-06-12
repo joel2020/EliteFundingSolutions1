@@ -6,10 +6,8 @@ import { usePathname } from 'next/navigation';
 import {
   ChartBar as BarChart3,
   Building2,
-  ClipboardList,
   DollarSign,
   FileArchive,
-  FileText,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
@@ -17,7 +15,6 @@ import {
   RefreshCw,
   Search,
   Settings,
-  Send,
   Tag,
   UserCircle,
   Users,
@@ -28,19 +25,13 @@ import { useCrmUser } from '@/lib/crm-auth';
 
 const staffRoles = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer'];
 const adminRoles = ['super_admin', 'admin'];
-const fundingReviewRoles = ['super_admin', 'admin', 'manager', 'processor', 'underwriter'];
-const externalRoles = ['funder', 'iso_broker', 'broker', 'referral_partner'];
+const externalRoles = ['iso_broker', 'broker', 'referral_partner'];
 
 const navItems = [
   { href: '/crm', label: 'Dashboard', icon: LayoutDashboard, roles: [...staffRoles, ...externalRoles] },
   { href: '/crm/deals', label: 'Deals', icon: Search, roles: [...staffRoles, ...externalRoles] },
-  { href: '/crm/applications', label: 'Applications', icon: FileText, roles: staffRoles },
   { href: '/crm/leads', label: 'Leads', icon: Tag, roles: staffRoles },
-  { href: '/crm/underwriting', label: 'Funding Review', icon: ClipboardList, roles: fundingReviewRoles },
-  { href: '/crm/offers', label: 'Offers', icon: Send, roles: [...staffRoles, 'funder'] },
   { href: '/crm/partners', label: 'Funders', icon: Building2, roles: staffRoles },
-  { href: '/crm/iso-brokers', label: 'ISOs / Partners', icon: Users, roles: staffRoles },
-  { href: '/crm/tasks', label: 'Tasks', icon: ClipboardList, roles: staffRoles },
   { href: '/crm/renewals', label: 'Renewals', icon: RefreshCw, roles: staffRoles },
   { href: '/crm/earnings', label: 'Earnings', icon: DollarSign, roles: staffRoles },
   { href: '/crm/reports', label: 'Reports', icon: BarChart3, roles: staffRoles },

@@ -3,6 +3,7 @@ import { requireCrmAccess, requireSameOrigin } from '@/lib/server-auth';
 import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
 import { classifyDealDocumentUpload, sameCrmDocumentType } from '@/lib/document-classification';
 import { extractBankStatementSignals } from '@/lib/bank-statement-extraction';
+import { createCrmNotification } from '@/lib/crm-notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +61,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: deal } = await supabase
     .from('deals')
-    .select('id,organization_id,business_id,application_id,lead_id,iso_broker_id')
+    .select('id,organization_id,business_id,application_id,lead_id,iso_broker_id,assigned_user_id,title')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .single();
@@ -198,6 +199,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   await Promise.allSettled([
+    createCrmNotification({
+      organizationId: profile.organization_id,
+      actorUserProfileId: profile.id,
+      recipientUserProfileId: deal.assigned_user_id || null,
+      resourceType: 'deals',
+      resourceId: deal.id,
+      title: `Document uploaded: ${label}`,
+      body: `${file.name} uploaded to ${deal.title || 'deal'}${isInternalCrmRole(profile.role) ? '' : ' by an external partner'}.`,
+      severity: 'info',
+    }),
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,

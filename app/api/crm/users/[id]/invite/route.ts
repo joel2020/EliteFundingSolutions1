@@ -24,6 +24,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (targetError) return NextResponse.json({ success: false, error: targetError.message }, { status: 500 });
   if (!target || target.deleted_at) return NextResponse.json({ success: false, error: 'User profile not found.' }, { status: 404 });
   if (!target.is_active) return NextResponse.json({ success: false, error: 'Reactivate this user before resending an invite.' }, { status: 400 });
+  if (['funder', 'client'].includes(target.role)) {
+    return NextResponse.json({ success: false, error: 'Funders and clients cannot receive CRM access invites.' }, { status: 400 });
+  }
+
   if (target.role === 'super_admin' && profile.role !== 'super_admin') {
     return NextResponse.json({ success: false, error: 'Only a super admin can invite a super admin.' }, { status: 403 });
   }

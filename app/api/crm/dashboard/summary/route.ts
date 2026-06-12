@@ -8,19 +8,15 @@ type RecordMap = Record<string, any>;
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 const STAGE_OPTIONS = [
-  ['lead_captured', 'New'],
-  ['documents_requested', 'Docs Needed'],
+  ['documents_requested', 'Docs needed'],
   ['application_submitted', 'Submitted'],
-  ['underwriting_review', 'Under Review'],
-  ['submitted_to_partners', 'Submitted to Funders'],
-  ['offers_received', 'Offer Received'],
-  ['offer_presented', 'Offer Sent'],
-  ['contract_sent', 'Contract Out'],
-  ['contract_signed', 'Signed'],
-  ['funded', 'Funded'],
+  ['approved', 'Approved'],
   ['declined', 'Declined'],
-  ['lost_unresponsive', 'Withdrawn'],
-  ['renewal_eligible', 'Renewal Eligible'],
+  ['contract_requested', 'Contracts requested'],
+  ['contract_signed', 'Contracts signed'],
+  ['funded', 'Funded'],
+  ['defaulted', 'Defaulted'],
+  ['renewal_eligible', 'Renewal eligible'],
 ];
 
 function userDisplayName(user: RecordMap) {

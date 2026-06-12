@@ -182,7 +182,7 @@ export const emailTemplates = {
           This secure invite link expires in <strong>24 hours</strong>. If it expires, an Elite Funding Solutions admin can resend it from Users &amp; Access.
         </p>
         <p style="font-size: 16px; color: #374151; line-height: 1.6;">
-          Need help? Contact Elite Funding Solutions support at <a href="mailto:info@elitefundingsolution.com" style="color: #0f2b5b; font-weight: 700;">info@elitefundingsolution.com</a>.
+          Need help? Contact Elite Funding Solutions support at <a href="mailto:Info@elitefundingsol.com" style="color: #0f2b5b; font-weight: 700;">Info@elitefundingsol.com</a>.
         </p>
         <p style="font-size: 16px; color: #374151; line-height: 1.6; margin-bottom: 0;">
           Best regards,<br/>
