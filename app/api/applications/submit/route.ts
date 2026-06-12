@@ -7,6 +7,7 @@ import { CONSENT_VERSION } from '@/lib/company';
 import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { decodePngDataUrl } from '@/lib/pdf-signature';
+import { createCrmNotification } from '@/lib/crm-notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -1043,6 +1044,7 @@ export async function POST(request: Request) {
 
     await supabase.from('deal_status_history').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, from_stage: null, to_stage: 'application_submitted', notes: 'Submitted through the secure public digital application endpoint.' });
     await supabase.from('activities').insert({ organization_id: DEFAULT_ORG_ID, deal_id: deal.id, application_id: app.id, business_id: biz.id, lead_id: lead.id, performed_by: referralProfile?.id || null, activity_type: 'system', title: 'Application submitted', body: `Digital funding application submitted${referralProfile ? ` from ${profileName(referralProfile)} referral link` : isoBrokerReferral ? ` from ${brokerName(isoBrokerReferral)} ISO link` : ''}. Documents uploaded: ${uploadedDocuments.length ? uploadedDocuments.map((doc) => doc.name).join(', ') : 'none yet'}` });
+    await createCrmNotification({ organizationId: DEFAULT_ORG_ID, recipientUserProfileId: dealPayload.assigned_user_id || null, resourceType: 'deals', resourceId: deal.id, title: `Application completed: ${form.legal_name}`, body: `Signed funding application received${Number(form.requested_amount || 0) > 0 ? ` requesting $${Number(form.requested_amount).toLocaleString()}` : ''}.${uploadedDocuments.length ? ` ${uploadedDocuments.length} document(s) uploaded.` : ''}`, severity: 'success' });
     await supabase.from('audit_logs').insert({ organization_id: DEFAULT_ORG_ID, action: 'application_submitted', resource_type: 'applications', resource_id: app.id, ip_address: clientIp, user_agent: userAgent, new_data: { source: isoBrokerReferral ? 'iso_broker_application' : referralProfile ? 'rep_referral_application' : 'digital_application', business_name: form.legal_name, referral_code: referralCode, referred_by_user_profile_id: referralProfile?.id || null, iso_broker_id: isoBrokerReferral?.id || null, documents: uploadedDocuments.map((doc) => ({ type: doc.type, name: doc.name })), consent_version: form.consent_version } });
 
     if (form.existing_advances.length > 0) {

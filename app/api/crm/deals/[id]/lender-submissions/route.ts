@@ -202,20 +202,44 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   let generatedApplicationDocument: any = null;
   {
-    const editedPayload = (latestPartnerApplication as any)?.edited_payload || {};
     const latestPartnerApplicationStatus = String((latestPartnerApplication as any)?.status || '').toLowerCase();
-    if (latestPartnerApplication && !REVIEWED_PARTNER_APPLICATION_STATUSES.has(latestPartnerApplicationStatus)) {
-      return NextResponse.json({
-        success: false,
-        error: 'Latest partner application must be reviewed and regenerated into an Elite application before this deal can be sent to funders.',
-        partnerApplication: {
-          id: (latestPartnerApplication as any).id,
-          status: (latestPartnerApplication as any).status,
-        },
-      }, { status: 409 });
+    const partnerApplicationReviewed = REVIEWED_PARTNER_APPLICATION_STATUSES.has(latestPartnerApplicationStatus);
+
+    // Rohan's rule: never block a funder send when a completed application already
+    // exists under Documents. If an unreviewed partner upload is sitting on the deal
+    // but a completed application PDF is attached, send using the existing
+    // application data instead of hard-blocking with a 409.
+    let hasExistingCompletedApplication = false;
+    if (latestPartnerApplication && !partnerApplicationReviewed) {
+      const completedDocQuery = supabase
+        .from('documents')
+        .select('id')
+        .eq('organization_id', profile.organization_id)
+        .eq('document_type', 'completed_application')
+        .not('storage_path', 'is', null)
+        .limit(1);
+      const { data: completedDocs } = deal.application_id
+        ? await completedDocQuery.or(`deal_id.eq.${deal.id},application_id.eq.${deal.application_id}`)
+        : await completedDocQuery.eq('deal_id', deal.id);
+      hasExistingCompletedApplication = (completedDocs || []).length > 0;
+
+      if (!hasExistingCompletedApplication) {
+        return NextResponse.json({
+          success: false,
+          error: 'Latest partner application must be reviewed and regenerated into an Elite application before this deal can be sent to funders.',
+          partnerApplication: {
+            id: (latestPartnerApplication as any).id,
+            status: (latestPartnerApplication as any).status,
+          },
+        }, { status: 409 });
+      }
     }
+
+    // Only use the partner upload's extracted fields when it has been reviewed.
+    const usablePartnerApplication = latestPartnerApplication && partnerApplicationReviewed ? latestPartnerApplication : null;
+    const editedPayload = (usablePartnerApplication as any)?.edited_payload || {};
     const applicationPayload = (application as any)?.application_payload || {};
-    const targetApplicationId = deal.application_id || (latestPartnerApplication as any)?.application_id || null;
+    const targetApplicationId = deal.application_id || (usablePartnerApplication as any)?.application_id || (latestPartnerApplication as any)?.application_id || null;
     if (!targetApplicationId) {
       return NextResponse.json({ success: false, error: 'No CRM application record is linked to this deal. Complete or convert an application before sending to funders.' }, { status: 400 });
     }
@@ -253,16 +277,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
         application_id: targetApplicationId,
         uploaded_by_user_id: user.id,
         document_type: 'completed_application',
-        label: latestPartnerApplication ? 'Elite Funding Solutions converted application' : 'Completed funder application',
-        file_name: latestPartnerApplication ? `${safeDealName}-elite-application.pdf` : `${safeDealName}-application.pdf`,
+        label: usablePartnerApplication ? 'Elite Funding Solutions converted application' : 'Completed funder application',
+        file_name: usablePartnerApplication ? `${safeDealName}-elite-application.pdf` : `${safeDealName}-application.pdf`,
         file_size: applicationPdf.length,
         mime_type: 'application/pdf',
         storage_path: generatedApplicationPath,
         status: 'uploaded',
-        application_source: latestPartnerApplication ? 'partner_upload' : 'crm_manual',
-        application_variant: latestPartnerApplication ? 'elite_converted_partner' : 'elite_generated',
-        related_partner_application_upload_id: (latestPartnerApplication as any)?.id || null,
-        review_notes: latestPartnerApplication ? `Generated from partner application for funder submission to ${partner.name}.` : `Generated automatically for funder submission to ${partner.name}.`,
+        application_source: usablePartnerApplication ? 'partner_upload' : 'crm_manual',
+        application_variant: usablePartnerApplication ? 'elite_converted_partner' : 'elite_generated',
+        related_partner_application_upload_id: (usablePartnerApplication as any)?.id || null,
+        review_notes: usablePartnerApplication ? `Generated from partner application for funder submission to ${partner.name}.` : `Generated automatically for funder submission to ${partner.name}.`,
       })
       .select(DOCUMENT_PACKAGE_SELECT)
       .single();
@@ -276,11 +300,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
     generatedApplicationDocument = createdApplicationDocument;
 
-    if (latestPartnerApplication) {
+    if (usablePartnerApplication) {
       const { error: partnerApplicationUpdateError } = await supabase
         .from('partner_application_uploads')
         .update({ converted_document_id: createdApplicationDocument.id, status: 'converted', updated_by: profile.id })
-        .eq('id', (latestPartnerApplication as any).id)
+        .eq('id', (usablePartnerApplication as any).id)
         .eq('organization_id', profile.organization_id);
       if (partnerApplicationUpdateError) {
         await cleanupGeneratedApplicationArtifacts(supabase, {
@@ -292,7 +316,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
     }
 
-    const applicationUpdate = latestPartnerApplication
+    const applicationUpdate = usablePartnerApplication
       ? buildPartnerApplicationSyncUpdate({
         existingApplicationPayload: applicationPayload,
         editedPayload,
@@ -308,7 +332,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .from('applications')
       .update({
         ...applicationUpdate,
-        ...(latestPartnerApplication ? { converted_from_partner_upload_id: (latestPartnerApplication as any).id } : {}),
+        ...(usablePartnerApplication ? { converted_from_partner_upload_id: (usablePartnerApplication as any).id } : {}),
       })
       .eq('id', targetApplicationId)
       .eq('organization_id', profile.organization_id);
@@ -501,6 +525,25 @@ export async function POST(request: Request, { params }: { params: { id: string 
   ];
 
   await Promise.allSettled([
+    supabase.from('partner_submissions').update({
+      email_status: emailDeliveryStatus === 'sent' ? 'sent' : emailDeliveryStatus === 'manual_send_required' ? 'manual_send_required' : 'failed',
+      email_sent_at: emailDeliveryStatus === 'sent' ? new Date().toISOString() : null,
+      email_provider_message_id: (emailProviderData as any)?.id || null,
+      email_error: emailDeliveryStatus === 'sent' ? null : emailProviderError,
+      email_body: emailText,
+    }).eq('id', submission.id).eq('organization_id', profile.organization_id),
+    supabase.from('crm_notifications').insert({
+      organization_id: profile.organization_id,
+      recipient_user_profile_id: null,
+      actor_user_profile_id: profile.id,
+      resource_type: 'deals',
+      resource_id: deal.id,
+      title: `Package sent to funder: ${partner.name}`,
+      body: emailDeliveryStatus === 'sent'
+        ? `${deal.title || 'Deal'} package emailed to ${partner.name} with ${documentIds.length} document(s).`
+        : `${deal.title || 'Deal'} package logged for ${partner.name}; email needs manual follow-up.`,
+      severity: emailDeliveryStatus === 'sent' ? 'success' : 'warning',
+    }),
     supabase.from('activities').insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,

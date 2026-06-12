@@ -6,6 +6,7 @@ import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
+import { createCrmNotification } from '@/lib/crm-notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -206,6 +207,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
       title: 'Elite application PDF generated',
       body: document.file_name,
       performed_by: profile.id,
+    }),
+    createCrmNotification({
+      organizationId: profile.organization_id,
+      actorUserProfileId: profile.id,
+      resourceType: 'deals',
+      resourceId: deal.id,
+      title: 'Signed application PDF generated',
+      body: `${document.file_name} is ready under Documents and can be sent to funders.`,
+      severity: 'success',
     }),
     supabase.from('audit_logs').insert({
       organization_id: profile.organization_id,

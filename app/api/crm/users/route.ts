@@ -8,6 +8,9 @@ import { CRM_ACCESS_ROLES, accessEntityTypeForRole } from '@/lib/access-control'
 export const dynamic = 'force-dynamic';
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
+// Funders must never receive CRM access (Rohan's rule). They are managed as
+// funding partner companies under /crm/partners instead.
+const BLOCKED_CRM_USER_ROLES = new Set(['funder', 'client']);
 const USER_ROLES = [...CRM_ACCESS_ROLES, 'client'] as const;
 
 function referralSlugForUser(firstName: string, lastName: string, email: string, userId: string) {
@@ -108,6 +111,10 @@ export async function POST(request: Request) {
   const form = parsed.data;
   if (isProductionRuntime() && isBlockedProductionEmail(form.email)) {
     return NextResponse.json({ success: false, error: 'Test/demo email domains are blocked in production invites.' }, { status: 400 });
+  }
+
+  if (BLOCKED_CRM_USER_ROLES.has(form.role)) {
+    return NextResponse.json({ success: false, error: 'Funders and clients cannot be invited as CRM users. Manage funders under the Funders section.' }, { status: 400 });
   }
 
   if (form.role === 'super_admin' && profile.role !== 'super_admin') {

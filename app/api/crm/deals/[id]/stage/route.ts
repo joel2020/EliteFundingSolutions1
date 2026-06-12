@@ -36,29 +36,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const previousStage = deal.stage_slug || null;
   const nextStage = parsed.data.stage_slug;
 
-  const [{ count: acceptedOfferCount }, { count: openRequiredDocumentCount }] = await Promise.all([
-    supabase
-      .from('offers')
-      .select('id', { count: 'exact', head: true })
-      .eq('organization_id', profile.organization_id)
-      .eq('deal_id', deal.id)
-      .eq('status', 'accepted'),
-    supabase
-      .from('document_requests')
-      .select('id', { count: 'exact', head: true })
-      .eq('organization_id', profile.organization_id)
-      .eq('deal_id', deal.id)
-      .eq('required', true)
-      .not('status', 'in', '(approved,waived)'),
-  ]);
-
   const transition = validateStageTransition({
     fromStage: previousStage,
     toStage: nextStage,
     role: profile.role,
-    acceptedOfferCount: acceptedOfferCount || 0,
-    openRequiredDocumentCount: openRequiredDocumentCount || 0,
-    fundedAmount: Number(deal.funded_amount || 0),
   });
 
   if (!transition.ok) {
@@ -72,6 +53,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if (nextStage === 'funded') updatePayload.funded_at = new Date().toISOString();
   if (nextStage === 'declined') updatePayload.declined_at = new Date().toISOString();
+  if (nextStage === 'defaulted') updatePayload.defaulted_at = new Date().toISOString();
 
   const { error: updateError } = await supabase
     .from('deals')

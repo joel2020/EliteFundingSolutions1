@@ -15,7 +15,7 @@ const dealSchema = z.object({
   requested_amount: z.coerce.number().positive().optional().nullable(),
   approved_amount: z.coerce.number().nonnegative().optional().nullable(),
   funded_amount: z.coerce.number().nonnegative().optional().nullable(),
-  stage_slug: z.string().optional().default('lead_captured'),
+  stage_slug: z.string().optional().default('documents_requested'),
   stage: z.string().optional(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   junior_closer_id: z.string().uuid().optional().nullable(),
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 
   const form = parsed.data;
   const businessName = (form.business_name || form.title || 'New merchant').trim();
-  const stage = form.stage || form.stage_slug || 'lead_captured';
+  const stage = form.stage || form.stage_slug || 'documents_requested';
   const assignedUserId = form.assigned_user_id || profile.id;
   const requestedAmount = form.requested_amount ?? null;
   const { firstName, lastName } = splitName(form.contact_name);
