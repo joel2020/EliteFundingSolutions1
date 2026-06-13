@@ -69,18 +69,20 @@ export async function GET(request: NextRequest) {
     );
 
     const { data: { user } } = await authClient.auth.getUser();
-    const authenticatedUserId = user?.id || verifiedUserId;
 
-    if (user?.id && user.id !== verifiedUserId) {
+    // Require a live CRM session — do not complete the OAuth flow on a state token alone.
+    if (!user?.id) {
+      const loginUrl = new URL('/login', getCrmOrigin(request));
+      loginUrl.searchParams.set('error', 'not_authenticated');
+      loginUrl.searchParams.set('redirectTo', '/crm/settings');
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (user.id !== verifiedUserId) {
       return redirectToSettings(request, 'state_user_mismatch');
     }
 
-    if (!authenticatedUserId) {
-      const loginUrl = new URL('/login', getCrmOrigin(request));
-      loginUrl.searchParams.set('error', 'not_authenticated');
-      loginUrl.searchParams.set('next', '/crm/settings');
-      return NextResponse.redirect(loginUrl);
-    }
+    const authenticatedUserId = user.id;
 
     const oauth2Client = getOAuth2Client();
     const { tokens } = await oauth2Client.getToken(code);

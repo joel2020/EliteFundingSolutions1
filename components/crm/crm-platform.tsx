@@ -613,11 +613,11 @@ function useCrmDataset() {
     setError(null);
 
     const settled = await Promise.allSettled([
-      browserSupabase.from('leads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-      browserSupabase.from('deals').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-      browserSupabase.from('offers').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
-      browserSupabase.from('renewals').select('*').eq('organization_id', org).order('updated_at', { ascending: false }),
-      browserSupabase.from('commissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }),
+      browserSupabase.from('leads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(2000),
+      browserSupabase.from('deals').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(2000),
+      browserSupabase.from('offers').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(2000),
+      browserSupabase.from('renewals').select('*').eq('organization_id', org).order('updated_at', { ascending: false }).limit(2000),
+      browserSupabase.from('commissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(2000),
       browserSupabase.from('funding_partners').select('*').eq('organization_id', org).is('deleted_at', null).order('name'),
       browserSupabase.from('user_profiles').select('*').eq('organization_id', org).is('deleted_at', null).order('first_name'),
       browserSupabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
@@ -626,7 +626,7 @@ function useCrmDataset() {
       browserSupabase.from('partner_submissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('deal_financials').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      browserSupabase.from('businesses').select('*').eq('organization_id', org).is('deleted_at', null),
+      browserSupabase.from('businesses').select('*').eq('organization_id', org).is('deleted_at', null).limit(2000),
       browserSupabase.from('document_requests').select('*').eq('organization_id', org).order('updated_at', { ascending: false }).limit(200),
       browserSupabase.from('tasks').select('*').eq('organization_id', org).order('due_date', { ascending: true }).limit(200),
       browserSupabase.from('stipulations').select('*').eq('organization_id', org).order('updated_at', { ascending: false }).limit(200),

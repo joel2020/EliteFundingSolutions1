@@ -41,7 +41,9 @@ export function getConfiguredRedirectUri() {
 }
 
 function getOAuthStateSecret() {
-  const secret = process.env.GOOGLE_CLIENT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Must be a dedicated secret — never fall back to the Supabase service role key, or a
+  // leaked OAuth state signer would also be the database superuser key.
+  const secret = process.env.GOOGLE_CLIENT_SECRET;
   if (!secret) {
     throw new Error('Missing OAuth state secret. Set GOOGLE_CLIENT_SECRET in your environment variables.');
   }

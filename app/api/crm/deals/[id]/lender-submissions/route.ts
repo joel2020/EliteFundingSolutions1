@@ -154,7 +154,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (docError) return NextResponse.json({ success: false, error: docError.message }, { status: 500 });
   if ((selectedDocuments || []).length !== selectedDocumentIds.length) return NextResponse.json({ success: false, error: 'One or more selected documents could not be found.' }, { status: 400 });
 
-  const invalidDocument = (selectedDocuments || []).find((doc: any) => doc.deal_id !== deal.id && doc.application_id !== deal.application_id);
+  const invalidDocument = (selectedDocuments || []).find((doc: any) => doc.deal_id !== deal.id && (!deal.application_id || doc.application_id !== deal.application_id));
   if (invalidDocument) return NextResponse.json({ success: false, error: 'Selected attachments must belong to this deal.' }, { status: 400 });
 
   const [{ data: application }, { data: business }, { data: latestPartnerApplication }] = await Promise.all([

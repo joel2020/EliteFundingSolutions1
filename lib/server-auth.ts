@@ -31,7 +31,10 @@ export function jsonError(error: string, status: number) {
 
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get('origin');
-  if (!origin) return null;
+  // These routes are only ever called by the in-browser SPA, where a same-origin
+  // request always carries an Origin header. A missing Origin means a non-browser
+  // client (curl/Postman/server) and is treated as a CSRF failure.
+  if (!origin) return jsonError('Forbidden', 403);
 
   const host = request.headers.get('host');
   if (!host) return jsonError('Forbidden', 403);

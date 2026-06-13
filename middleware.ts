@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(rewriteUrl);
   }
 
-  if (process.env.E2E_AUTH_BYPASS === '1' && (pathname.startsWith('/crm') || pathname.startsWith('/portal'))) {
+  if (process.env.NODE_ENV !== 'production' && process.env.E2E_AUTH_BYPASS === '1' && (pathname.startsWith('/crm') || pathname.startsWith('/portal'))) {
     return res;
   }
 
