@@ -1753,15 +1753,43 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const recentPartnerBundlesForDeal = recentPartnerApplicationBundles.filter((bundle) => bundle.deal_id === deal.id || bundle.partnerApplication?.deal_id === deal.id || (deal.application_id && bundle.application_id === deal.application_id));
   const recentPartnerDocs = recentPartnerBundlesForDeal.flatMap((bundle) => bundle.documents || []);
   const recentPartnerApplications = recentPartnerBundlesForDeal.map((bundle) => bundle.partnerApplication).filter(Boolean);
-  const dealDocs = uniqueRecordsById([...recentPartnerDocs, ...documents]).filter((doc: RecordMap) => doc.deal_id === deal.id || doc.application_id === deal.application_id || recentPartnerBundlesForDeal.some((bundle) => doc.application_id && doc.application_id === bundle.application_id));
-  const dealPartnerApplications = uniqueRecordsById([...recentPartnerApplications, ...partnerApplications]).filter((row: RecordMap) => row.deal_id === deal.id || row.application_id === deal.application_id || recentPartnerBundlesForDeal.some((bundle) => row.application_id && row.application_id === bundle.application_id));
+  const dealDocs = uniqueRecordsById([...recentPartnerDocs, ...documents]).filter((doc: RecordMap) => doc.deal_id === deal.id || (deal.application_id && doc.application_id === deal.application_id) || recentPartnerBundlesForDeal.some((bundle) => doc.application_id && doc.application_id === bundle.application_id));
+  const dealPartnerApplications = uniqueRecordsById([...recentPartnerApplications, ...partnerApplications]).filter((row: RecordMap) => row.deal_id === deal.id || (deal.application_id && row.application_id === deal.application_id) || recentPartnerBundlesForDeal.some((bundle) => row.application_id && row.application_id === bundle.application_id));
   const originalPartnerApplicationDocs = dealDocs.filter((doc: RecordMap) => doc.application_variant === 'original_partner' || doc.document_type === 'partner_application');
   const convertedApplicationDocs = dealDocs.filter((doc: RecordMap) => doc.application_variant === 'elite_converted_partner' || doc.application_variant === 'elite_generated' || doc.document_type === 'completed_application');
   const publicApplicationStatus = app?.application_source ? app.application_source : app?.submitted_at ? 'website' : 'not_started';
-  const dealRequests = documentRequests.filter((request: RecordMap) => request.deal_id === deal.id || request.application_id === deal.application_id);
+  const dealRequests = documentRequests.filter((request: RecordMap) => request.deal_id === deal.id || (deal.application_id && request.application_id === deal.application_id));
   const dealStips = stipulations.filter((stip: RecordMap) => stip.deal_id === deal.id || dealOffers.some((offer: RecordMap) => offer.id === stip.offer_id));
-  const dealTasks = tasks.filter((task: RecordMap) => task.deal_id === deal.id || task.application_id === deal.application_id).sort((a: RecordMap, b: RecordMap) => new Date(a.due_date || '2999-01-01').getTime() - new Date(b.due_date || '2999-01-01').getTime());
+  const dealTasks = tasks.filter((task: RecordMap) => task.deal_id === deal.id || (deal.application_id && task.application_id === deal.application_id)).sort((a: RecordMap, b: RecordMap) => new Date(a.due_date || '2999-01-01').getTime() - new Date(b.due_date || '2999-01-01').getTime());
   const businessOwners = owners.filter((owner: RecordMap) => owner.business_id === deal.business_id || owner.id === deal.owner_id);
+  // Fallback: when no CRM owner records exist yet (e.g. only a partner application has been
+  // uploaded), surface owner details captured in the application payload so the Owner info
+  // card is not blank when an application is clearly on file.
+  const ownersFromPayload = (payload: RecordMap | null | undefined): RecordMap[] => {
+    if (!payload) return [];
+    return ['owner1', 'owner2']
+      .map((key) => payload[key])
+      .filter((o: RecordMap) => o && (o.first_name || o.last_name || o.full_name || o.email || o.phone || o.ssn || o.dob))
+      .map((o: RecordMap, index: number) => ({
+        id: `payload-owner-${index}`,
+        first_name: o.first_name,
+        last_name: o.last_name,
+        full_name: o.full_name,
+        phone: o.phone || o.mobile,
+        email: o.email,
+        address: o.address || o.home_address,
+        city: o.city,
+        state: o.state,
+        zip: o.zip,
+        ownership_percentage: o.ownership_percentage,
+        ssn_last4: o.ssn ? String(o.ssn).replace(/\D/g, '').slice(-4) : undefined,
+        dob: o.dob,
+      }));
+  };
+  const ownerPayloadSource = (app?.application_payload && (app.application_payload.owner1 || app.application_payload.owner2))
+    ? app.application_payload
+    : (dealPartnerApplications[0]?.edited_payload || dealPartnerApplications[0]?.extracted_payload || app?.application_payload || null);
+  const displayOwners = businessOwners.length ? businessOwners : ownersFromPayload(ownerPayloadSource);
   const dealRenewals = renewals.filter((renewal: RecordMap) => renewal.original_deal_id === deal.id);
   const financial = dealFinancials.find((row: RecordMap) => row.deal_id === deal.id) || {};
   const positions = currentPositions.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
@@ -1780,7 +1808,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const canAddNotes = internalUser;
   const canUpdateLenderSubmissions = internalUser || activeProfile?.role === 'funder';
   const canEditFinancials = internalUser;
-  const dealNotes = notes.filter((row: RecordMap) => (row.deal_id === deal.id || row.application_id === deal.application_id) && (internalUser || !row.is_internal));
+  const dealNotes = notes.filter((row: RecordMap) => (row.deal_id === deal.id || (deal.application_id && row.application_id === deal.application_id)) && (internalUser || !row.is_internal));
   const dealSubmissions = partnerSubmissions.filter((row: RecordMap) => row.deal_id === deal.id);
   const historyDeals = [deal, ...repeatDeals].sort((a: RecordMap, b: RecordMap) => Number(a.submission_sequence || 0) - Number(b.submission_sequence || 0) || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
   const selectedSubmissionPartners = partners.filter((row: RecordMap) => submissionPartnerIds.includes(row.id));
@@ -1802,7 +1830,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const documentEvents = dealDocs.map((row: RecordMap) => ({ id: `document-${row.id}`, created_at: row.updated_at || row.created_at, title: `Document ${row.status || 'uploaded'}: ${row.label || row.file_name}`, body: row.review_notes || row.file_name, activity_type: 'document_event' }));
   const lenderEvents = dealSubmissions.map((row: RecordMap) => ({ id: `submission-${row.id}`, created_at: row.updated_at || row.created_at, title: `Funder ${row.status}: ${partnerName(row)}`, body: row.notes || row.decline_reason, activity_type: 'partner_submission' }));
   const taskEvents = dealTasks.map((row: RecordMap) => ({ id: `task-${row.id}`, created_at: row.updated_at || row.created_at, title: `Task ${row.status}: ${row.title}`, body: row.description, activity_type: 'task' }));
-  const dealActivity = [...activities.filter((row: RecordMap) => row.deal_id === deal.id || row.resource_id === deal.id || row.application_id === deal.application_id), ...noteEvents, ...documentEvents, ...lenderEvents, ...taskEvents].sort((a: RecordMap, b: RecordMap) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 60);
+  const dealActivity = [...activities.filter((row: RecordMap) => row.deal_id === deal.id || row.resource_id === deal.id || (deal.application_id && row.application_id === deal.application_id)), ...noteEvents, ...documentEvents, ...lenderEvents, ...taskEvents].sort((a: RecordMap, b: RecordMap) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 60);
   const openTasks = dealTasks.filter((task: RecordMap) => task.status !== 'completed');
   const overdueTasks = openTasks.filter((task: RecordMap) => task.due_date && new Date(task.due_date).getTime() < Date.now());
   const operatingSignals = getDealOperatingSignals(deal, dealDocs, positions, dealOffers, dealTasks);
@@ -2188,7 +2216,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               {repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}
               <CrmCard className="p-4">
                 <h3 className="text-sm font-semibold text-[#0F172A]">Business info</h3>
-                <div className="mt-3"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["DBA", deal.businesses?.dba || 'None'], ["Industry", deal.businesses?.industry || 'Not set'], ["Phone", deal.businesses?.phone || 'Not set'], ["Email", deal.businesses?.email || 'Not set'], ["Address", [deal.businesses?.address, deal.businesses?.city, deal.businesses?.state, deal.businesses?.zip].filter(Boolean).join(', ') || 'Not set'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Assigned rep", repName(deal)], ["EIN", `***-**${deal.businesses?.ein_last4 || '****'}`]]} /></div>
+                <div className="mt-3"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["DBA", deal.businesses?.dba || 'None'], ["Industry", deal.businesses?.industry || 'Not set'], ["Phone", deal.businesses?.phone || 'Not set'], ["Email", deal.businesses?.email || 'Not set'], ["Address", [deal.businesses?.address, deal.businesses?.city, deal.businesses?.state, deal.businesses?.zip].filter(Boolean).join(', ') || 'Not set'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Assigned rep", repName(deal)], ["EIN", revealedSensitiveData?.business?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : (app?.application_payload?.ein || 'Not set'))]]} /></div>
               </CrmCard>
               <CrmCard className="p-4">
                 <div className="flex items-center justify-between gap-2">
@@ -2196,7 +2224,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                   {internalUser && <Button size="sm" variant="outline" className="h-8" onClick={revealSensitiveApplicationData} disabled={revealingSensitiveData || !app?.id}>{revealingSensitiveData ? 'Revealing...' : 'Reveal full fields'}</Button>}
                 </div>
                 <div className="mt-3 grid gap-3">
-                  {businessOwners.length ? businessOwners.slice(0, 2).map((owner: RecordMap, index: number) => (
+                  {displayOwners.length ? displayOwners.slice(0, 2).map((owner: RecordMap, index: number) => (
                     <div key={owner.id || index} className="rounded-[8px] border border-[#E2E8F0] p-3">
                       <InfoGrid rows={[["Name", [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.full_name || 'Not set'], ["Cell phone", owner.phone || 'Not set'], ["Email", owner.email || 'Not set'], ["Home address", [owner.address || owner.home_address, owner.city, owner.state, owner.zip].filter(Boolean).join(', ') || 'Not set'], ["Ownership", owner.ownership_percentage ? `${owner.ownership_percentage}%` : 'Not set'], ["SSN", revealedSensitiveData?.owners?.[index]?.ssn || `***-**-${owner.ssn_last4 || owner.ssn_last_four || '****'}`], ["DOB", revealedSensitiveData?.owners?.[index]?.dob || (owner.dob_encrypted || owner.dob ? 'On file (masked)' : 'Not set')]]} />
                     </div>
