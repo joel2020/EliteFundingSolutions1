@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
+import { cleanupGeneratedApplicationArtifacts, supersedePriorCompletedApplications } from '@/lib/generated-application-cleanup';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
@@ -209,6 +209,13 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       });
       return NextResponse.json({ success: false, error: `Elite PDF was regenerated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
     }
+
+    // Keep a single current Elite application PDF on the deal.
+    await supersedePriorCompletedApplications(supabase, {
+      organizationId: profile.organization_id,
+      dealId: deal.id,
+      keepDocumentId: document.id,
+    }).catch(() => null);
 
     // Persist owner records from the reviewed application so Owner info is populated.
     await syncOwnersFromApplicationPayload(supabase, {

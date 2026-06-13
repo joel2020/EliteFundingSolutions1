@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildCompletedApplicationDocumentSyncUpdate } from '@/lib/application-document-sync';
-import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-application-cleanup';
+import { cleanupGeneratedApplicationArtifacts, supersedePriorCompletedApplications } from '@/lib/generated-application-cleanup';
 import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
@@ -356,6 +356,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
         actorProfileId: profile.id,
       }).catch(() => null);
     }
+
+    // Keep a single current Elite application PDF on the deal.
+    await supersedePriorCompletedApplications(supabase, {
+      organizationId: profile.organization_id,
+      dealId: deal.id,
+      keepDocumentId: createdApplicationDocument.id,
+    }).catch(() => null);
   }
 
   const documentQuery = supabase

@@ -39,3 +39,20 @@ export async function cleanupGeneratedApplicationArtifacts(
 
   if (cleanupTasks.length) await Promise.allSettled(cleanupTasks);
 }
+
+// Mark every prior completed/Elite application PDF on a deal as superseded so the deal keeps a
+// single current Elite application. Non-fatal: callers should not fail the request if this errors.
+export async function supersedePriorCompletedApplications(
+  supabase: GeneratedApplicationCleanupClient,
+  args: { organizationId: string; dealId?: string | null; keepDocumentId: string },
+) {
+  if (!args.dealId || !args.keepDocumentId) return;
+  await supabase
+    .from('documents')
+    .update({ superseded_at: new Date().toISOString() })
+    .eq('organization_id', args.organizationId)
+    .eq('deal_id', args.dealId)
+    .eq('document_type', 'completed_application')
+    .is('superseded_at', null)
+    .neq('id', args.keepDocumentId);
+}

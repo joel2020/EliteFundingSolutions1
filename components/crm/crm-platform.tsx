@@ -621,7 +621,7 @@ function useCrmDataset() {
       browserSupabase.from('funding_partners').select('*').eq('organization_id', org).is('deleted_at', null).order('name'),
       browserSupabase.from('user_profiles').select('*').eq('organization_id', org).is('deleted_at', null).order('first_name'),
       browserSupabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      browserSupabase.from('documents').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
+      browserSupabase.from('documents').select('*').eq('organization_id', org).is('superseded_at', null).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('notes').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('partner_submissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
