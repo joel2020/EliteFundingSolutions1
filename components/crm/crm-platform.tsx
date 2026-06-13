@@ -1733,6 +1733,18 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     setRecentPartnerApplicationBundles([]);
     setDealDetailTab('overview');
   }, [dealId]);
+  // Auto-load full (unmasked) EIN/SSN/DOB for the deal. Server restricts this to internal
+  // CRM team members; external roles simply fall back to whatever is already on the record.
+  useEffect(() => {
+    setRevealedSensitiveData(null);
+    if (!dealId) return;
+    let cancelled = false;
+    fetch(`/api/crm/deals/${dealId}/sensitive`, { method: 'POST' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((result) => { if (!cancelled && result?.success) setRevealedSensitiveData(result.data || null); })
+      .catch(() => null);
+    return () => { cancelled = true; };
+  }, [dealId]);
   useEffect(() => {
     if (!profile || ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'viewer'].includes(profile.role)) return;
     fetch('/api/crm/access-log', {
@@ -1782,6 +1794,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         state: o.state,
         zip: o.zip,
         ownership_percentage: o.ownership_percentage,
+        ssn: o.ssn || undefined,
         ssn_last4: o.ssn ? String(o.ssn).replace(/\D/g, '').slice(-4) : undefined,
         dob: o.dob,
       }));
@@ -1790,6 +1803,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     ? app.application_payload
     : (dealPartnerApplications[0]?.edited_payload || dealPartnerApplications[0]?.extracted_payload || app?.application_payload || null);
   const displayOwners = businessOwners.length ? businessOwners : ownersFromPayload(ownerPayloadSource);
+  const sensitiveOwnersById: Record<string, RecordMap> = Object.fromEntries((revealedSensitiveData?.owners || []).map((o: RecordMap) => [o.id, o]));
   const dealRenewals = renewals.filter((renewal: RecordMap) => renewal.original_deal_id === deal.id);
   const financial = dealFinancials.find((row: RecordMap) => row.deal_id === deal.id) || {};
   const positions = currentPositions.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
@@ -2216,17 +2230,16 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               {repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}
               <CrmCard className="p-4">
                 <h3 className="text-sm font-semibold text-[#0F172A]">Business info</h3>
-                <div className="mt-3"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["DBA", deal.businesses?.dba || 'None'], ["Industry", deal.businesses?.industry || 'Not set'], ["Phone", deal.businesses?.phone || 'Not set'], ["Email", deal.businesses?.email || 'Not set'], ["Address", [deal.businesses?.address, deal.businesses?.city, deal.businesses?.state, deal.businesses?.zip].filter(Boolean).join(', ') || 'Not set'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Assigned rep", repName(deal)], ["EIN", revealedSensitiveData?.business?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : (app?.application_payload?.ein || 'Not set'))]]} /></div>
+                <div className="mt-3"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["DBA", deal.businesses?.dba || 'None'], ["Industry", deal.businesses?.industry || 'Not set'], ["Phone", deal.businesses?.phone || 'Not set'], ["Email", deal.businesses?.email || 'Not set'], ["Address", [deal.businesses?.address, deal.businesses?.city, deal.businesses?.state, deal.businesses?.zip].filter(Boolean).join(', ') || 'Not set'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Assigned rep", repName(deal)], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : 'Not set')]]} /></div>
               </CrmCard>
               <CrmCard className="p-4">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-[#0F172A]">Owner info</h3>
-                  {internalUser && <Button size="sm" variant="outline" className="h-8" onClick={revealSensitiveApplicationData} disabled={revealingSensitiveData || !app?.id}>{revealingSensitiveData ? 'Revealing...' : 'Reveal full fields'}</Button>}
                 </div>
                 <div className="mt-3 grid gap-3">
                   {displayOwners.length ? displayOwners.slice(0, 2).map((owner: RecordMap, index: number) => (
                     <div key={owner.id || index} className="rounded-[8px] border border-[#E2E8F0] p-3">
-                      <InfoGrid rows={[["Name", [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.full_name || 'Not set'], ["Cell phone", owner.phone || 'Not set'], ["Email", owner.email || 'Not set'], ["Home address", [owner.address || owner.home_address, owner.city, owner.state, owner.zip].filter(Boolean).join(', ') || 'Not set'], ["Ownership", owner.ownership_percentage ? `${owner.ownership_percentage}%` : 'Not set'], ["SSN", revealedSensitiveData?.owners?.[index]?.ssn || `***-**-${owner.ssn_last4 || owner.ssn_last_four || '****'}`], ["DOB", revealedSensitiveData?.owners?.[index]?.dob || (owner.dob_encrypted || owner.dob ? 'On file (masked)' : 'Not set')]]} />
+                      <InfoGrid rows={[["Name", [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.full_name || 'Not set'], ["Cell phone", owner.phone || 'Not set'], ["Email", owner.email || 'Not set'], ["Home address", [owner.address || owner.home_address, owner.city, owner.state, owner.zip].filter(Boolean).join(', ') || 'Not set'], ["Ownership", owner.ownership_percentage ? `${owner.ownership_percentage}%` : 'Not set'], ["SSN", sensitiveOwnersById[owner.id]?.ssn || owner.ssn || (owner.ssn_last4 || owner.ssn_last_four ? `***-**-${owner.ssn_last4 || owner.ssn_last_four}` : 'Not set')], ["DOB", sensitiveOwnersById[owner.id]?.dob || owner.dob || 'Not set']]} />
                     </div>
                   )) : <EmptyState title="No owner on file yet." body="Owner details are captured from the application or can be added from the partner application review." />}
                 </div>

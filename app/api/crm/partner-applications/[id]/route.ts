@@ -5,6 +5,7 @@ import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationPayload } from '@/lib/partner-application-fields';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
+import { syncOwnersFromApplicationPayload } from '@/lib/owner-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 
@@ -208,6 +209,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       });
       return NextResponse.json({ success: false, error: `Elite PDF was regenerated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
     }
+
+    // Persist owner records from the reviewed application so Owner info is populated.
+    await syncOwnersFromApplicationPayload(supabase, {
+      organizationId: profile.organization_id,
+      businessId: deal.business_id,
+      applicationId: existing.application_id,
+      payload: editedPayload,
+      actorProfileId: profile.id,
+    }).catch(() => null);
   }
 
   await supabase.from('audit_logs').insert({

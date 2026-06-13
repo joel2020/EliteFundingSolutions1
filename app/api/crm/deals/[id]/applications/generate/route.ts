@@ -4,6 +4,7 @@ import { cleanupGeneratedApplicationArtifacts } from '@/lib/generated-applicatio
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
+import { syncOwnersFromApplicationPayload } from '@/lib/owner-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 import { createCrmNotification } from '@/lib/crm-notifications';
@@ -194,6 +195,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
         documentIds: [document.id],
       });
       return NextResponse.json({ success: false, error: `Elite PDF was generated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
+    }
+
+    if (partnerApplication) {
+      // Persist owner records from the partner application so Owner info is populated.
+      await syncOwnersFromApplicationPayload(supabase, {
+        organizationId: profile.organization_id,
+        businessId: deal.business_id,
+        applicationId: targetApplicationId,
+        payload: editedPayload,
+        actorProfileId: profile.id,
+      }).catch(() => null);
     }
 
     await Promise.allSettled([

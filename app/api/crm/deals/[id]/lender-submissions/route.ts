@@ -8,6 +8,7 @@ import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { ACTIVE_FUNDER_SUBMISSION_STATUSES } from '@/lib/lender-submission-duplicates';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
+import { syncOwnersFromApplicationPayload } from '@/lib/owner-sync';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 import { decryptSensitiveField } from '@/lib/security';
 import { evaluateDealReadinessForLenderSubmission } from '@/lib/deal-readiness';
@@ -343,6 +344,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
         documentIds: [createdApplicationDocument.id],
       });
       return NextResponse.json({ success: false, error: `Funder package PDF was generated, but the CRM application record could not be finalized: ${applicationSyncError.message}` }, { status: 500 });
+    }
+
+    if (usablePartnerApplication) {
+      // Persist owner records from the converted partner application so Owner info is populated.
+      await syncOwnersFromApplicationPayload(supabase, {
+        organizationId: profile.organization_id,
+        businessId: deal.business_id,
+        applicationId: targetApplicationId,
+        payload: editedPayload,
+        actorProfileId: profile.id,
+      }).catch(() => null);
     }
   }
 
