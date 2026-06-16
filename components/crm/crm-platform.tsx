@@ -1694,6 +1694,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [applicationLinkDialogOpen, setApplicationLinkDialogOpen] = useState(false);
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(false);
+  const [submissionGateChecks, setSubmissionGateChecks] = useState<RecordMap[]>([]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [uploadingPartnerApplication, setUploadingPartnerApplication] = useState(false);
   const [generatingApplicationPdf, setGeneratingApplicationPdf] = useState(false);
@@ -2023,6 +2024,17 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     setSubmissionDocumentIds(defaultFunderPackageDocumentIds(dealDocs, partner));
     setSubmissionNotes(buildDefaultFunderMessage(deal, defaultFunderPackageDocumentIds(dealDocs, partner).map((id) => dealDocs.find((doc: RecordMap) => doc.id === id)).filter(Boolean) as RecordMap[], submissionReadiness, partner));
     setSubmissionDialogOpen(true);
+    // Pre-load the server readiness gate so the modal can show exactly what (if anything) will
+    // block the send before the user clicks Send to Funder.
+    setSubmissionGateChecks([]);
+    fetch(`/api/crm/deals/${deal.id}/readiness`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((result) => {
+        if (result?.success && Array.isArray(result.checks)) {
+          setSubmissionGateChecks(result.checks.filter((check: RecordMap) => !check.passed && check.blocksSubmission !== false));
+        }
+      })
+      .catch(() => null);
   };
 
   const toggleSubmissionPartner = (partnerId: string, checked: boolean) => {
@@ -2113,14 +2125,32 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
           }),
         });
         const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.error || 'Failed to submit deal to funder');
+        if (!response.ok || !result.success) {
+          // Surface the specific readiness checks that blocked the send instead of the generic
+          // catch-all message, so the user knows exactly what to fix.
+          const failedChecks = Array.isArray(result.readiness)
+            ? result.readiness.filter((check: RecordMap) => !check.passed && check.blocksSubmission !== false)
+            : [];
+          const detail = failedChecks.length
+            ? `Blocked before sending: ${failedChecks.map((check: RecordMap) => check.detail || check.label).join(' • ')}`
+            : (result.error || 'Failed to submit deal to funder');
+          throw new Error(detail);
+        }
         results.push({ partner: partners.find((row: RecordMap) => row.id === fundingPartnerId), result });
       }
       results.flatMap((item) => item.result.warnings || []).forEach((warning: string) => toast.warning(warning));
       const manualDraft = results.find((item) => item.result.emailDeliveryStatus !== 'sent' && item.result.emailDraft?.to)?.result.emailDraft;
       if (manualDraft) {
-        const mailto = `mailto:${manualDraft.to}?subject=${encodeURIComponent(manualDraft.subject)}&body=${encodeURIComponent(manualDraft.body)}`;
-        window.location.href = mailto;
+        // Don't navigate to a mailto: link — on machines without a configured mail client (most
+        // webmail users) it goes nowhere and looks like the page broke. Copy a ready-to-paste draft
+        // instead, and tell the user the funder still needs a manual email.
+        const draftText = `To: ${manualDraft.to}\nSubject: ${manualDraft.subject}\n\n${manualDraft.body}`;
+        try {
+          await navigator.clipboard.writeText(draftText);
+          toast.info(`No Gmail is connected for your account, so the funder email was not sent automatically. The draft (To: ${manualDraft.to}) was copied to your clipboard — paste it into your email to send. Connect Gmail in Settings to send automatically.`);
+        } catch {
+          toast.warning(`No Gmail is connected for your account. The submission was logged; email ${manualDraft.to} the funder package manually, or connect Gmail in Settings.`);
+        }
       }
       const sentCount = results.filter((item) => item.result.emailDeliveryStatus === 'sent').length;
       toast.success(fundingPartnerIds.length > 1 ? `${sentCount}/${fundingPartnerIds.length} funder email(s) sent; ${fundingPartnerIds.length - sentCount} logged for follow-up.` : sentCount ? `Funder email sent${results[0]?.partner?.name ? ` to ${results[0].partner.name}` : ''}` : `Funder submission logged${results[0]?.partner?.name ? ` for ${results[0].partner.name}` : ''}`);
@@ -2386,6 +2416,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Selected package</p><p className="mt-1 font-semibold text-[#0F172A]">{submissionDocumentIds.length} attachment(s) · {submissionPartnerIds.length} funder(s)</p></div>
               <div><p className="text-[11px] font-semibold uppercase text-[#64748B]">Elite app</p><p className="mt-1 font-semibold text-[#0F172A]">{completedEliteApplication ? 'Included' : 'Generated if needed'}</p></div>
             </div>
+            {submissionGateChecks.length > 0 && <div data-testid="lender-gate-blockers" className="rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-900"><b>This deal will be blocked from sending until you fix:</b><ul className="mt-1 list-disc space-y-1 pl-5">{submissionGateChecks.map((check: RecordMap) => <li key={check.label}>{check.detail || check.label}</li>)}</ul></div>}
             {selectedSubmissionPartners.some((partner: RecordMap) => !(partner.submission_email || partner.email)) && <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">One or more selected funders has no submission email. Those submissions will be logged for manual follow-up unless a route is added on the funder profile.</div>}
             {selectedSubmissionPartners.length > 0 && <div data-testid="lender-preset-summary" className={`rounded-[8px] border p-3 text-sm ${selectedPartnerMissingDocTypes.length ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-950'}`}><b>Funder package preset:</b> {submissionDocumentIds.length} attachment(s) preselected for {selectedSubmissionPartners.length} funder(s). The completed Elite application is mandatory and all eligible deal documents are included by default. {selectedPartnerMissingDocTypes.length ? `Missing: ${selectedPartnerMissingDocTypes.map(detailDocTypeLabel).join(', ')}.` : 'Required package looks complete.'}</div>}
             {duplicateSubmissionPartners.length > 0 && <div data-testid="lender-duplicate-warning" className="rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><b>Already sent:</b> {duplicateSubmissionPartners.map((partner: RecordMap) => partner.name).join(', ')} already has an active submission. You will be asked to confirm before sending again.</div>}
