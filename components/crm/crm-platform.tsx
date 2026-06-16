@@ -1837,6 +1837,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const offerInsights = getOfferInsights(dealOffers);
   const canWaive = ['super_admin', 'admin', 'manager', 'underwriter'].includes(profile?.role || '');
   const canMarkFunded = ['super_admin', 'admin', 'manager'].includes(profile?.role || '');
+  const canAssignReps = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
+  const internalUsers = users.filter((row: RecordMap) => isInternalCrmRole(row.role));
   const filteredDocs = documentFilter === 'all' ? dealDocs : dealDocs.filter((doc: RecordMap) => doc.status === documentFilter || doc.document_type === documentFilter);
   const missingDocItems = checklist.filter((item) => ['missing', 'requested', 'rejected', 'needs_replacement'].includes(item.status) && ['submission', 'compliance', 'funding'].includes(item.category));
   const groupedDocs = DETAIL_DOCUMENT_TYPES.map((type) => ({ type, docs: filteredDocs.filter((doc: RecordMap) => sameDocType(doc.document_type, type.value)) })).filter((group) => group.docs.length);
@@ -2211,6 +2213,18 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     else { toast.success('Deal stage updated'); reload(); }
   };
 
+  const assignDealRep = async (value: string) => {
+    const assigned_user_id = value === 'unassigned' ? null : value;
+    const response = await fetch(`/api/crm/deals/${deal.id}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assigned_user_id }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to reassign deal');
+    else { toast.success('Deal reassigned'); reload(); }
+  };
+
   return (
     <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
       <CrmCard className="p-4">
@@ -2230,7 +2244,12 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
               {repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}
               <CrmCard className="p-4">
                 <h3 className="text-sm font-semibold text-[#0F172A]">Business info</h3>
-                <div className="mt-3"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["DBA", deal.businesses?.dba || 'None'], ["Industry", deal.businesses?.industry || 'Not set'], ["Phone", deal.businesses?.phone || 'Not set'], ["Email", deal.businesses?.email || 'Not set'], ["Address", [deal.businesses?.address, deal.businesses?.city, deal.businesses?.state, deal.businesses?.zip].filter(Boolean).join(', ') || 'Not set'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Assigned rep", repName(deal)], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : 'Not set')]]} /></div>
+                <div className="mt-3"><InfoGrid rows={[["Legal name", deal.businesses?.legal_name || businessName(deal)], ["DBA", deal.businesses?.dba || 'None'], ["Industry", deal.businesses?.industry || 'Not set'], ["Phone", deal.businesses?.phone || 'Not set'], ["Email", deal.businesses?.email || 'Not set'], ["Address", [deal.businesses?.address, deal.businesses?.city, deal.businesses?.state, deal.businesses?.zip].filter(Boolean).join(', ') || 'Not set'], ["Monthly revenue", currency(deal.businesses?.monthly_gross_revenue)], ["Requested amount", currency(deal.requested_amount)], ["Assigned rep", canAssignReps ? (
+                  <Select value={deal.assigned_user_id || 'unassigned'} onValueChange={assignDealRep}>
+                    <SelectTrigger data-testid="deal-assign-rep" className="h-8 w-[200px] rounded-[7px]"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{internalUsers.map((row: RecordMap) => <SelectItem key={row.id} value={row.id}>{userDisplayName(row)}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : repName(deal)], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : 'Not set')]]} /></div>
               </CrmCard>
               <CrmCard className="p-4">
                 <div className="flex items-center justify-between gap-2">
