@@ -1838,6 +1838,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const offerInsights = getOfferInsights(dealOffers);
   const canWaive = ['super_admin', 'admin', 'manager', 'underwriter'].includes(profile?.role || '');
   const canMarkFunded = ['super_admin', 'admin', 'manager'].includes(profile?.role || '');
+  // Finance (commissions, splits, payouts) is admin-level — reps shouldn't see it.
+  const canViewFinance = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
   const canAssignReps = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
   const internalUsers = users.filter((row: RecordMap) => isInternalCrmRole(row.role));
   const filteredDocs = documentFilter === 'all' ? dealDocs : dealDocs.filter((doc: RecordMap) => doc.status === documentFilter || doc.document_type === documentFilter);
@@ -2268,7 +2270,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
             {canSendToLenders && <Button data-testid="deal-submit-lender-top" size="sm" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openLenderSubmission}><Send className="mr-1 h-3.5 w-3.5" />Send to Funder</Button>}
           </div>
         </div>
-        <Tabs value={dealDetailTab} onValueChange={setDealDetailTab}><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['documents','Documents'],['lenders','Funders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['activity','Activity'],['ai','AI Analysis']].map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
+        <Tabs value={dealDetailTab} onValueChange={setDealDetailTab}><TabsList className="mb-4 flex h-auto flex-wrap justify-start rounded-[8px] bg-[#F1F5F9] p-1">{[['overview','Overview'],['documents','Documents'],['lenders','Funders Sent To'],['offers','Offers'],['finance','Finance'],['history','History'],['activity','Activity'],['ai','AI Analysis']].filter(([value]) => value !== 'finance' || canViewFinance).map(([value, label]) => <TabsTrigger key={value} value={value} className="rounded-[6px]">{label}</TabsTrigger>)}</TabsList>
           <TabsContent value="overview">
             <div className="grid gap-4 lg:grid-cols-2">
               {repeatDeals.length > 0 && <div className="lg:col-span-2 rounded-[8px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><b>Repeat merchant:</b> {repeatDeals.length} prior submission(s) found. {dealRiskEvents.some((event: RecordMap) => event.event_type === 'defaulted') ? 'Prior default history exists.' : ''}</div>}
