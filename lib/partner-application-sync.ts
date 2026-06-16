@@ -8,11 +8,23 @@ export function buildPartnerApplicationSyncUpdate(args: {
   existingApplicationPayload?: RecordMap | null;
   editedPayload?: RecordMap | null;
   convertedDocumentId?: string | null;
+  existingSignatureStatus?: string | null;
 }) {
   const existingPayload = args.existingApplicationPayload || {};
   const editedPayload = args.editedPayload || {};
   const signature = text(editedPayload.signature || editedPayload.signed_name);
   const signatureDate = text(editedPayload.signature_date || editedPayload.signed_date);
+
+  // Once an application is signed, its signed evidence and payload are locked (DB trigger
+  // prevent_signed_application_evidence_update). Re-sending a deal must not rewrite that
+  // evidence — only relink the freshly generated document and review status.
+  if (String(args.existingSignatureStatus || '').toLowerCase() === 'signed') {
+    return {
+      application_source: 'partner_upload',
+      application_review_status: 'converted_from_partner_app',
+      ...(args.convertedDocumentId ? { signed_application_document_id: args.convertedDocumentId } : {}),
+    };
+  }
 
   return {
     application_payload: { ...existingPayload, ...editedPayload },

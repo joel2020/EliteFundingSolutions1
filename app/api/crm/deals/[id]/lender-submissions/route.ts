@@ -322,11 +322,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
         existingApplicationPayload: applicationPayload,
         editedPayload,
         convertedDocumentId: createdApplicationDocument.id,
+        existingSignatureStatus: (application as any)?.signature_status,
       })
       : buildCompletedApplicationDocumentSyncUpdate({
         existingApplicationPayload: applicationPayload,
         completedDocumentId: createdApplicationDocument.id,
         reviewStatus: 'submitted',
+        existingSignatureStatus: (application as any)?.signature_status,
       });
 
     const { error: applicationSyncError } = await supabase

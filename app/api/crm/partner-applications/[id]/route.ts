@@ -196,6 +196,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
           existingApplicationPayload: (application as any)?.application_payload,
           editedPayload,
           convertedDocumentId: document.id,
+          existingSignatureStatus: (application as any)?.signature_status,
         }),
         converted_from_partner_upload_id: existing.id,
       })
