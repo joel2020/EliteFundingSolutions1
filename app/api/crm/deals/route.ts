@@ -141,7 +141,9 @@ export async function POST(request: Request) {
       email: form.contact_email || null,
       phone: form.contact_phone || null,
       business_name: businessName,
-      status: 'converted',
+      // Stay 'new' until the deal is confirmed created below. Marking 'converted' up front left
+      // phantom "converted" leads with no deal whenever the deal insert failed.
+      status: 'new',
       assigned_user_id: assignedUserId,
       notes: form.notes || null,
       created_by: profile.id,
@@ -151,6 +153,8 @@ export async function POST(request: Request) {
     .single();
 
   if (leadError) {
+    // No transaction across these inserts — clean up the business we just created.
+    await supabase.from('businesses').delete().eq('id', business.id).eq('organization_id', profile.organization_id);
     return NextResponse.json({ success: false, error: leadError.message }, { status: 500 });
   }
 
@@ -179,8 +183,17 @@ export async function POST(request: Request) {
     .single();
 
   if (dealError) {
+    // Deal failed — remove the orphaned lead + business so we don't leave a phantom
+    // "converted" lead with no deal (which the merchant/rep can't find).
+    await Promise.allSettled([
+      supabase.from('leads').delete().eq('id', lead.id).eq('organization_id', profile.organization_id),
+      supabase.from('businesses').delete().eq('id', business.id).eq('organization_id', profile.organization_id),
+    ]);
     return NextResponse.json({ success: false, error: dealError.message }, { status: 500 });
   }
+
+  // Deal exists — now it's safe to mark the lead converted.
+  await supabase.from('leads').update({ status: 'converted', updated_by: profile.id }).eq('id', lead.id).eq('organization_id', profile.organization_id);
 
   await Promise.allSettled([
     supabase.from('deal_status_history').insert({
