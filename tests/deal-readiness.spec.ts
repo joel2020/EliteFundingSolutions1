@@ -157,8 +157,8 @@ test.describe('deal readiness and funder requirements', () => {
       signed_name: 'Jordan Partner',
       e_signature: 'Jordan Partner',
       signature_date: '2026-06-10',
-      signature_type: 'partner_upload',
-      signature_status: 'converted',
+      signature_type: 'typed',
+      signature_status: 'signed',
       signed_application_document_id: 'document-converted-1',
     }));
     expect(update.application_payload).toEqual(expect.objectContaining({
@@ -174,7 +174,7 @@ test.describe('deal readiness and funder requirements', () => {
       editedPayload: { legal_name: 'Unsigned Merchant LLC' },
       convertedDocumentId: 'document-converted-unsigned',
     });
-    expect(unsignedUpdate.signature_status).toBe('pending_signature');
+    expect(unsignedUpdate.signature_status).toBe('unsigned');
     expect(hasApplicationSignatureEvidence({
       application: unsignedUpdate,
       completedApplicationDocuments: [{ document_type: 'completed_application', status: 'uploaded' }],
