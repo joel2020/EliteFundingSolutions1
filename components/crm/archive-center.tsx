@@ -17,7 +17,7 @@ function formatDate(value?: string | null) {
 }
 
 function recordLabel(type: ArchiveType, record: ArchivedRecord) {
-  if (type === 'lenders') return record.name || 'Unnamed lender';
+  if (type === 'lenders') return record.name || 'Unnamed funder';
   if (type === 'brokers') return [record.company_name, record.broker_name].filter(Boolean).join(' / ') || record.email || 'Unnamed broker';
   return [record.first_name, record.last_name].filter(Boolean).join(' ') || record.email || 'Unnamed user';
 }
@@ -158,7 +158,7 @@ export function ArchiveCenter() {
 
   return (
     <div className="min-h-screen bg-[#F6F7FB] text-[#0F172A]">
-      <CrmTopbar title="Archived Records" subtitle="Restore archived lenders, brokers, and users without losing historical references." />
+      <CrmTopbar title="Archived Records" subtitle="Restore archived funders, brokers, and users without losing historical references." />
       <main className="mx-auto max-w-7xl px-4 py-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#E2E8F0] bg-white p-4">
           <div className="flex items-center gap-3">
@@ -178,7 +178,7 @@ export function ArchiveCenter() {
 
         <Tabs defaultValue="lenders" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="lenders">Lenders ({records.lenders.length})</TabsTrigger>
+            <TabsTrigger value="lenders">Funders ({records.lenders.length})</TabsTrigger>
             <TabsTrigger value="brokers">Brokers ({records.brokers.length})</TabsTrigger>
             <TabsTrigger value="users">Users ({records.users.length})</TabsTrigger>
           </TabsList>
