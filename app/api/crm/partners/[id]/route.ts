@@ -28,10 +28,12 @@ const partnerSchema = z.object({
   max_negative_days: z.coerce.number().int().nonnegative().optional().nullable(),
   max_nsf_count: z.coerce.number().int().nonnegative().optional().nullable(),
   states_served: z.string().trim().optional().default(''),
+  restricted_states: z.string().trim().optional().default(''),
   restricted_industries: z.string().trim().optional().default(''),
   avg_approval_days: z.coerce.number().int().nonnegative().optional().nullable(),
   criteria_notes: z.string().trim().optional().default(''),
   notes: z.string().trim().optional().default(''),
+  bonus_notes: z.string().trim().optional().default(''),
   is_active: z.boolean().optional().default(true),
 }).transform((value) => ({ ...value, name: value.name || value.company_name }));
 
@@ -90,10 +92,12 @@ export async function PATCH(
     max_negative_days: form.max_negative_days ?? null,
     max_nsf_count: form.max_nsf_count ?? null,
     states_served: csv(form.states_served.toUpperCase()),
+    restricted_states: csv(form.restricted_states.toUpperCase()),
     restricted_industries: csv(form.restricted_industries),
     avg_approval_days: form.avg_approval_days ?? null,
     criteria_notes: form.criteria_notes || null,
     notes: form.notes || null,
+    bonus_notes: form.bonus_notes || null,
     is_active: form.is_active,
     updated_at: new Date().toISOString(),
   };

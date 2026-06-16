@@ -111,6 +111,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
 
   const recipientEmail = partner.submission_email || partner.email || '';
+  // CC the funder's rep (their contact email) when the package is going to a separate submission inbox.
+  const repCcEmail = partner.email && partner.email !== recipientEmail ? partner.email : '';
 
   const { data: activeDuplicateSubmissions, error: duplicateSubmissionError } = await supabase
     .from('partner_submissions')
@@ -525,6 +527,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         refreshToken: gmailTokens!.refresh_token || undefined,
         userId: user.id,
         to: recipientEmail,
+        cc: repCcEmail || undefined,
         subject: emailSubject,
         body: emailText,
         html: emailHtml,

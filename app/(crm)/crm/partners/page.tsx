@@ -24,6 +24,7 @@ const emptyPartner = {
   min_monthly_revenue: '',
   min_time_in_business_months: '',
   states_served: '',
+  restricted_states: '',
   restricted_industries: '',
   product_types: 'MCA, Revenue based financing',
   required_documents: 'completed_application, bank_statements, drivers_license',
@@ -38,6 +39,7 @@ const emptyPartner = {
   max_nsf_count: '',
   criteria_notes: '',
   notes: '',
+  bonus_notes: '',
   is_active: 'true',
 };
 
@@ -93,6 +95,7 @@ export default function PartnersPage() {
     min_monthly_revenue: partner.min_monthly_revenue ? String(partner.min_monthly_revenue) : '',
     min_time_in_business_months: partner.min_time_in_business_months ? String(partner.min_time_in_business_months) : '',
     states_served: partner.states_served?.length ? partner.states_served.join(', ') : '',
+    restricted_states: Array.isArray((partner as any).restricted_states) && (partner as any).restricted_states.length ? (partner as any).restricted_states.join(', ') : '',
     restricted_industries: partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : '',
     product_types: partner.product_types?.length ? partner.product_types.join(', ') : '',
     required_documents: Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : '',
@@ -107,6 +110,7 @@ export default function PartnersPage() {
     max_nsf_count: (partner as any).max_nsf_count ? String((partner as any).max_nsf_count) : '',
     criteria_notes: (partner as any).criteria_notes || '',
     notes: partner.notes || '',
+    bonus_notes: (partner as any).bonus_notes || '',
     is_active: partner.is_active === false ? 'false' : 'true',
   });
 
@@ -243,7 +247,9 @@ export default function PartnersPage() {
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Credit min: <span className="font-semibold text-[#0F172A]">{(partner as any).min_credit_score || 'Not set'}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Preferred industries: <span className="font-semibold text-[#0F172A]">{Array.isArray((partner as any).preferred_industries) && (partner as any).preferred_industries.length ? (partner as any).preferred_industries.join(', ') : 'Any eligible industry'}</span></div>
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">States: <span className="font-semibold text-[#0F172A]">{partner.states_served?.length ? partner.states_served.join(', ') : 'All states'}</span></div>
-                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted states: <span className="font-semibold text-[#0F172A]">{Array.isArray((partner as any).restricted_states) && (partner as any).restricted_states.length ? (partner as any).restricted_states.join(', ') : 'None listed'}</span></div>
+                <div className="rounded-[8px] bg-[#F8FAFC] p-2">Restricted industries: <span className="font-semibold text-[#0F172A]">{partner.restricted_industries?.length ? partner.restricted_industries.join(', ') : 'None listed'}</span></div>
+                {(partner as any).bonus_notes ? <div className="rounded-[8px] bg-[#F8FAFC] p-2">Bonuses: <span className="font-semibold text-[#0F172A]">{(partner as any).bonus_notes}</span></div> : null}
                 <div className="rounded-[8px] bg-[#F8FAFC] p-2">Required docs: <span className="font-semibold text-[#0F172A]">{Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : 'Default package'}</span></div>
               </div>
               {partner.email && (
@@ -305,11 +311,13 @@ export default function PartnersPage() {
             <div><Label>Average Decision Days</Label><Input type="number" value={form.avg_approval_days} onChange={(event) => setForm({ ...form, avg_approval_days: event.target.value })} /></div>
             <div><Label>Status</Label><select data-testid="partner-status" className="mt-1 h-10 w-full rounded-[7px] border border-input bg-background px-3 text-sm" value={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.value })}><option value="true">Active</option><option value="false">Inactive</option></select></div>
             <div><Label>States Served</Label><Input placeholder="NY, NJ, FL" value={form.states_served} onChange={(event) => setForm({ ...form, states_served: event.target.value })} /></div>
+            <div><Label>Restricted States</Label><Input data-testid="partner-restricted-states" placeholder="TX, CA, PR" value={form.restricted_states} onChange={(event) => setForm({ ...form, restricted_states: event.target.value })} /></div>
             <div><Label>Product Types</Label><Input value={form.product_types} onChange={(event) => setForm({ ...form, product_types: event.target.value })} /></div>
             <div><Label>Restricted Industries</Label><Input placeholder="Cannabis, gambling" value={form.restricted_industries} onChange={(event) => setForm({ ...form, restricted_industries: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Required Documents</Label><Input data-testid="partner-required-documents" placeholder="completed_application, bank_statements, drivers_license, voided_check" value={form.required_documents} onChange={(event) => setForm({ ...form, required_documents: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Criteria Notes</Label><Textarea data-testid="partner-criteria-notes" value={form.criteria_notes} onChange={(event) => setForm({ ...form, criteria_notes: event.target.value })} /></div>
             <div className="md:col-span-2"><Label>Notes / Rules</Label><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Bonus Notes</Label><Textarea data-testid="partner-bonus-notes" placeholder="Bonuses, promos, or incentives for this funder" value={form.bonus_notes} onChange={(event) => setForm({ ...form, bonus_notes: event.target.value })} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={closeDialog}>Cancel</Button><Button data-testid="save-partner" onClick={savePartner} disabled={saving || !form.name.trim()}>{saving ? 'Saving...' : editingPartner ? 'Update Partner' : 'Save Partner'}</Button></DialogFooter>
         </DialogContent>

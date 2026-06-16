@@ -164,6 +164,7 @@ export async function sendEmail({
   refreshToken,
   userId,
   to,
+  cc,
   subject,
   body,
   html,
@@ -174,6 +175,7 @@ export async function sendEmail({
   refreshToken?: string;
   userId?: string;
   to: string;
+  cc?: string;
   subject: string;
   body: string;
   html?: string;
@@ -199,6 +201,7 @@ export async function sendEmail({
   const messageParts = [
     `From: ${from || 'me'}`,
     `To: ${encodeHeader(to)}`,
+    ...(cc ? [`Cc: ${encodeHeader(cc)}`] : []),
     `Subject: ${encodeHeader(subject)}`,
     'MIME-Version: 1.0',
   ];
