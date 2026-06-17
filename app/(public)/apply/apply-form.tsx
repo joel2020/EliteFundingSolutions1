@@ -678,16 +678,16 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   };
 
   return (
-    <div className="min-h-screen bg-[#030812] pb-20 pt-10 text-white">
+    <div className="min-h-screen bg-white pb-20 pt-10 text-[#0F172A]">
       <div className="mx-auto max-w-[860px] px-5 md:px-8">
         <div className="mx-auto mb-8 max-w-3xl text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/elite-funding-logo.png" alt="Elite Funding Solutions" className="mx-auto mb-5 h-20 w-auto" />
-          <h1 className="mb-3 text-3xl font-semibold tracking-tight text-white md:text-4xl">Elite Funding Solutions Funding Application</h1>
-          <p className="text-[16px] leading-7 text-slate-300">Complete the form below to get started.</p>
+          <h1 className="mb-3 text-3xl font-semibold tracking-tight text-[#0F2B5B] md:text-4xl">Elite Funding Solutions Funding Application</h1>
+          <p className="text-[16px] leading-7 text-[#475569]">Complete the form below to get started.</p>
         </div>
-        {referral?.repName && currentStep < 4 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/30 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#f1d08a]">Your application is connected to {referral.repName}.</div>}
-        <div className="premium-card p-5 md:p-8">
+        {referral?.repName && currentStep < 4 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/40 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#8a6a14]">Your application is connected to {referral.repName}.</div>}
+        <div className="rounded-[24px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(10,22,40,0.04),0_12px_30px_rgba(10,22,40,0.06)] md:p-8">
           {currentStep === 4 ? (
             <StepConfirmation />
           ) : (
@@ -703,11 +703,18 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
                   multiple
                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
                   data-testid="application-bank-statements"
-                  onChange={(event) => setBankStatementFiles(Array.from(event.target.files || []).slice(0, 8))}
+                  onChange={(event) => { const incoming = Array.from(event.target.files || []); event.target.value = ''; setBankStatementFiles((prev) => { const merged = [...prev]; incoming.forEach((file) => { if (!merged.some((existing) => existing.name === file.name && existing.size === file.size)) merged.push(file); }); return merged.slice(0, 8); }); }}
                   className="mt-1.5 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#0F2B5B] file:px-3 file:py-2 file:text-white"
                 />
                 {bankStatementFiles.length > 0 && (
-                  <p className="mt-1.5 text-[12px] text-[#475569]">{bankStatementFiles.length} bank statement file{bankStatementFiles.length === 1 ? '' : 's'} selected</p>
+                  <div className="mt-1.5 space-y-1">
+                    {bankStatementFiles.map((file, index) => (
+                      <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-2 text-[12px] text-[#475569]">
+                        <span className="truncate">{file.name}</span>
+                        <button type="button" onClick={() => setBankStatementFiles((prev) => prev.filter((_, i) => i !== index))} className="shrink-0 text-[#B91C1C] hover:underline">Remove</button>
+                      </div>
+                    ))}
+                  </div>
                 )}
                 <label className="mt-4 block text-[13px] font-semibold text-[#334155]">Other documents (driver&apos;s license, tax documents, A/R reports, etc.)</label>
                 <input
@@ -715,11 +722,18 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
                   multiple
                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
                   data-testid="application-other-documents"
-                  onChange={(event) => setOtherDocFiles(Array.from(event.target.files || []).slice(0, 8))}
+                  onChange={(event) => { const incoming = Array.from(event.target.files || []); event.target.value = ''; setOtherDocFiles((prev) => { const merged = [...prev]; incoming.forEach((file) => { if (!merged.some((existing) => existing.name === file.name && existing.size === file.size)) merged.push(file); }); return merged.slice(0, 8); }); }}
                   className="mt-1.5 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#475569] file:px-3 file:py-2 file:text-white"
                 />
                 {otherDocFiles.length > 0 && (
-                  <p className="mt-1.5 text-[12px] text-[#475569]">{otherDocFiles.length} other document{otherDocFiles.length === 1 ? '' : 's'} selected</p>
+                  <div className="mt-1.5 space-y-1">
+                    {otherDocFiles.map((file, index) => (
+                      <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-2 text-[12px] text-[#475569]">
+                        <span className="truncate">{file.name}</span>
+                        <button type="button" onClick={() => setOtherDocFiles((prev) => prev.filter((_, i) => i !== index))} className="shrink-0 text-[#B91C1C] hover:underline">Remove</button>
+                      </div>
+                    ))}
+                  </div>
                 )}
                 <p className="mt-2 text-[12px] text-[#94A3B8]">PDF, JPG, or PNG · up to 10MB each.</p>
               </div>
@@ -758,10 +772,10 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
           )}
         </div>
         {currentStep < 4 && (
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[12px] text-[#8C9BB5]">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[12px] text-[#64748B]">
             <span className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" />Secure</span>
             <span className="flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" />Encrypted</span>
-            <a href={`tel:${COMPANY.phoneHref}`} className="flex items-center gap-1.5 font-semibold text-[#e7c579]"><Phone className="h-3.5 w-3.5" />Need help? Call {COMPANY.phone}</a>
+            <a href={`tel:${COMPANY.phoneHref}`} className="flex items-center gap-1.5 font-semibold text-[#0F2B5B]"><Phone className="h-3.5 w-3.5" />Need help? Call {COMPANY.phone}</a>
           </div>
         )}
       </div>
