@@ -285,7 +285,7 @@ function SignaturePad({ value, onChange }: { value: string; onChange: (value: st
 }
 
 function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
-  const showCoOwnerReview = hasCoOwnerData(data);
+  const [showCoOwner, setShowCoOwner] = useState(hasCoOwnerData(data));
 
   return (
     <div className="space-y-6">
@@ -297,36 +297,44 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
         <div className="md:col-span-2">
           <InputField label="Home Address" value={data.home_address} onChange={(value) => update('home_address', value)} autoComplete="street-address" placeholder="Street, city, state, ZIP" />
         </div>
-        <InputField label="Social Security Number" value={data.ssn} onChange={(value) => update('ssn', prettySsn(value))} placeholder="XXX-XX-XXXX" autoComplete="off" />
+        <InputField label="Social Security Number" value={data.ssn} onChange={(value) => update('ssn', value)} placeholder="Enter 9-digit SSN" autoComplete="off" />
         <InputField label="Date of Birth" value={data.dob} onChange={(value) => update('dob', value)} type="date" autoComplete="bday" />
-        <InputField label="Cell Phone Number" value={data.cell_phone} onChange={(value) => update('cell_phone', prettyPhone(value))} autoComplete="tel" />
+        <InputField label="Cell Phone Number" value={data.cell_phone} onChange={(value) => update('cell_phone', value)} placeholder="Enter phone number" autoComplete="tel" />
         <InputField label="Email Address" value={data.email} onChange={(value) => update('email', value)} type="email" autoComplete="email" required={false} />
         <InputField label="Ownership Percentage" value={data.ownership_percentage} onChange={(value) => update('ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="100" />
       </div>
-      <div className="rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
-        <div className="mb-4">
-          <h3 className="text-[16px] font-bold text-[#0F172A]">Co-owner / partner</h3>
-          <p className="mt-1 text-[13px] font-medium leading-5 text-[#334155]">Complete this only if another owner or principal should appear on the funding application.</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <InputField label="Co-owner Full Name" value={data.co_owner_full_name} onChange={(value) => update('co_owner_full_name', value)} autoComplete="name" required={false} />
+      {showCoOwner ? (
+        <div className="rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-[16px] font-bold text-[#0F172A]">Second owner / partner</h3>
+              <p className="mt-1 text-[13px] font-medium leading-5 text-[#334155]">Complete this only if another owner or principal should appear on the funding application.</p>
+            </div>
+            <button type="button" onClick={() => setShowCoOwner(false)} className="shrink-0 rounded-[7px] border border-[#CBD5E1] px-3 py-1.5 text-[12px] font-semibold text-[#334155] hover:bg-white">Remove</button>
           </div>
-          <div className="md:col-span-2">
-            <InputField label="Co-owner Home Address" value={data.co_owner_home_address} onChange={(value) => update('co_owner_home_address', value)} autoComplete="street-address" placeholder="Street, city, state, ZIP" required={showCoOwnerReview} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <InputField label="Co-owner Full Name" value={data.co_owner_full_name} onChange={(value) => update('co_owner_full_name', value)} autoComplete="name" />
+            </div>
+            <div className="md:col-span-2">
+              <InputField label="Co-owner Home Address" value={data.co_owner_home_address} onChange={(value) => update('co_owner_home_address', value)} autoComplete="street-address" placeholder="Street, city, state, ZIP" />
+            </div>
+            <InputField label="Co-owner Social Security Number" value={data.co_owner_ssn} onChange={(value) => update('co_owner_ssn', value)} placeholder="Enter 9-digit SSN" autoComplete="off" />
+            <InputField label="Co-owner Date of Birth" value={data.co_owner_dob} onChange={(value) => update('co_owner_dob', value)} type="date" autoComplete="bday" />
+            <InputField label="Co-owner Cell Phone Number" value={data.co_owner_cell_phone} onChange={(value) => update('co_owner_cell_phone', value)} placeholder="Enter phone number" autoComplete="tel" required={false} />
+            <InputField label="Co-owner Email Address" value={data.co_owner_email} onChange={(value) => update('co_owner_email', value)} type="email" autoComplete="email" required={false} />
+            <InputField label="Co-owner Ownership Percentage" value={data.co_owner_ownership_percentage} onChange={(value) => update('co_owner_ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="50" />
           </div>
-          <InputField label="Co-owner Social Security Number" value={data.co_owner_ssn} onChange={(value) => update('co_owner_ssn', prettySsn(value))} placeholder="XXX-XX-XXXX" autoComplete="off" required={showCoOwnerReview} />
-          <InputField label="Co-owner Date of Birth" value={data.co_owner_dob} onChange={(value) => update('co_owner_dob', value)} type="date" autoComplete="bday" required={showCoOwnerReview} />
-          <InputField label="Co-owner Cell Phone Number" value={data.co_owner_cell_phone} onChange={(value) => update('co_owner_cell_phone', prettyPhone(value))} autoComplete="tel" required={false} />
-          <InputField label="Co-owner Email Address" value={data.co_owner_email} onChange={(value) => update('co_owner_email', value)} type="email" autoComplete="email" required={false} />
-          <InputField label="Co-owner Ownership Percentage" value={data.co_owner_ownership_percentage} onChange={(value) => update('co_owner_ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="50" required={showCoOwnerReview} />
         </div>
-      </div>
+      ) : (
+        <button type="button" data-testid="add-second-owner" onClick={() => setShowCoOwner(true)} className="w-full rounded-[10px] border border-dashed border-[#94A3B8] bg-white py-3 text-[14px] font-semibold text-[#0F2B5B] hover:bg-[#F8FAFC]">+ Add Second Owner</button>
+      )}
     </div>
   );
 }
 
 function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
+  const [hasAdvances, setHasAdvances] = useState(existingAdvanceRows(data).some((row) => row.funder || row.balance));
   return (
     <div className="space-y-6">
       <SectionIntro title="Business Information" text="Add the business identity details needed to start matching funding options." />
@@ -337,22 +345,30 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
         <div className="md:col-span-2">
           <InputField label="Business Address" value={data.business_address} onChange={(value) => update('business_address', value)} placeholder="Street, city, state, ZIP" />
         </div>
-        <InputField label="Tax ID / EIN" value={data.ein} onChange={(value) => update('ein', prettyEin(value))} placeholder="XX-XXXXXXX" autoComplete="off" />
+        <InputField label="Business EIN / Tax ID" value={data.ein} onChange={(value) => update('ein', value)} placeholder="Enter 9-digit Tax ID" autoComplete="off" />
         <InputField label="Business Start Date" value={data.business_start_date} onChange={(value) => update('business_start_date', value)} type="date" />
-        <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', prettyMoney(value))} placeholder="$75,000" />
+        <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', value)} placeholder="Enter amount in dollars" />
         <InputField label="Industry" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." />
         <InputField label="Use of Funds" value={data.use_of_funds} onChange={(value) => update('use_of_funds', value)} placeholder="Payroll, inventory, expansion..." required={false} />
         <div className="md:col-span-2 rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
-          <h3 className="text-[16px] font-bold text-[#0F172A]">Open advances</h3>
-          <p className="mt-1 text-[13px] font-medium leading-5 text-[#334155]">List up to three current advance balances so the generated application is complete for funder review.</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <InputField label="Open Advance Funder" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Current funder, if any" required={false} />
-            <InputField label="Open Advance Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', prettyMoney(value))} placeholder="$12,500" required={false} />
-            <InputField label="Open Advance 2 Funder" value={data.existing_advance_2_funder} onChange={(value) => update('existing_advance_2_funder', value)} placeholder="Second current funder" required={false} />
-            <InputField label="Open Advance 2 Balance" value={data.existing_advance_2_balance} onChange={(value) => update('existing_advance_2_balance', prettyMoney(value))} placeholder="$8,000" required={false} />
-            <InputField label="Open Advance 3 Funder" value={data.existing_advance_3_funder} onChange={(value) => update('existing_advance_3_funder', value)} placeholder="Third current funder" required={false} />
-            <InputField label="Open Advance 3 Balance" value={data.existing_advance_3_balance} onChange={(value) => update('existing_advance_3_balance', prettyMoney(value))} placeholder="$4,500" required={false} />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-[16px] font-bold text-[#0F172A]">Existing advances or loans</h3>
+              <p className="mt-1 text-[13px] font-medium leading-5 text-[#334155]">Does the business currently have any open advances, loans, or funding balances?</p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setHasAdvances(true)} className={`rounded-[7px] border px-4 py-1.5 text-[13px] font-semibold ${hasAdvances ? 'border-[#0F2B5B] bg-[#0F2B5B] text-white' : 'border-[#CBD5E1] bg-white text-[#334155]'}`}>Yes</button>
+              <button type="button" onClick={() => setHasAdvances(false)} className={`rounded-[7px] border px-4 py-1.5 text-[13px] font-semibold ${!hasAdvances ? 'border-[#0F2B5B] bg-[#0F2B5B] text-white' : 'border-[#CBD5E1] bg-white text-[#334155]'}`}>No</button>
+            </div>
           </div>
+          {hasAdvances && <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <InputField label="Open Advance Funder" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Current funder, if any" required={false} />
+            <InputField label="Open Advance Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', value)} placeholder="Current balance" required={false} />
+            <InputField label="Open Advance 2 Funder" value={data.existing_advance_2_funder} onChange={(value) => update('existing_advance_2_funder', value)} placeholder="Second current funder" required={false} />
+            <InputField label="Open Advance 2 Balance" value={data.existing_advance_2_balance} onChange={(value) => update('existing_advance_2_balance', value)} placeholder="Current balance" required={false} />
+            <InputField label="Open Advance 3 Funder" value={data.existing_advance_3_funder} onChange={(value) => update('existing_advance_3_funder', value)} placeholder="Third current funder" required={false} />
+            <InputField label="Open Advance 3 Balance" value={data.existing_advance_3_balance} onChange={(value) => update('existing_advance_3_balance', value)} placeholder="Current balance" required={false} />
+          </div>}
         </div>
       </div>
     </div>
@@ -590,7 +606,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
         <div className="mx-auto mb-8 max-w-3xl text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/elite-funding-logo.png" alt="Elite Funding Solutions" className="mx-auto mb-5 h-20 w-auto" />
-          <h1 className="mb-3 text-4xl font-semibold tracking-tight text-white md:text-5xl">Funding Application</h1>
+          <h1 className="mb-3 text-3xl font-semibold tracking-tight text-white md:text-4xl">Elite Funding Solutions Funding Application</h1>
           <p className="text-[16px] leading-7 text-slate-300">Complete the form below to get started.</p>
         </div>
         {referral?.repName && currentStep < 4 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/30 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#f1d08a]">Your application is connected to {referral.repName}.</div>}
@@ -635,7 +651,9 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
               </div>
               <label className="application-disclosure-copy flex cursor-pointer gap-3 rounded-[10px] border border-[#64748B] bg-white p-4 shadow-sm">
                 <input type="checkbox" checked={form.consent_accepted} onChange={(event) => updateField('consent_accepted', event.target.checked)} className="mt-1 h-5 w-5 shrink-0 rounded border-[#475569]" />
-                <span className="text-[14px] font-semibold leading-[1.6] text-[#0F172A]">{APPLICATION_CHECKBOX_CONSENT}</span>
+                <span className="text-[14px] font-medium leading-[1.6] text-[#0F172A]">
+                  <strong className="font-bold text-[#0F2B5B]">E-Sign and TCPA Consent:</strong> I authorize Elite Funding Solutions and its funding partners to send legally required notices electronically to the email address provided on this application. I also authorize Elite Funding Solutions and any lender or funding partner receiving this application to contact me by telephone, text message, or email regarding business funding options at the phone number and email address provided, including through automated technology, even if my number is listed on a federal, state, or corporate do-not-call registry. <strong className="font-semibold">I agree to the E-Sign and TCPA Consent.</strong>
+                </span>
               </label>
               <input type="text" value={form.bot_field} onChange={(event) => updateField('bot_field', event.target.value)} tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
               <div className="rounded-[10px] border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]">
@@ -644,6 +662,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
               <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#061326] px-5 text-[15px] font-semibold text-white transition-all hover:bg-[#0A1730] disabled:opacity-50">
                 {submitting ? 'Submitting application...' : 'Submit Application'} {!submitting && <CheckCircle2 className="h-4 w-4" />}
               </button>
+              <p className="text-center text-[12px] leading-5 text-[#475569]">By submitting this form, you agree to allow Elite Funding Solutions to review your business and owner information for funding eligibility.</p>
             </div>
           )}
         </div>
