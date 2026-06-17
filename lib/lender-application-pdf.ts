@@ -696,13 +696,21 @@ export async function generateLenderApplicationPdf(data: LenderApplicationPdfDat
 
     section('Owner / Principal Information', y(1136));
     const ownerColumn = (owner: ResolvedOwnerPdfFields, x: number, y: number, title: string) => {
+      const colWidth = 670;
+      const half = (colWidth - 10) / 2;
+      const third = (colWidth - 20) / 3;
       page.drawText(title, { x, y: y + 4, size: 11.5, font: boldFont, color: navy });
-      field('Name', owner.name, x, y - 44, 670);
-      field('Home address', owner.street, x, y - 90, 670);
-      field('City, State ZIP', owner.cityLine, x, y - 136, 670);
-      field('Phone / email', [owner.phone, owner.email].filter(Boolean).join(' / '), x, y - 182, 670);
-      field('Ownership %, DOB, SSN', [owner.ownershipPercentage, owner.dob, owner.ssn].filter(Boolean).join(' / '), x, y - 228, 670);
-      field('Driver license', owner.driversLicense, x, y - 274, 670);
+      field('Name', owner.name, x, y - 44, colWidth);
+      field('Home address', owner.street, x, y - 90, colWidth);
+      field('City, State ZIP', owner.cityLine, x, y - 136, colWidth);
+      // Split contact and the sensitive identity fields into their own labeled boxes so each
+      // value (ownership %, DOB, SSN) is clearly readable instead of crammed onto one line.
+      field('Phone', owner.phone, x, y - 182, half);
+      field('Email', owner.email, x + half + 10, y - 182, half);
+      field('Ownership %', owner.ownershipPercentage, x, y - 228, third);
+      field('Date of birth', owner.dob, x + third + 10, y - 228, third);
+      field('SSN', owner.ssn, x + 2 * (third + 10), y - 228, third);
+      field('Driver license', owner.driversLicense, x, y - 274, colWidth);
     };
     ownerColumn(fields.owner1, left, y(1102), 'Owner 1');
     ownerColumn(fields.owner2, left + 703, y(1102), 'Owner 2 / Co-owner');
