@@ -450,6 +450,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     referral_path: referral?.path || '',
   }));
   const [submitting, setSubmitting] = useState(false);
+  const [bankStatementFiles, setBankStatementFiles] = useState<File[]>([]);
   const progressPct = useMemo(() => ((currentStep - 1) / 3) * 100, [currentStep]);
 
   const trackApplicationEvent = (event: string, extra: Record<string, unknown> = {}) => {
@@ -561,6 +562,17 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
         if (!signatureResponse.ok || !signatureResult.success) throw new Error(signatureResult.error || 'Application was saved, but the signed PDF could not be generated. Please contact support.');
       }
 
+      // Optional: attach the applicant's bank statements. Never block the application on this.
+      if (bankStatementFiles.length && result.applicationId) {
+        try {
+          const statementsForm = new FormData();
+          bankStatementFiles.forEach((file) => statementsForm.append('files', file));
+          await fetch(`/api/applications/${result.applicationId}/bank-statements`, { method: 'POST', body: statementsForm });
+        } catch {
+          // Bank statements are optional — ignore upload errors and continue.
+        }
+      }
+
       setCurrentStep(4);
     } catch (err) {
       trackApplicationEvent('application_submit_failed');
@@ -593,7 +605,26 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
         <div className="premium-card p-5 md:p-8">
           {currentStep === 1 && <StepAboutYou data={form} update={updateField} />}
           {currentStep === 2 && <StepBusiness data={form} update={updateField} />}
-          {currentStep === 3 && <StepReview data={form} update={updateField} />}
+          {currentStep === 3 && (
+            <>
+              <StepReview data={form} update={updateField} />
+              <div className="application-disclosure-copy mt-4 rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm">
+                <h3 className="text-[15px] font-semibold text-[#0F2B5B]">Last 4 months of business bank statements (optional)</h3>
+                <p className="mt-1 text-[13px] text-[#475569]">Attaching your most recent business bank statements speeds up review. This is optional — you can submit now and send them later.</p>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
+                  data-testid="application-bank-statements"
+                  onChange={(event) => setBankStatementFiles(Array.from(event.target.files || []).slice(0, 6))}
+                  className="mt-3 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#0F2B5B] file:px-3 file:py-2 file:text-white"
+                />
+                {bankStatementFiles.length > 0 && (
+                  <p className="mt-2 text-[12px] text-[#475569]">{bankStatementFiles.length} file{bankStatementFiles.length === 1 ? '' : 's'} selected · PDF/JPG/PNG up to 10MB each</p>
+                )}
+              </div>
+            </>
+          )}
           {currentStep === 4 && <StepConfirmation />}
           {currentStep < 4 && (
             <>

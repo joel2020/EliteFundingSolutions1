@@ -476,6 +476,11 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
 export async function generateLenderApplicationPdf(data: LenderApplicationPdfData) {
   const pdfDoc = await PDFDocument.load(await fs.readFile(templatePath), { ignoreEncryption: true });
   const page = pdfDoc.getPage(0);
+  // Keep the application to a single page — the template can carry extra pages that otherwise
+  // ride along in the output (multi-page PDF + larger file size). We render everything on page 0.
+  for (let pageIndex = pdfDoc.getPageCount() - 1; pageIndex >= 1; pageIndex -= 1) {
+    pdfDoc.removePage(pageIndex);
+  }
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const logo = await pdfDoc.embedPng(await fs.readFile(logoPath));
