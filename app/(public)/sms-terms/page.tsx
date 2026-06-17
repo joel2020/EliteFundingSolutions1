@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/public/legal-page';
 import { COMPANY } from '@/lib/company';
-export const metadata: Metadata = { title: 'SMS Terms | Elite Funding Solutions' };
+import { pageMeta } from '@/lib/seo';
+export const metadata: Metadata = pageMeta({ title: 'SMS Terms | Elite Funding Solutions', description: 'Text-messaging terms for Elite Funding Solutions, including consent, message frequency, opt-out, and data-rate disclosures.', path: '/sms-terms' });
 export default function SmsTermsPage() { return <LegalPage title="SMS Terms" intro={`These SMS Terms apply when you consent to receive text messages from ${COMPANY.name}.`} sections={[
   { title: 'Consent and message types', body: ['By opting in, you consent to receive texts from Elite Funding Solutions regarding application status, document requests, underwriting updates, funding options, appointment reminders, account servicing, renewals, and related business-funding communications.'] },
   { title: 'Frequency and charges', body: ['Message frequency may vary. Message and data rates may apply depending on your wireless plan and carrier. Consent is not a condition of purchase where legally required.'] },

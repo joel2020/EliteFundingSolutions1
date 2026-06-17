@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Business Funding Guide | Elite Funding Solutions',
   description: 'A practical guide to business funding documents, underwriting criteria, product fit, offer comparison, and funding agreement review.',
-  alternates: { canonical: '/funding-guide' },
-};
+  path: '/funding-guide',
+});
 
 const guide = [
   ['1. Define the funding objective', 'Underwriters and funding partners review whether proceeds are intended for inventory, payroll, equipment, expansion, receivables timing, debt consolidation, or emergency repairs. A clear use of funds helps match the request to the right product.'],

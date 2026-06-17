@@ -2,12 +2,13 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowRight } from 'lucide-react';
 import { fundingSolutions } from '@/lib/content/site';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Funding Solutions | Elite Funding Solutions',
   description: 'Compare working capital, equipment financing, SBA loans, business lines of credit, invoice factoring, commercial real estate financing, and revenue-based funding options.',
-  alternates: { canonical: '/funding-solutions' },
-};
+  path: '/funding-solutions',
+});
 
 const comparisonRows = [
   ['Working Capital', 'Operating cash flow, payroll, inventory', '24-72 hours', 'Bank statements, business profile'],

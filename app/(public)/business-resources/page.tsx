@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Business Resources | Elite Funding Solutions',
   description: 'Useful business funding resources, document checklists, cash-flow questions, and offer comparison tools for operators.',
-  alternates: { canonical: '/business-resources' },
-};
+  path: '/business-resources',
+});
 
 const resources = [
   ['Document checklist', 'Collect the last three complete business bank statements, owner ID, EIN confirmation if available, processing statements when applicable, and product-specific documents such as invoices or equipment quotes.'],

@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ChevronDown } from 'lucide-react';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'FAQ | Elite Funding Solutions',
   description: 'Answers about business funding eligibility, documents, timelines, credit review, costs, and the secure Elite Funding Solutions application process.',
-  alternates: { canonical: '/faq' },
-};
+  path: '/faq',
+});
 
 const faqs = [
   {

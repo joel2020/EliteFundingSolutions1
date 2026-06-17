@@ -2,12 +2,13 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { fundingSolutions } from '@/lib/content/site';
+import { pageMeta } from '@/lib/seo';
 
 export function generateStaticParams() { return fundingSolutions.map(({ slug }) => ({ slug })); }
 export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
   const item = fundingSolutions.find((solution) => solution.slug === params.slug);
   if (!item) return {};
-  return { title: `${item.title} | Elite Funding Solutions`, description: `${item.summary} Typical range ${item.range}; speed ${item.speed}.`, alternates: { canonical: `/funding-solutions/${item.slug}` } };
+  return pageMeta({ title: `${item.title} | Elite Funding Solutions`, description: `${item.summary} Typical range ${item.range}; speed ${item.speed}.`, path: `/funding-solutions/${item.slug}` });
 }
 export default function FundingDetailPage({ params }: { params: { slug: string } }) {
   const item = fundingSolutions.find((solution) => solution.slug === params.slug);

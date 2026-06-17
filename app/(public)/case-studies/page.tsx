@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Case Studies | Elite Funding Solutions',
   description: 'Anonymized business funding scenarios showing how documentation, cash flow, and product fit influence funding conversations.',
-  alternates: { canonical: '/case-studies' },
-};
+  path: '/case-studies',
+});
 
 const cases = [
   ['Restaurant inventory bridge', 'A multi-location restaurant needed capital ahead of a seasonal demand spike. The file emphasized deposit consistency, card processing volume, and repayment sensitivity around slower weekdays.', 'Revenue-based funding and working-capital offers were compared with clear holdback/payment context before the operator selected a fit.'],

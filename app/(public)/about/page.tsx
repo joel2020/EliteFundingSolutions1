@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'About Us | Elite Funding Solutions',
   description: 'Elite Funding Solutions delivers secure, advisor-led business funding guidance backed by a nationwide marketplace of funding relationships.',
-  alternates: { canonical: '/about' },
-};
+  path: '/about',
+});
 
 const pillars = [
   ['Advisor-led execution', 'A dedicated funding advisor helps organize your file, clarify the objective, and explain available structures before you move forward.'],

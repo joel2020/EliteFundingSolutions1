@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'How It Works | Elite Funding Solutions',
   description: 'How Elite Funding Solutions collects application details, coordinates underwriting review, compares offers, and supports applicants before funding.',
-  alternates: { canonical: '/how-it-works' },
-};
+  path: '/how-it-works',
+});
 
 const steps = [
   { n: '01', title: 'Submit a secure application', applicant: 'The applicant submits business identity details, full EIN, owner information, full SSN with authorization, owner mobile phone, requested amount, use of funds, and the last three business bank statements.', review: 'Elite reviews the file for completeness, missing documents, internal consistency, and consent records before a funding partner review.' },

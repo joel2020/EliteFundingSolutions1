@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowRight, FileCheck2, Handshake, LockKeyhole, Scale, ShieldCheck, Users } from 'lucide-react';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMeta({
   title: 'Why Choose Elite | Elite Funding Solutions',
   description: 'Why businesses choose Elite Funding Solutions for secure intake, clear offer comparisons, responsible funding guidance, and access to a funding partner network.',
-  alternates: { canonical: '/why-choose-elite' },
-};
+  path: '/why-choose-elite',
+});
 
 const differentiators = [
   ['Complete-file discipline', 'We help applicants submit the business profile, owner information, consent records, and bank statements underwriters need to review the request without unnecessary back-and-forth.', FileCheck2],

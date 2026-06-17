@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { LegalPage } from '@/components/public/legal-page';
-export const metadata: Metadata = { title: 'E-Sign Consent | Elite Funding Solutions' };
+import { pageMeta } from '@/lib/seo';
+export const metadata: Metadata = pageMeta({ title: 'E-Sign Consent | Elite Funding Solutions', description: 'How Elite Funding Solutions uses electronic records and electronic signatures in the application and funding workflow.', path: '/esign-consent' });
 export default function ESignConsentPage() { return <LegalPage title="E-Sign Consent" intro="This consent explains use of electronic records and electronic signatures in the Elite Funding Solutions application and funding workflow." sections={[
   { title: 'Consent to electronic signatures and records', body: ['You consent to use electronic signatures, electronic records, electronic notices, electronic disclosures, and electronic communications for applications, authorizations, consents, funding documents, servicing, renewals, and related transactions.'] },
   { title: 'Legal effect', body: ['You agree that your electronic signature, typed name, checkbox selection, click, or other electronic action has the same legal effect as a handwritten signature to the fullest extent permitted by the federal E-SIGN Act, UETA, and other applicable law.'] },

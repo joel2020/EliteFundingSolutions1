@@ -2,8 +2,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowRight } from 'lucide-react';
 import { industries } from '@/lib/content/site';
+import { pageMeta } from '@/lib/seo';
 
-export const metadata: Metadata = { title: 'Industries Served | Elite Funding Solutions', description: 'Industry-specific business funding for construction, healthcare, restaurants, trucking, retail, professional services, manufacturing, automotive, ecommerce, and commercial real estate.', alternates: { canonical: '/industries' } };
+export const metadata: Metadata = pageMeta({ title: 'Industries Served | Elite Funding Solutions', description: 'Industry-specific business funding for construction, healthcare, restaurants, trucking, retail, professional services, manufacturing, automotive, ecommerce, and commercial real estate.', path: '/industries' });
 
 export default function IndustriesPage() {
   return (
