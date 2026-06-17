@@ -214,12 +214,11 @@ function SectionIntro({ title, text }: { title: string; text: string }) {
   );
 }
 
-function ReviewRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
-  const shown = sensitive && value ? `***-${digitsOnly(value).slice(-4)}` : value;
+function ReviewRow({ label, value }: { label: string; value: string; sensitive?: boolean }) {
   return (
     <div className="rounded-[8px] border border-[#CBD5E1] bg-white p-3 shadow-sm">
       <p className="text-[11px] font-bold uppercase tracking-wide text-[#334155]">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-[#0F172A]">{shown || 'Missing'}</p>
+      <p className="mt-1 text-sm font-semibold text-[#0F172A]">{value || 'Missing'}</p>
     </div>
   );
 }

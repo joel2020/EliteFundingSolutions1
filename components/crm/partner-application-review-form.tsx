@@ -132,7 +132,7 @@ export function PartnerApplicationReviewForm({ partnerApplication, onCancel, onS
     <div className="grid gap-5">
       <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm text-[#334155]">
         <p className="font-semibold text-[#0F172A]">{partnerApplication.original_file_name || 'Partner application'}</p>
-        <p className="mt-1 text-xs text-[#64748B]">Review the fields below, save changes, then regenerate the Elite application when needed. Sensitive values stay masked unless you enter a replacement.</p>
+        <p className="mt-1 text-xs text-[#64748B]">Review the fields below, save changes, then regenerate the Elite application when needed. All fields show their full values — edit any of them as needed.</p>
       </div>
       {fieldGroups.map((group) => (
         <section key={group.title} className="grid gap-3">
@@ -146,7 +146,7 @@ export function PartnerApplicationReviewForm({ partnerApplication, onCancel, onS
                   value={getPath(payload, key)}
                   onChange={(event) => setPayload((current) => setPath(current, key, event.target.value))}
                   className="mt-1 rounded-[7px]"
-                  placeholder={key.includes('ssn') || key.includes('ein') || key.includes('dob') ? 'Masked or not provided' : undefined}
+                  placeholder={key.includes('ssn') || key.includes('ein') || key.includes('dob') ? 'Not provided' : undefined}
                 />
               </div>
             ))}

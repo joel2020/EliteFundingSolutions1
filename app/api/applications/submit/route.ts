@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { createServiceSupabaseClient, DEFAULT_ORG_ID } from '@/lib/server-supabase';
 import { emailTemplates, sendEmail } from '@/lib/email';
 import { CONSENT_VERSION } from '@/lib/company';
-import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup, maskDigits } from '@/lib/security';
+import { checkPersistentRateLimit, digitsOnly, encryptSensitiveField, escapeHtml, hashSensitiveLookup } from '@/lib/security';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { decodePngDataUrl } from '@/lib/pdf-signature';
 import { createCrmNotification } from '@/lib/crm-notifications';
@@ -173,11 +173,14 @@ const documentLabels: Record<(typeof documentKeys)[number], string> = {
 
 const getClientIp = (request: Request) => request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
 
+// Per the client's explicit standing instruction, no PII is masked anywhere — the CRM payload
+// keeps full SSN / DOB / EIN so the team always sees the real values (these fields are also
+// stored encrypted in the owners/businesses tables for defense in depth).
 function sanitizeOwnerForPayload<T extends { ssn?: string; dob?: string }>(owner: T) {
   return {
     ...owner,
-    ssn: maskDigits(owner.ssn),
-    dob: owner.dob ? '[encrypted]' : '',
+    ssn: owner.ssn || '',
+    dob: owner.dob || '',
   };
 }
 
@@ -185,7 +188,7 @@ function sanitizePayloadForCrm(form: z.infer<typeof applicationSchema>, uploaded
   const { signature_data_url, ...safeForm } = form;
   return {
     ...safeForm,
-    ein: maskDigits(safeForm.ein),
+    ein: safeForm.ein || '',
     owner1: sanitizeOwnerForPayload(safeForm.owner1),
     owner2: sanitizeOwnerForPayload(safeForm.owner2),
     bot_field: undefined,

@@ -2331,7 +2331,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                     <SelectTrigger data-testid="deal-assign-broker" className="h-8 w-[200px] rounded-[7px]"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="none">No broker</SelectItem>{isoBrokers.map((row: RecordMap) => <SelectItem key={row.id} value={row.id}>{row.company_name || row.name || 'Broker'}</SelectItem>)}</SelectContent>
                   </Select>
-                ) : (isoBrokers.find((row: RecordMap) => row.id === deal.iso_broker_id)?.company_name || 'None')], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : 'Not set')]]} /></div>
+                ) : (isoBrokers.find((row: RecordMap) => row.id === deal.iso_broker_id)?.company_name || 'None')], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || 'Not set']]} /></div>
               </CrmCard>
               <CrmCard className="p-4">
                 <div className="flex items-center justify-between gap-2">
@@ -2340,7 +2340,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                 <div className="mt-3 grid gap-3">
                   {displayOwners.length ? displayOwners.slice(0, 2).map((owner: RecordMap, index: number) => (
                     <div key={owner.id || index} className="rounded-[8px] border border-[#E2E8F0] p-3">
-                      <InfoGrid rows={[["Name", [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.full_name || 'Not set'], ["Cell phone", owner.phone || 'Not set'], ["Email", owner.email || 'Not set'], ["Home address", [owner.address || owner.home_address, owner.city, owner.state, owner.zip].filter(Boolean).join(', ') || 'Not set'], ["Ownership", owner.ownership_percentage ? `${owner.ownership_percentage}%` : 'Not set'], ["SSN", sensitiveOwnersById[owner.id]?.ssn || owner.ssn || (owner.ssn_last4 || owner.ssn_last_four ? `***-**-${owner.ssn_last4 || owner.ssn_last_four}` : 'Not set')], ["DOB", sensitiveOwnersById[owner.id]?.dob || owner.dob || 'Not set']]} />
+                      <InfoGrid rows={[["Name", [owner.first_name, owner.last_name].filter(Boolean).join(' ') || owner.full_name || 'Not set'], ["Cell phone", owner.phone || 'Not set'], ["Email", owner.email || 'Not set'], ["Home address", [owner.address || owner.home_address, owner.city, owner.state, owner.zip].filter(Boolean).join(', ') || 'Not set'], ["Ownership", owner.ownership_percentage ? `${owner.ownership_percentage}%` : 'Not set'], ["SSN", sensitiveOwnersById[owner.id]?.ssn || owner.ssn || 'Not set'], ["DOB", sensitiveOwnersById[owner.id]?.dob || owner.dob || 'Not set']]} />
                     </div>
                   )) : <EmptyState title="No owner on file yet." body="Owner details are captured from the application or can be added from the partner application review." />}
                 </div>
