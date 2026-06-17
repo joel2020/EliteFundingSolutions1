@@ -1059,6 +1059,7 @@ export function CrmLeadsExperience() {
   const [importRows, setImportRows] = useState<RecordMap[]>([]);
   const [importFileName, setImportFileName] = useState('');
   const [importError, setImportError] = useState('');
+  const [coldEmailLeadId, setColdEmailLeadId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<RecordMap | null>(null);
   const [form, setForm] = useState<RecordMap>(emptyLead);
@@ -1112,6 +1113,27 @@ export function CrmLeadsExperience() {
     else {
       toast.success('Lead converted to deal');
       reload();
+    }
+  };
+
+  const generateLeadColdEmail = async (lead: RecordMap) => {
+    setColdEmailLeadId(lead.id);
+    try {
+      const response = await fetch(`/api/crm/leads/${lead.id}/cold-email`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok || !result.success) { toast.error(result.error || 'Unable to generate cold email'); return; }
+      const draft = result.draft;
+      const draftText = `Subject: ${draft.subject}\n\n${draft.body}`;
+      try {
+        await navigator.clipboard.writeText(draftText);
+        toast.success(`AI cold email drafted${draft.provider === 'rules' ? ' (template)' : ''} and copied to your clipboard${result.to ? ` — send to ${result.to}` : ''}.`);
+      } catch {
+        toast.info(`Cold email draft ready — Subject: ${draft.subject}`);
+      }
+    } catch {
+      toast.error('Unable to generate cold email');
+    } finally {
+      setColdEmailLeadId(null);
     }
   };
 
@@ -1200,6 +1222,7 @@ export function CrmLeadsExperience() {
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => openLead(lead)}>Edit</Button>
                       <Button data-testid={`convert-lead-${lead.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => convertLead(lead)}>Convert</Button>
+                      <Button data-testid={`cold-email-lead-${lead.id}`} variant="outline" size="sm" className="h-8 rounded-[7px]" onClick={() => generateLeadColdEmail(lead)} disabled={coldEmailLeadId === lead.id}>{coldEmailLeadId === lead.id ? 'Drafting...' : 'AI Email'}</Button>
                       <DeleteConfirmButton
                         itemLabel={`lead ${lead.business_name || [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.id}`}
                         endpoint={`/api/crm/leads/${lead.id}`}
@@ -1336,6 +1359,7 @@ export function CrmDealsExperience() {
   const activeProfile = directProfile || profile;
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState('all');
+  const [viewAsRep, setViewAsRep] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<RecordMap>(emptyDeal);
   const [dealDocumentFiles, setDealDocumentFiles] = useState<File[]>([]);
@@ -1349,13 +1373,18 @@ export function CrmDealsExperience() {
   if (loading || directProfileLoading) return <LoadingScreen title="Deals" />;
   const canCreateDeals = !!activeProfile && isInternalCrmRole(activeProfile.role);
   const canEditStage = !!activeProfile && isInternalCrmRole(activeProfile.role);
+  // Admins/managers can scope the pipeline to a single rep's deals ("view as rep") for coaching/training.
+  const canViewAsRep = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
+  const repViewUsers = users.filter((row: RecordMap) => isInternalCrmRole(row.role));
   const broker = activeProfile && isIsoPartnerRole(activeProfile.role) ? isoBrokers.find((row: RecordMap) => row.id === activeProfile.access_entity_id) : null;
   const applicationUrl = isoApplicationUrl(broker?.application_token || broker?.application_slug);
   const filtered = deals.filter((deal: RecordMap) => {
     const query = normalize(search);
     const statusMatch = stage === 'all' || normalizeStage(deal.stage_slug) === stage;
+    const repMatch = !canViewAsRep || viewAsRep === 'all'
+      || deal.assigned_user_id === viewAsRep || deal.junior_closer_id === viewAsRep || deal.senior_closer_id === viewAsRep;
     const text = normalize([deal.id, businessName(deal), repName(deal), partnerName(deal), deal.stage_slug].join(' '));
-    return statusMatch && (!query || text.includes(query));
+    return statusMatch && repMatch && (!query || text.includes(query));
   });
 
   const changeDealStage = async (deal: RecordMap, stage_slug: string) => {
@@ -1445,6 +1474,10 @@ export function CrmDealsExperience() {
             <SelectTrigger className="h-10 w-[190px] rounded-[7px]"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="all">All stages</SelectItem>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
+          {canViewAsRep && <Select value={viewAsRep} onValueChange={setViewAsRep}>
+            <SelectTrigger data-testid="deals-view-as-rep" className="h-10 w-[190px] rounded-[7px]"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All reps (everyone)</SelectItem>{repViewUsers.map((row: RecordMap) => <SelectItem key={row.id} value={row.id}>View as {userDisplayName(row)}</SelectItem>)}</SelectContent>
+          </Select>}
           {canCreateDeals && <Button variant="outline" className="h-10 rounded-[7px]" onClick={() => exportCsv('deals', filtered)}><Download className="mr-2 h-4 w-4" />Export</Button>}
         </Toolbar>
         <DealTable rows={filtered} canEditStage={canEditStage} onStageChange={changeDealStage} />
@@ -1685,7 +1718,7 @@ function uniqueRecordsById(rows: RecordMap[]) {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, partnerApplications, profile, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, isoBrokers, partnerApplications, profile, loading, reload } = useCrmDataset();
   const { profile: directProfile, loading: directProfileLoading } = useCrmUser();
   const activeProfile = directProfile || profile;
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
@@ -2257,6 +2290,18 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     else { toast.success('Deal reassigned'); reload(); }
   };
 
+  const assignDealBroker = async (value: string) => {
+    const iso_broker_id = value === 'none' ? null : value;
+    const response = await fetch(`/api/crm/deals/${deal.id}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ iso_broker_id }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) toast.error(result.error || 'Unable to assign broker');
+    else { toast.success(iso_broker_id ? 'Broker assigned and notified' : 'Broker removed'); reload(); }
+  };
+
   return (
     <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
       <CrmCard className="p-4">
@@ -2281,7 +2326,12 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                     <SelectTrigger data-testid="deal-assign-rep" className="h-8 w-[200px] rounded-[7px]"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="unassigned">Unassigned</SelectItem>{internalUsers.map((row: RecordMap) => <SelectItem key={row.id} value={row.id}>{userDisplayName(row)}</SelectItem>)}</SelectContent>
                   </Select>
-                ) : repName(deal)], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : 'Not set')]]} /></div>
+                ) : repName(deal)], ["Broker", canAssignReps ? (
+                  <Select value={deal.iso_broker_id || 'none'} onValueChange={assignDealBroker}>
+                    <SelectTrigger data-testid="deal-assign-broker" className="h-8 w-[200px] rounded-[7px]"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="none">No broker</SelectItem>{isoBrokers.map((row: RecordMap) => <SelectItem key={row.id} value={row.id}>{row.company_name || row.name || 'Broker'}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : (isoBrokers.find((row: RecordMap) => row.id === deal.iso_broker_id)?.company_name || 'None')], ["EIN", revealedSensitiveData?.business?.ein || app?.application_payload?.ein || (deal.businesses?.ein_last4 ? `***-**${deal.businesses.ein_last4}` : 'Not set')]]} /></div>
               </CrmCard>
               <CrmCard className="p-4">
                 <div className="flex items-center justify-between gap-2">
@@ -2325,7 +2375,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
                   {canAddNotes && <Button data-testid="deal-add-note" size="sm" className="h-8 rounded-[7px] bg-[#0F2B5B]" onClick={() => setNoteDialogOpen(true)}><Plus className="mr-1 h-3 w-3" />Add note</Button>}
                 </div>
                 <div className="mt-3">
-                  <SimpleRows rows={dealNotes} empty={internalUser ? 'No notes yet. Add the first note for this deal.' : 'No shared notes yet.'} render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Shared note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} />
+                  <SimpleRows rows={dealNotes} empty={internalUser ? 'No notes yet. Add the first note for this deal.' : 'No shared notes yet.'} render={(row) => <div><b>{row.is_internal ? 'Internal note' : 'Funder-facing note'}</b><p className="text-[#334155]">{row.body || row.note}</p><p className="text-xs text-[#64748B]">{date(row.created_at)}</p></div>} />
                 </div>
               </CrmCard>
             </div>
@@ -2387,7 +2437,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         </DialogContent>
       </Dialog>
       <Dialog open={applicationLinkDialogOpen} onOpenChange={(open) => { setApplicationLinkDialogOpen(open); if (!open) { setGeneratedApplicationLink(''); setApplicationLinkMessage(''); } }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Send Application Link</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Customer email</Label><Input data-testid="application-link-email" value={applicationLinkEmail} onChange={(event) => setApplicationLinkEmail(event.target.value)} className="mt-1 rounded-[7px]" placeholder={deal.businesses?.email || 'customer@email.com'} /></div><div><Label className="text-xs text-[#64748B]">Message</Label><Textarea data-testid="application-link-message" value={applicationLinkMessage} onChange={(event) => setApplicationLinkMessage(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="Optional note to include in the email" /></div>{generatedApplicationLink && <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm"><p className="text-xs font-semibold uppercase text-[#64748B]">Generated link</p><button className="mt-1 break-all text-left font-semibold text-[#0F2B5B]" onClick={() => navigator.clipboard?.writeText(generatedApplicationLink)}>{generatedApplicationLink}</button><p className="mt-1 text-xs text-[#64748B]">Click the link text to copy it.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setApplicationLinkDialogOpen(false)}>Cancel</Button><Button data-testid="save-application-link" onClick={sendApplicationLink} disabled={sendingApplicationLink}>{sendingApplicationLink ? 'Creating...' : 'Create and send link'}</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note (uncheck to make it a funder-facing note)</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>
         <DialogContent className="grid max-h-[calc(100vh-2rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-[8px]">
           <DialogHeader><DialogTitle>Submit deal to funders</DialogTitle></DialogHeader>

@@ -11,6 +11,7 @@ const assignSchema = z.object({
   assigned_user_id: z.string().uuid().nullable().optional(),
   junior_closer_id: z.string().uuid().nullable().optional(),
   senior_closer_id: z.string().uuid().nullable().optional(),
+  iso_broker_id: z.string().uuid().nullable().optional(),
 });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -28,11 +29,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: deal, error: loadError } = await supabase
     .from('deals')
-    .select('id,organization_id,assigned_user_id,junior_closer_id,senior_closer_id')
+    .select('id,organization_id,title,assigned_user_id,junior_closer_id,senior_closer_id,iso_broker_id')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .single();
   if (loadError || !deal) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+
+  // Validate the broker (if provided) belongs to this org.
+  if (parsed.data.iso_broker_id) {
+    const { data: broker } = await supabase
+      .from('iso_brokers')
+      .select('id')
+      .eq('id', parsed.data.iso_broker_id)
+      .eq('organization_id', profile.organization_id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (!broker) return NextResponse.json({ success: false, error: 'Selected broker is not valid for this organization.' }, { status: 400 });
+  }
 
   // Validate every provided user belongs to this org and is an internal rep.
   const candidateIds = Array.from(new Set(
@@ -55,6 +68,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (parsed.data.assigned_user_id !== undefined) updatePayload.assigned_user_id = parsed.data.assigned_user_id;
   if (parsed.data.junior_closer_id !== undefined) updatePayload.junior_closer_id = parsed.data.junior_closer_id;
   if (parsed.data.senior_closer_id !== undefined) updatePayload.senior_closer_id = parsed.data.senior_closer_id;
+  if (parsed.data.iso_broker_id !== undefined) updatePayload.iso_broker_id = parsed.data.iso_broker_id;
 
   const { error: updateError } = await supabase
     .from('deals')
@@ -62,6 +76,30 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq('id', deal.id)
     .eq('organization_id', profile.organization_id);
   if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+
+  // Notify the newly assigned broker (in their CRM) so the deal shows up for them.
+  const brokerChanged = parsed.data.iso_broker_id && parsed.data.iso_broker_id !== deal.iso_broker_id;
+  if (brokerChanged) {
+    const { data: brokerProfiles } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('organization_id', profile.organization_id)
+      .eq('access_entity_type', 'iso_broker')
+      .eq('access_entity_id', parsed.data.iso_broker_id)
+      .is('deleted_at', null);
+    await Promise.allSettled((brokerProfiles || []).map((bp: any) =>
+      supabase.from('crm_notifications').insert({
+        organization_id: profile.organization_id,
+        recipient_user_profile_id: bp.id,
+        actor_user_profile_id: profile.id,
+        resource_type: 'deals',
+        resource_id: deal.id,
+        title: 'New deal assigned to you',
+        body: `${deal.title || 'A deal'} was routed to you. Open it in your CRM to review.`,
+        severity: 'info',
+      }),
+    ));
+  }
 
   await Promise.allSettled([
     supabase.from('activities').insert({
