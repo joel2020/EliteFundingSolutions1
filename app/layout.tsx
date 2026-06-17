@@ -20,11 +20,13 @@ export const metadata: Metadata = {
     siteName: 'Elite Funding Solutions',
     title: 'Elite Funding Solutions - Institutional Business Funding & Private Credit Advisory',
     description: 'Premium business funding solutions with secure intake, responsible underwriting guidance, and white-glove offer comparison.',
+    images: [{ url: '/Elite_Funding_Solutions_Logo_Final.jpg', width: 1672, height: 940, alt: 'Elite Funding Solutions' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Elite Funding Solutions',
     description: 'Institutional business funding and private credit advisory for ambitious operators.',
+    images: ['/Elite_Funding_Solutions_Logo_Final.jpg'],
   },
   icons: {
     icon: '/elite-funding-logo.png',
