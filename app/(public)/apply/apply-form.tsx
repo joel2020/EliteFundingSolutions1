@@ -289,7 +289,7 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
 
   return (
     <div className="space-y-6">
-      <SectionIntro title="About You" text="Tell us who is applying. This information is encrypted and used for funding review." />
+      <SectionIntro title="Primary Owner Information" text="Tell us who is applying. This information is encrypted and used for funding review." />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <InputField label="Full Name" value={data.full_name} onChange={(value) => update('full_name', value)} autoComplete="name" />
@@ -329,7 +329,7 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
 function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K extends keyof ApplicationFormData>(key: K, value: ApplicationFormData[K]) => void }) {
   return (
     <div className="space-y-6">
-      <SectionIntro title="About Your Business" text="Add the business identity details needed to start matching funding options." />
+      <SectionIntro title="Business Information" text="Add the business identity details needed to start matching funding options." />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <InputField label="Company Name" value={data.company_name} onChange={(value) => update('company_name', value)} autoComplete="organization" />
@@ -478,8 +478,8 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   const next = () => setCurrentStep((step) => Math.min(step + 1, 4) as Step);
   const back = () => setCurrentStep((step) => Math.max(step - 1, 1) as Step);
 
-  const validateCurrentStep = () => {
-    if (currentStep === 1) {
+  const validateStep = (step: Step) => {
+    if (step === 1) {
       if (form.full_name.trim().split(/\s+/).length < 2) return 'Please enter your full name.';
       if (form.home_address.trim().length < 8) return 'Please enter your full home address.';
       if (digitsOnly(form.ssn).length !== 9) return 'Please enter a valid 9 digit Social Security Number.';
@@ -500,7 +500,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
         if (ownership + coOwnerOwnership > 100) return 'Owner and co-owner ownership percentages cannot exceed 100.';
       }
     }
-    if (currentStep === 2) {
+    if (step === 2) {
       if (form.company_name.trim().length < 2) return 'Please enter the company name.';
       if (form.business_address.trim().length < 8) return 'Please enter the full business address.';
       if (digitsOnly(form.ein).length !== 9) return 'Please enter a valid 9 digit Tax ID / EIN.';
@@ -510,15 +510,17 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
       const invalidAdvanceBalance = existingAdvanceRows(form).some((advance) => advance.balance && Number(digitsOnly(advance.balance)) <= 0);
       if (invalidAdvanceBalance) return 'Please enter valid open advance balances.';
     }
-    if (currentStep === 3) {
-      if (!form.signature_data_url) return 'Please draw your signature before submitting.';
+    if (step === 3) {
+      if (!form.signature_data_url) return 'Please add your signature before submitting.';
       if (!form.consent_accepted) return 'Please accept the consent before submitting.';
     }
     return null;
   };
 
+  const validateAll = () => validateStep(1) || validateStep(2) || validateStep(3);
+
   const continueStep = () => {
-    const error = validateCurrentStep();
+    const error = validateStep(currentStep);
     if (error) {
       trackApplicationEvent('application_validation_error', { field: error });
       toast.error(error);
@@ -529,7 +531,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   };
 
   const handleSubmit = async () => {
-    const error = validateCurrentStep();
+    const error = validateAll();
     if (error) {
       trackApplicationEvent('application_validation_error', { field: error });
       toast.error(error);
@@ -586,31 +588,22 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     <div className="min-h-screen bg-[#030812] pb-20 pt-10 text-white">
       <div className="mx-auto max-w-[860px] px-5 md:px-8">
         <div className="mx-auto mb-8 max-w-3xl text-center">
-          <p className="eyebrow mb-3">Secure funding application</p>
-          <h1 className="mb-4 text-4xl font-semibold tracking-tight text-white md:text-5xl">Get your funding options faster.</h1>
-          <p className="text-[16px] leading-7 text-slate-300">A short encrypted application for merchant cash advance and business funding review.</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/elite-funding-logo.png" alt="Elite Funding Solutions" className="mx-auto mb-5 h-20 w-auto" />
+          <h1 className="mb-3 text-4xl font-semibold tracking-tight text-white md:text-5xl">Funding Application</h1>
+          <p className="text-[16px] leading-7 text-slate-300">Complete the form below to get started.</p>
         </div>
         {referral?.repName && currentStep < 4 && <div className="mx-auto mb-6 max-w-3xl rounded-[10px] border border-[#C9A84C]/30 bg-[#C9A84C]/10 px-4 py-3 text-center text-sm font-semibold text-[#f1d08a]">Your application is connected to {referral.repName}.</div>}
-        {currentStep < 4 && (
-          <div className="mb-6" data-testid="application-step">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[14px] font-bold text-white">Step {currentStep} of 3: {steps[currentStep - 1]}</span>
-              <span className="rounded-full bg-[#061326] px-3 py-1 text-[12px] font-bold text-white">{Math.round(progressPct)}% complete</span>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-white/15" aria-label="Application progress">
-              <div className="h-full rounded-full transition-all duration-300" style={{ background: '#C9A84C', width: `${progressPct}%` }} />
-            </div>
-          </div>
-        )}
         <div className="premium-card p-5 md:p-8">
-          {currentStep === 1 && <StepAboutYou data={form} update={updateField} />}
-          {currentStep === 2 && <StepBusiness data={form} update={updateField} />}
-          {currentStep === 3 && (
-            <>
-              <StepReview data={form} update={updateField} />
-              <div className="application-disclosure-copy mt-4 rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm">
-                <h3 className="text-[15px] font-semibold text-[#0F2B5B]">Last 4 months of business bank statements (optional)</h3>
-                <p className="mt-1 text-[13px] text-[#475569]">Attaching your most recent business bank statements speeds up review. This is optional — you can submit now and send them later.</p>
+          {currentStep === 4 ? (
+            <StepConfirmation />
+          ) : (
+            <div className="space-y-8">
+              <StepBusiness data={form} update={updateField} />
+              <StepAboutYou data={form} update={updateField} />
+              <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm">
+                <h3 className="text-[15px] font-semibold text-[#0F2B5B]">Supporting documents (optional)</h3>
+                <p className="mt-1 text-[13px] text-[#475569]">Upload your last 4 months of business bank statements to speed up review. This is optional — you can submit now and send them later.</p>
                 <input
                   type="file"
                   multiple
@@ -623,29 +616,35 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
                   <p className="mt-2 text-[12px] text-[#475569]">{bankStatementFiles.length} file{bankStatementFiles.length === 1 ? '' : 's'} selected · PDF/JPG/PNG up to 10MB each</p>
                 )}
               </div>
-            </>
-          )}
-          {currentStep === 4 && <StepConfirmation />}
-          {currentStep < 4 && (
-            <>
-              <div className="mt-8 rounded-[10px] border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]">
+              <SignaturePad value={form.signature_data_url} onChange={(value) => updateField('signature_data_url', value)} />
+              <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm md:p-5">
+                <div className="mb-4 rounded-[10px] border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+                  <h3 className="text-[16px] font-semibold text-[#0F2B5B]">Important Application Authorization</h3>
+                  <p className="mt-2 text-[14px] font-semibold leading-[1.6] text-[#0F172A]">Please read these disclosures before submitting. They explain what Elite Funding Solutions and its funding partners may review, how consent is recorded, and how your information may be used.</p>
+                </div>
+                <div className="grid gap-4">
+                  {APPLICATION_DISCLOSURE_SECTIONS.map((section) => (
+                    <section key={section.title} className="rounded-[10px] border border-[#CBD5E1] bg-white p-4">
+                      <h3 className="text-[15px] font-bold text-[#0F2B5B]">{section.title}</h3>
+                      <div className="mt-2 space-y-3">
+                        {section.paragraphs.map((paragraph) => (<p key={paragraph} className="text-[13px] font-medium leading-[1.6] text-[#0F172A]">{paragraph}</p>))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
+              <label className="application-disclosure-copy flex cursor-pointer gap-3 rounded-[10px] border border-[#64748B] bg-white p-4 shadow-sm">
+                <input type="checkbox" checked={form.consent_accepted} onChange={(event) => updateField('consent_accepted', event.target.checked)} className="mt-1 h-5 w-5 shrink-0 rounded border-[#475569]" />
+                <span className="text-[14px] font-semibold leading-[1.6] text-[#0F172A]">{APPLICATION_CHECKBOX_CONSENT}</span>
+              </label>
+              <input type="text" value={form.bot_field} onChange={(event) => updateField('bot_field', event.target.value)} tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
+              <div className="rounded-[10px] border border-[#DDE3EF] bg-[#F8F9FB] p-4 text-sm font-semibold text-[#0A1628]">
                 <Shield className="mr-2 inline h-4 w-4 text-[#0F2B5B]" /> SSN, DOB, Tax ID, and signature are encrypted or protected before storage.
               </div>
-              <div className="mt-6 flex items-center justify-between border-t border-[#F4F4F5] pt-6">
-                <button type="button" onClick={back} disabled={currentStep === 1 || submitting} className="inline-flex h-11 items-center gap-2 rounded-[8px] px-4 py-2 text-[14px] font-medium text-[#71717A] transition-colors hover:bg-[#F4F4F5] hover:text-[#09090B] disabled:cursor-not-allowed disabled:text-[#A1A1AA]">
-                  <ArrowLeft className="h-4 w-4" /> Back
-                </button>
-                {currentStep === 3 ? (
-                  <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex h-12 items-center gap-2 rounded-[10px] bg-[#061326] px-5 text-[14px] font-semibold text-white transition-all hover:bg-[#0A1730] disabled:opacity-50">
-                    {submitting ? 'Generating signed PDF...' : 'Get My Funding Options'} {!submitting && <CheckCircle2 className="h-4 w-4" />}
-                  </button>
-                ) : (
-                  <button type="button" onClick={continueStep} className="inline-flex h-12 items-center gap-2 rounded-[10px] bg-[#0F2B5B] px-5 text-[14px] font-semibold text-white transition-all hover:bg-[#0A1E42]">
-                    Continue <ArrowRight className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </>
+              <button type="button" onClick={handleSubmit} disabled={submitting} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-[#061326] px-5 text-[15px] font-semibold text-white transition-all hover:bg-[#0A1730] disabled:opacity-50">
+                {submitting ? 'Submitting application...' : 'Submit Application'} {!submitting && <CheckCircle2 className="h-4 w-4" />}
+              </button>
+            </div>
           )}
         </div>
         {currentStep < 4 && (
