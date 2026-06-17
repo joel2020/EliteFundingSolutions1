@@ -500,17 +500,27 @@ export function normalizeIncomingPayload(payload: any) {
     String(payload.co_owner_ownership_percentage || '').trim(),
   );
   const consentAccepted = Boolean(payload.consent_accepted);
+  // Map a free-text estimated credit score to the credit_range enum the schema requires.
+  const bucketCredit = (raw: unknown) => {
+    const score = parseInt(String(raw ?? '').replace(/\D/g, ''), 10);
+    if (!Number.isFinite(score) || score <= 0) return '';
+    if (score >= 720) return '720+';
+    if (score >= 680) return '680-719';
+    if (score >= 640) return '640-679';
+    if (score >= 600) return '600-639';
+    return '<600';
+  };
   const publicAdvanceInputs = [
-    { funder_name: payload.existing_advance_funder, current_balance: payload.existing_advance_balance },
-    { funder_name: payload.existing_advance_2_funder, current_balance: payload.existing_advance_2_balance },
-    { funder_name: payload.existing_advance_3_funder, current_balance: payload.existing_advance_3_balance },
+    { funder_name: payload.existing_advance_funder, current_balance: payload.existing_advance_balance, daily_payment: payload.existing_advance_payment, original_amount: payload.existing_advance_original },
+    { funder_name: payload.existing_advance_2_funder, current_balance: payload.existing_advance_2_balance, daily_payment: payload.existing_advance_2_payment, original_amount: payload.existing_advance_2_original },
+    { funder_name: payload.existing_advance_3_funder, current_balance: payload.existing_advance_3_balance, daily_payment: payload.existing_advance_3_payment, original_amount: payload.existing_advance_3_original },
   ];
   const existingAdvances = publicAdvanceInputs
     .map((advance) => ({
       funder_name: String(advance.funder_name || '').trim(),
       current_balance: String(advance.current_balance || '').trim(),
-      original_amount: '',
-      daily_payment: '',
+      original_amount: String(advance.original_amount || '').trim(),
+      daily_payment: String(advance.daily_payment || '').trim(),
       payment_frequency: '',
       notes: 'Submitted from public application.',
     }))
@@ -531,9 +541,9 @@ export function normalizeIncomingPayload(payload: any) {
     business_email: String(payload.email || ''),
     website: '',
     address: businessAddress.address || String(payload.business_address || ''),
-    city: businessAddress.city,
-    state: businessAddress.state,
-    zip: businessAddress.zip,
+    city: String(payload.business_city || '').trim() || businessAddress.city,
+    state: String(payload.business_state || '').trim() || businessAddress.state,
+    zip: String(payload.business_zip || '').trim() || businessAddress.zip,
     business_location: '',
     products_services: String(payload.industry || ''),
     pos_contact_name: '',
@@ -557,10 +567,10 @@ export function normalizeIncomingPayload(payload: any) {
       dob: String(payload.dob || ''),
       ssn: String(payload.ssn || ''),
       address: ownerAddress.address || String(payload.home_address || ''),
-      city: ownerAddress.city,
-      state: ownerAddress.state,
-      zip: ownerAddress.zip,
-      credit_range: '',
+      city: String(payload.owner_city || '').trim() || ownerAddress.city,
+      state: String(payload.owner_state || '').trim() || ownerAddress.state,
+      zip: String(payload.owner_zip || '').trim() || ownerAddress.zip,
+      credit_range: bucketCredit(payload.credit_score),
     },
     owner2: hasCoOwnerData ? {
       ...coOwnerName,
@@ -572,17 +582,17 @@ export function normalizeIncomingPayload(payload: any) {
       dob: String(payload.co_owner_dob || ''),
       ssn: String(payload.co_owner_ssn || ''),
       address: coOwnerAddress.address || String(payload.co_owner_home_address || ''),
-      city: coOwnerAddress.city,
-      state: coOwnerAddress.state,
-      zip: coOwnerAddress.zip,
-      credit_range: '',
+      city: String(payload.co_owner_city || '').trim() || coOwnerAddress.city,
+      state: String(payload.co_owner_state || '').trim() || coOwnerAddress.state,
+      zip: String(payload.co_owner_zip || '').trim() || coOwnerAddress.zip,
+      credit_range: bucketCredit(payload.co_owner_credit_score),
     } : {},
     requested_amount: String(payload.requested_amount || ''),
     use_of_funds: String(payload.use_of_funds || ''),
     timeline: '',
-    average_monthly_sales: '',
+    average_monthly_sales: String(payload.average_monthly_revenue || '').replace(/[$,]/g, '').trim(),
     average_visa_mc_sales: '',
-    monthly_gross_revenue: '',
+    monthly_gross_revenue: String(payload.average_monthly_revenue || '').replace(/[$,]/g, '').trim(),
     has_existing_advances: hasExistingAdvance,
     existing_advances: existingAdvances,
     notes: [

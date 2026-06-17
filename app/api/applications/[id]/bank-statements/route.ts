@@ -9,8 +9,16 @@ export const dynamic = 'force-dynamic';
 const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif']);
 const allowedExtensions = new Set(['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-const MAX_FILES_PER_REQUEST = 6;
-const MAX_TOTAL_BANK_STATEMENTS = 8;
+const MAX_FILES_PER_REQUEST = 8;
+const MAX_TOTAL_PER_TYPE = 12;
+const ALLOWED_DOC_TYPES = new Set(['bank_statement', 'drivers_license', 'tax_document', 'ar_report', 'other']);
+const DOC_TYPE_LABELS: Record<string, string> = {
+  bank_statement: 'Bank statement (applicant upload)',
+  drivers_license: "Driver's license (applicant upload)",
+  tax_document: 'Tax document (applicant upload)',
+  ar_report: 'A/R report (applicant upload)',
+  other: 'Supporting document (applicant upload)',
+};
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
@@ -36,10 +44,13 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const formData = await request.formData().catch(() => null);
   if (!formData) return NextResponse.json({ success: false, error: 'Invalid upload payload.' }, { status: 400 });
+  const requestedType = String(formData.get('document_type') || 'bank_statement');
+  const documentType = ALLOWED_DOC_TYPES.has(requestedType) ? requestedType : 'bank_statement';
+  const documentLabel = DOC_TYPE_LABELS[documentType] || DOC_TYPE_LABELS.other;
   const files = formData.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
   if (!files.length) return NextResponse.json({ success: true, uploaded: 0 });
   if (files.length > MAX_FILES_PER_REQUEST) {
-    return NextResponse.json({ success: false, error: `Upload up to ${MAX_FILES_PER_REQUEST} statements at a time.` }, { status: 400 });
+    return NextResponse.json({ success: false, error: `Upload up to ${MAX_FILES_PER_REQUEST} files at a time.` }, { status: 400 });
   }
 
   const { count: existingCount } = await supabase
@@ -47,8 +58,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', application.organization_id)
     .eq('application_id', application.id)
-    .eq('document_type', 'bank_statement');
-  let remaining = Math.max(0, MAX_TOTAL_BANK_STATEMENTS - Number(existingCount || 0));
+    .eq('document_type', documentType);
+  let remaining = Math.max(0, MAX_TOTAL_PER_TYPE - Number(existingCount || 0));
 
   let uploaded = 0;
   for (const file of files) {
@@ -65,8 +76,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       organization_id: application.organization_id,
       deal_id: deal?.id || null,
       application_id: application.id,
-      document_type: 'bank_statement',
-      label: 'Bank statement (applicant upload)',
+      document_type: documentType,
+      label: documentLabel,
       file_name: file.name,
       file_size: file.size,
       mime_type: file.type || null,

@@ -36,6 +36,24 @@ type ApplicationFormData = {
   existing_advance_2_balance: string;
   existing_advance_3_funder: string;
   existing_advance_3_balance: string;
+  business_city: string;
+  business_state: string;
+  business_zip: string;
+  average_monthly_revenue: string;
+  owner_city: string;
+  owner_state: string;
+  owner_zip: string;
+  credit_score: string;
+  co_owner_city: string;
+  co_owner_state: string;
+  co_owner_zip: string;
+  co_owner_credit_score: string;
+  existing_advance_payment: string;
+  existing_advance_original: string;
+  existing_advance_2_payment: string;
+  existing_advance_2_original: string;
+  existing_advance_3_payment: string;
+  existing_advance_3_original: string;
   consent_accepted: boolean;
   signature_data_url: string;
   bot_field: string;
@@ -71,6 +89,24 @@ const initialForm: ApplicationFormData = {
   existing_advance_2_balance: '',
   existing_advance_3_funder: '',
   existing_advance_3_balance: '',
+  business_city: '',
+  business_state: '',
+  business_zip: '',
+  average_monthly_revenue: '',
+  owner_city: '',
+  owner_state: '',
+  owner_zip: '',
+  credit_score: '',
+  co_owner_city: '',
+  co_owner_state: '',
+  co_owner_zip: '',
+  co_owner_credit_score: '',
+  existing_advance_payment: '',
+  existing_advance_original: '',
+  existing_advance_2_payment: '',
+  existing_advance_2_original: '',
+  existing_advance_3_payment: '',
+  existing_advance_3_original: '',
   consent_accepted: false,
   signature_data_url: '',
   bot_field: '',
@@ -294,14 +330,20 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
         <div className="md:col-span-2">
           <InputField label="Full Name" value={data.full_name} onChange={(value) => update('full_name', value)} autoComplete="name" />
         </div>
-        <div className="md:col-span-2">
-          <InputField label="Home Address" value={data.home_address} onChange={(value) => update('home_address', value)} autoComplete="street-address" placeholder="Street, city, state, ZIP" />
-        </div>
+        <InputField label="Estimated Credit Score" value={data.credit_score} onChange={(value) => update('credit_score', value)} placeholder="e.g. 680" required={false} />
+        <InputField label="Ownership Percentage" value={data.ownership_percentage} onChange={(value) => update('ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="100" />
         <InputField label="Social Security Number" value={data.ssn} onChange={(value) => update('ssn', value)} placeholder="Enter 9-digit SSN" autoComplete="off" />
         <InputField label="Date of Birth" value={data.dob} onChange={(value) => update('dob', value)} type="date" autoComplete="bday" />
+        <InputField label="Email Address" value={data.email} onChange={(value) => update('email', value)} type="email" autoComplete="email" />
         <InputField label="Cell Phone Number" value={data.cell_phone} onChange={(value) => update('cell_phone', value)} placeholder="Enter phone number" autoComplete="tel" />
-        <InputField label="Email Address" value={data.email} onChange={(value) => update('email', value)} type="email" autoComplete="email" required={false} />
-        <InputField label="Ownership Percentage" value={data.ownership_percentage} onChange={(value) => update('ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="100" />
+        <div className="md:col-span-2">
+          <InputField label="Home Street Address" value={data.home_address} onChange={(value) => update('home_address', value)} autoComplete="address-line1" placeholder="123 Home St" />
+        </div>
+        <div className="md:col-span-2">
+          <InputField label="City" value={data.owner_city} onChange={(value) => update('owner_city', value)} autoComplete="address-level2" placeholder="City" />
+        </div>
+        <InputField label="State" value={data.owner_state} onChange={(value) => update('owner_state', value)} autoComplete="address-level1" placeholder="State (e.g. NY)" />
+        <InputField label="Zip Code" value={data.owner_zip} onChange={(value) => update('owner_zip', value)} autoComplete="postal-code" placeholder="Zip code" />
       </div>
       {showCoOwner ? (
         <div className="rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
@@ -316,14 +358,20 @@ function StepAboutYou({ data, update }: { data: ApplicationFormData; update: <K 
             <div className="md:col-span-2">
               <InputField label="Co-owner Full Name" value={data.co_owner_full_name} onChange={(value) => update('co_owner_full_name', value)} autoComplete="name" />
             </div>
-            <div className="md:col-span-2">
-              <InputField label="Co-owner Home Address" value={data.co_owner_home_address} onChange={(value) => update('co_owner_home_address', value)} autoComplete="street-address" placeholder="Street, city, state, ZIP" />
-            </div>
+            <InputField label="Co-owner Estimated Credit Score" value={data.co_owner_credit_score} onChange={(value) => update('co_owner_credit_score', value)} placeholder="e.g. 680" required={false} />
+            <InputField label="Co-owner Ownership Percentage" value={data.co_owner_ownership_percentage} onChange={(value) => update('co_owner_ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="50" />
             <InputField label="Co-owner Social Security Number" value={data.co_owner_ssn} onChange={(value) => update('co_owner_ssn', value)} placeholder="Enter 9-digit SSN" autoComplete="off" />
             <InputField label="Co-owner Date of Birth" value={data.co_owner_dob} onChange={(value) => update('co_owner_dob', value)} type="date" autoComplete="bday" />
-            <InputField label="Co-owner Cell Phone Number" value={data.co_owner_cell_phone} onChange={(value) => update('co_owner_cell_phone', value)} placeholder="Enter phone number" autoComplete="tel" required={false} />
             <InputField label="Co-owner Email Address" value={data.co_owner_email} onChange={(value) => update('co_owner_email', value)} type="email" autoComplete="email" required={false} />
-            <InputField label="Co-owner Ownership Percentage" value={data.co_owner_ownership_percentage} onChange={(value) => update('co_owner_ownership_percentage', digitsOnly(value).slice(0, 3))} placeholder="50" />
+            <InputField label="Co-owner Cell Phone Number" value={data.co_owner_cell_phone} onChange={(value) => update('co_owner_cell_phone', value)} placeholder="Enter phone number" autoComplete="tel" required={false} />
+            <div className="md:col-span-2">
+              <InputField label="Co-owner Home Street Address" value={data.co_owner_home_address} onChange={(value) => update('co_owner_home_address', value)} autoComplete="address-line1" placeholder="123 Home St" />
+            </div>
+            <div className="md:col-span-2">
+              <InputField label="Co-owner City" value={data.co_owner_city} onChange={(value) => update('co_owner_city', value)} placeholder="City" />
+            </div>
+            <InputField label="Co-owner State" value={data.co_owner_state} onChange={(value) => update('co_owner_state', value)} placeholder="State (e.g. NY)" />
+            <InputField label="Co-owner Zip Code" value={data.co_owner_zip} onChange={(value) => update('co_owner_zip', value)} placeholder="Zip code" />
           </div>
         </div>
       ) : (
@@ -343,13 +391,19 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
           <InputField label="Company Name" value={data.company_name} onChange={(value) => update('company_name', value)} autoComplete="organization" />
         </div>
         <div className="md:col-span-2">
-          <InputField label="Business Address" value={data.business_address} onChange={(value) => update('business_address', value)} placeholder="Street, city, state, ZIP" />
+          <InputField label="Business Street Address" value={data.business_address} onChange={(value) => update('business_address', value)} placeholder="123 Main St" autoComplete="address-line1" />
         </div>
+        <div className="md:col-span-2">
+          <InputField label="City" value={data.business_city} onChange={(value) => update('business_city', value)} placeholder="City" autoComplete="address-level2" />
+        </div>
+        <InputField label="State" value={data.business_state} onChange={(value) => update('business_state', value)} placeholder="State (e.g. NY)" autoComplete="address-level1" />
+        <InputField label="Zip Code" value={data.business_zip} onChange={(value) => update('business_zip', value)} placeholder="Zip code" autoComplete="postal-code" />
         <InputField label="Business EIN / Tax ID" value={data.ein} onChange={(value) => update('ein', value)} placeholder="Enter 9-digit Tax ID" autoComplete="off" />
         <InputField label="Business Start Date" value={data.business_start_date} onChange={(value) => update('business_start_date', value)} type="date" />
-        <InputField label="Requested Funding Amount" value={data.requested_amount} onChange={(value) => update('requested_amount', value)} placeholder="Enter amount in dollars" />
-        <InputField label="Industry" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." />
-        <InputField label="Use of Funds" value={data.use_of_funds} onChange={(value) => update('use_of_funds', value)} placeholder="Payroll, inventory, expansion..." required={false} />
+        <InputField label="Industry / Business Type" value={data.industry} onChange={(value) => update('industry', value)} placeholder="Restaurant, retail, construction..." />
+        <InputField label="Average Monthly Revenue" value={data.average_monthly_revenue} onChange={(value) => update('average_monthly_revenue', value)} placeholder="Enter monthly revenue in dollars" />
+        <InputField label="Amount Requested" value={data.requested_amount} onChange={(value) => update('requested_amount', value)} placeholder="Enter amount in dollars" />
+        <div className="md:col-span-2"><InputField label="Use of Funds" value={data.use_of_funds} onChange={(value) => update('use_of_funds', value)} placeholder="Payroll, inventory, expansion..." required={false} /></div>
         <div className="md:col-span-2 rounded-[10px] border border-[#CBD5E1] bg-[#F8FAFC] p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -362,12 +416,18 @@ function StepBusiness({ data, update }: { data: ApplicationFormData; update: <K 
             </div>
           </div>
           {hasAdvances && <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <InputField label="Open Advance Funder" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Current funder, if any" required={false} />
-            <InputField label="Open Advance Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', value)} placeholder="Current balance" required={false} />
-            <InputField label="Open Advance 2 Funder" value={data.existing_advance_2_funder} onChange={(value) => update('existing_advance_2_funder', value)} placeholder="Second current funder" required={false} />
-            <InputField label="Open Advance 2 Balance" value={data.existing_advance_2_balance} onChange={(value) => update('existing_advance_2_balance', value)} placeholder="Current balance" required={false} />
-            <InputField label="Open Advance 3 Funder" value={data.existing_advance_3_funder} onChange={(value) => update('existing_advance_3_funder', value)} placeholder="Third current funder" required={false} />
-            <InputField label="Open Advance 3 Balance" value={data.existing_advance_3_balance} onChange={(value) => update('existing_advance_3_balance', value)} placeholder="Current balance" required={false} />
+            <InputField label="Lender / Funding Company" value={data.existing_advance_funder} onChange={(value) => update('existing_advance_funder', value)} placeholder="Funder name" required={false} />
+            <InputField label="Current Balance" value={data.existing_advance_balance} onChange={(value) => update('existing_advance_balance', value)} placeholder="Current balance" required={false} />
+            <InputField label="Daily / Weekly Payment" value={data.existing_advance_payment} onChange={(value) => update('existing_advance_payment', value)} placeholder="Payment amount" required={false} />
+            <InputField label="Original Funding Amount" value={data.existing_advance_original} onChange={(value) => update('existing_advance_original', value)} placeholder="If available" required={false} />
+            <InputField label="Lender 2 / Funding Company" value={data.existing_advance_2_funder} onChange={(value) => update('existing_advance_2_funder', value)} placeholder="Second funder" required={false} />
+            <InputField label="Current Balance 2" value={data.existing_advance_2_balance} onChange={(value) => update('existing_advance_2_balance', value)} placeholder="Current balance" required={false} />
+            <InputField label="Daily / Weekly Payment 2" value={data.existing_advance_2_payment} onChange={(value) => update('existing_advance_2_payment', value)} placeholder="Payment amount" required={false} />
+            <InputField label="Original Funding Amount 2" value={data.existing_advance_2_original} onChange={(value) => update('existing_advance_2_original', value)} placeholder="If available" required={false} />
+            <InputField label="Lender 3 / Funding Company" value={data.existing_advance_3_funder} onChange={(value) => update('existing_advance_3_funder', value)} placeholder="Third funder" required={false} />
+            <InputField label="Current Balance 3" value={data.existing_advance_3_balance} onChange={(value) => update('existing_advance_3_balance', value)} placeholder="Current balance" required={false} />
+            <InputField label="Daily / Weekly Payment 3" value={data.existing_advance_3_payment} onChange={(value) => update('existing_advance_3_payment', value)} placeholder="Payment amount" required={false} />
+            <InputField label="Original Funding Amount 3" value={data.existing_advance_3_original} onChange={(value) => update('existing_advance_3_original', value)} placeholder="If available" required={false} />
           </div>}
         </div>
       </div>
@@ -467,6 +527,7 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   }));
   const [submitting, setSubmitting] = useState(false);
   const [bankStatementFiles, setBankStatementFiles] = useState<File[]>([]);
+  const [otherDocFiles, setOtherDocFiles] = useState<File[]>([]);
   const progressPct = useMemo(() => ((currentStep - 1) / 3) * 100, [currentStep]);
 
   const trackApplicationEvent = (event: string, extra: Record<string, unknown> = {}) => {
@@ -497,16 +558,22 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
   const validateStep = (step: Step) => {
     if (step === 1) {
       if (form.full_name.trim().split(/\s+/).length < 2) return 'Please enter your full name.';
-      if (form.home_address.trim().length < 8) return 'Please enter your full home address.';
+      if (form.home_address.trim().length < 3) return 'Please enter your home street address.';
+      if (!form.owner_city.trim()) return 'Please enter your city.';
+      if (!form.owner_state.trim()) return 'Please enter your state.';
+      if (digitsOnly(form.owner_zip).length < 5) return 'Please enter a valid ZIP code.';
       if (digitsOnly(form.ssn).length !== 9) return 'Please enter a valid 9 digit Social Security Number.';
       if (!form.dob || Number.isNaN(new Date(form.dob).getTime())) return 'Please enter a valid date of birth.';
       if (digitsOnly(form.cell_phone).length !== 10) return 'Please enter a valid 10 digit cell phone number.';
-      if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return 'Please enter a valid email address.';
+      if (!form.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) return 'Please enter a valid email address.';
       const ownership = Number(form.ownership_percentage);
       if (!Number.isFinite(ownership) || ownership <= 0 || ownership > 100) return 'Please enter an ownership percentage from 1 to 100.';
       if (hasCoOwnerData(form)) {
         if (form.co_owner_full_name.trim().split(/\s+/).length < 2) return 'Please enter the co-owner full name.';
-        if (form.co_owner_home_address.trim().length < 8) return 'Please enter the co-owner full home address.';
+        if (form.co_owner_home_address.trim().length < 3) return 'Please enter the co-owner home street address.';
+        if (!form.co_owner_city.trim()) return 'Please enter the co-owner city.';
+        if (!form.co_owner_state.trim()) return 'Please enter the co-owner state.';
+        if (digitsOnly(form.co_owner_zip).length < 5) return 'Please enter a valid co-owner ZIP code.';
         if (digitsOnly(form.co_owner_ssn).length !== 9) return 'Please enter a valid 9 digit co-owner Social Security Number.';
         if (!form.co_owner_dob || Number.isNaN(new Date(form.co_owner_dob).getTime())) return 'Please enter a valid co-owner date of birth.';
         if (form.co_owner_cell_phone && digitsOnly(form.co_owner_cell_phone).length !== 10) return 'Please enter a valid 10 digit co-owner cell phone number.';
@@ -518,11 +585,15 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
     }
     if (step === 2) {
       if (form.company_name.trim().length < 2) return 'Please enter the company name.';
-      if (form.business_address.trim().length < 8) return 'Please enter the full business address.';
+      if (form.business_address.trim().length < 3) return 'Please enter the business street address.';
+      if (!form.business_city.trim()) return 'Please enter the business city.';
+      if (!form.business_state.trim()) return 'Please enter the business state.';
+      if (digitsOnly(form.business_zip).length < 5) return 'Please enter a valid business ZIP code.';
       if (digitsOnly(form.ein).length !== 9) return 'Please enter a valid 9 digit Tax ID / EIN.';
       if (!form.business_start_date || Number.isNaN(new Date(form.business_start_date).getTime())) return 'Please enter a valid business start date.';
-      if (!form.requested_amount || Number(digitsOnly(form.requested_amount)) <= 0) return 'Please enter a valid requested funding amount.';
-      if (form.industry.trim().length < 2) return 'Please enter the business industry.';
+      if (!form.average_monthly_revenue || Number(digitsOnly(form.average_monthly_revenue)) <= 0) return 'Please enter a valid average monthly revenue.';
+      if (!form.requested_amount || Number(digitsOnly(form.requested_amount)) <= 0) return 'Please enter a valid amount requested.';
+      if (form.industry.trim().length < 2) return 'Please enter the business industry / type.';
       const invalidAdvanceBalance = existingAdvanceRows(form).some((advance) => advance.balance && Number(digitsOnly(advance.balance)) <= 0);
       if (invalidAdvanceBalance) return 'Please enter valid open advance balances.';
     }
@@ -580,14 +651,20 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
         if (!signatureResponse.ok || !signatureResult.success) throw new Error(signatureResult.error || 'Application was saved, but the signed PDF could not be generated. Please contact support.');
       }
 
-      // Optional: attach the applicant's bank statements. Never block the application on this.
-      if (bankStatementFiles.length && result.applicationId) {
+      // Optional: attach supporting documents. Never block the application on these uploads.
+      if (result.applicationId) {
+        const uploadDocs = async (files: File[], documentType: string) => {
+          if (!files.length) return;
+          const docForm = new FormData();
+          docForm.append('document_type', documentType);
+          files.forEach((file) => docForm.append('files', file));
+          await fetch(`/api/applications/${result.applicationId}/bank-statements`, { method: 'POST', body: docForm });
+        };
         try {
-          const statementsForm = new FormData();
-          bankStatementFiles.forEach((file) => statementsForm.append('files', file));
-          await fetch(`/api/applications/${result.applicationId}/bank-statements`, { method: 'POST', body: statementsForm });
+          await uploadDocs(bankStatementFiles, 'bank_statement');
+          await uploadDocs(otherDocFiles, 'other');
         } catch {
-          // Bank statements are optional — ignore upload errors and continue.
+          // Supporting documents are optional — ignore upload errors and continue.
         }
       }
 
@@ -619,18 +696,32 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
               <StepAboutYou data={form} update={updateField} />
               <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm">
                 <h3 className="text-[15px] font-semibold text-[#0F2B5B]">Supporting documents (optional)</h3>
-                <p className="mt-1 text-[13px] text-[#475569]">Upload your last 4 months of business bank statements to speed up review. This is optional — you can submit now and send them later.</p>
+                <p className="mt-1 text-[13px] text-[#475569]">Please upload your last 4 months of business bank statements and your month-to-date statement. This is optional — you can submit now and send these later.</p>
+                <label className="mt-3 block text-[13px] font-semibold text-[#334155]">Bank statements (last 4 months + month-to-date)</label>
                 <input
                   type="file"
                   multiple
                   accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
                   data-testid="application-bank-statements"
-                  onChange={(event) => setBankStatementFiles(Array.from(event.target.files || []).slice(0, 6))}
-                  className="mt-3 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#0F2B5B] file:px-3 file:py-2 file:text-white"
+                  onChange={(event) => setBankStatementFiles(Array.from(event.target.files || []).slice(0, 8))}
+                  className="mt-1.5 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#0F2B5B] file:px-3 file:py-2 file:text-white"
                 />
                 {bankStatementFiles.length > 0 && (
-                  <p className="mt-2 text-[12px] text-[#475569]">{bankStatementFiles.length} file{bankStatementFiles.length === 1 ? '' : 's'} selected · PDF/JPG/PNG up to 10MB each</p>
+                  <p className="mt-1.5 text-[12px] text-[#475569]">{bankStatementFiles.length} bank statement file{bankStatementFiles.length === 1 ? '' : 's'} selected</p>
                 )}
+                <label className="mt-4 block text-[13px] font-semibold text-[#334155]">Other documents (driver&apos;s license, tax documents, A/R reports, etc.)</label>
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
+                  data-testid="application-other-documents"
+                  onChange={(event) => setOtherDocFiles(Array.from(event.target.files || []).slice(0, 8))}
+                  className="mt-1.5 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#475569] file:px-3 file:py-2 file:text-white"
+                />
+                {otherDocFiles.length > 0 && (
+                  <p className="mt-1.5 text-[12px] text-[#475569]">{otherDocFiles.length} other document{otherDocFiles.length === 1 ? '' : 's'} selected</p>
+                )}
+                <p className="mt-2 text-[12px] text-[#94A3B8]">PDF, JPG, or PNG · up to 10MB each.</p>
               </div>
               <SignaturePad value={form.signature_data_url} onChange={(value) => updateField('signature_data_url', value)} />
               <div className="application-disclosure-copy rounded-[12px] border border-[#CBD5E1] bg-white p-4 text-[#0F172A] shadow-sm md:p-5">
