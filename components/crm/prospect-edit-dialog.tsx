@@ -5,10 +5,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type RecordMap = Record<string, any>;
+
+type AdvanceSeed = { funder_name: string; current_balance: string; original_amount: string; daily_payment: string };
 
 type OwnerSeed = {
   id?: string;
@@ -34,8 +37,15 @@ type ProspectEditDialogProps = {
   business: RecordMap | null | undefined;
   ein: string;
   owners: OwnerSeed[];
+  applicationId?: string | null;
+  useOfFunds?: string;
+  advances?: AdvanceSeed[];
   onSaved: () => void;
 };
+
+function emptyAdvance(): AdvanceSeed {
+  return { funder_name: '', current_balance: '', original_amount: '', daily_payment: '' };
+}
 
 const CREDIT_RANGES = ['', '720+', '680-719', '640-679', '600-639', '<600'];
 
@@ -57,11 +67,13 @@ function Field({ label, value, onChange, placeholder, type }: { label: string; v
   );
 }
 
-export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, owners, onSaved }: ProspectEditDialogProps) {
+export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, owners, applicationId, useOfFunds, advances, onSaved }: ProspectEditDialogProps) {
   const [saving, setSaving] = useState(false);
   const [biz, setBiz] = useState<RecordMap>({});
   const [dealForm, setDealForm] = useState<RecordMap>({});
   const [ownerForms, setOwnerForms] = useState<OwnerSeed[]>([]);
+  const [useOfFundsForm, setUseOfFundsForm] = useState('');
+  const [advanceForms, setAdvanceForms] = useState<AdvanceSeed[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -87,10 +99,16 @@ export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, ow
       contact_phone: deal?.contact_phone || '',
     });
     setOwnerForms(owners.length ? owners.map((o) => ({ ...o })) : []);
+    setUseOfFundsForm(useOfFunds || '');
+    setAdvanceForms((advances || []).map((a) => ({ ...a })));
     // Initialize from the current records only when the dialog opens, so parent
     // re-renders (e.g. background data refreshes) don't wipe in-progress edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const updateAdvance = (index: number, key: keyof AdvanceSeed, value: string) => {
+    setAdvanceForms((prev) => prev.map((a, i) => (i === index ? { ...a, [key]: value } : a)));
+  };
 
   const updateOwner = (index: number, key: keyof OwnerSeed, value: string) => {
     setOwnerForms((prev) => prev.map((o, i) => (i === index ? { ...o, [key]: value } : o)));
@@ -159,6 +177,21 @@ export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, ow
         }
       });
 
+      if (applicationId) {
+        const cleanedAdvances = advanceForms
+          .map((a) => ({ funder_name: a.funder_name.trim(), current_balance: a.current_balance.trim(), original_amount: a.original_amount.trim(), daily_payment: a.daily_payment.trim() }))
+          .filter((a) => a.funder_name || a.current_balance || a.original_amount || a.daily_payment);
+        calls.push(fetch(`/api/crm/applications/${applicationId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            use_of_funds: useOfFundsForm || null,
+            has_existing_advances: cleanedAdvances.length > 0,
+            existing_advances: cleanedAdvances,
+          }),
+        }));
+      }
+
       const responses = await Promise.all(calls);
       const failed = responses.filter((r) => !r.ok).length;
       if (failed > 0) {
@@ -208,6 +241,37 @@ export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, ow
               <Field label="Contact phone" value={dealForm.contact_phone || ''} onChange={(v) => setDealForm({ ...dealForm, contact_phone: v })} />
             </div>
           </section>
+
+          {applicationId && (
+            <section>
+              <h3 className="mb-3 text-sm font-semibold text-[#0F172A]">Funding details</h3>
+              <div className="grid gap-3">
+                <div>
+                  <Label className="text-xs text-[#64748B]">Use of funds</Label>
+                  <Textarea value={useOfFundsForm} onChange={(e) => setUseOfFundsForm(e.target.value)} className="mt-1 min-h-[72px] rounded-[7px]" placeholder="What the funding will be used for" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-[#64748B]">Existing advances / loans</Label>
+                  <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setAdvanceForms((prev) => [...prev, emptyAdvance()])}>Add advance</Button>
+                </div>
+                {advanceForms.length === 0 && <p className="text-sm text-[#64748B]">No open advances on file.</p>}
+                {advanceForms.map((advance, index) => (
+                  <div key={index} className="rounded-[8px] border border-[#E2E8F0] p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase text-[#64748B]">Advance {index + 1}</p>
+                      <button type="button" className="text-xs text-[#B91C1C] hover:underline" onClick={() => setAdvanceForms((prev) => prev.filter((_, i) => i !== index))}>Remove</button>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field label="Funder / lender" value={advance.funder_name} onChange={(v) => updateAdvance(index, 'funder_name', v)} />
+                      <Field label="Current balance" value={advance.current_balance} onChange={(v) => updateAdvance(index, 'current_balance', v)} placeholder="$" />
+                      <Field label="Original funded amount" value={advance.original_amount} onChange={(v) => updateAdvance(index, 'original_amount', v)} placeholder="$" />
+                      <Field label="Daily / weekly payment" value={advance.daily_payment} onChange={(v) => updateAdvance(index, 'daily_payment', v)} placeholder="$" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <div className="mb-3 flex items-center justify-between">
