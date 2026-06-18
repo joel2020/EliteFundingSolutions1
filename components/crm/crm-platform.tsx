@@ -2327,7 +2327,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     };
   });
   const prospectEin = revealedSensitiveData?.business?.ein || app?.application_payload?.ein || '';
-  const prospectAdvanceSeeds = (Array.isArray(app?.application_payload?.existing_advances) ? app.application_payload.existing_advances : []).map((a: RecordMap) => ({
+  const prospectAdvanceList: RecordMap[] = Array.isArray(app?.application_payload?.existing_advances) ? app!.application_payload.existing_advances : [];
+  const prospectAdvanceSeeds = prospectAdvanceList.map((a: RecordMap) => ({
     funder_name: String(a.funder_name || a.funder || '').trim(),
     current_balance: String(a.current_balance || a.balance || '').trim(),
     original_amount: String(a.original_amount || a.original_funded_amount || '').trim(),
