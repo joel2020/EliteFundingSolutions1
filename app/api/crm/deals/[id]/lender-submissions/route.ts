@@ -151,6 +151,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .select(DOCUMENT_PACKAGE_SELECT)
       .eq('organization_id', profile.organization_id)
       .in('id', selectedDocumentIds)
+      .is('deleted_at', null)
     : { data: [], error: null };
 
   if (docError) return NextResponse.json({ success: false, error: docError.message }, { status: 500 });

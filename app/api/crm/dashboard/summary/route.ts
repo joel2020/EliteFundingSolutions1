@@ -87,7 +87,7 @@ export async function GET() {
     supabase.from('funding_partners').select('id,name').eq('organization_id', org).is('deleted_at', null).order('name'),
     supabase.from('user_profiles').select('id,email,first_name,last_name,role').eq('organization_id', org).is('deleted_at', null).order('first_name'),
     supabase.from('activities').select('id,title,action,created_at,updated_at').eq('organization_id', org).order('created_at', { ascending: false }).limit(6),
-    supabase.from('documents').select('id,deal_id,application_id,document_type,status').eq('organization_id', org).order('created_at', { ascending: false }).limit(250),
+    supabase.from('documents').select('id,deal_id,application_id,document_type,status').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(250),
     supabase.from('tasks').select('id,deal_id,application_id,title,status,due_date,assigned_user_id').eq('organization_id', org).order('due_date', { ascending: true }).limit(250),
     supabase.from('current_positions').select('id,deal_id,business_id,status,current_balance,original_funded_amount').eq('organization_id', org).order('created_at', { ascending: false }).limit(250),
     supabase.from('businesses').select('id,legal_name,dba,state,industry,monthly_gross_revenue,start_date').eq('organization_id', org).is('deleted_at', null).limit(500),

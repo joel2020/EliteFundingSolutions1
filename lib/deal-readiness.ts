@@ -201,6 +201,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       .eq('organization_id', organizationId)
       .or(`deal_id.eq.${dealId},application_id.eq.${applicationId}`)
       .eq('document_type', 'completed_application')
+      .is('deleted_at', null)
       .limit(10)
     : supabase
       .from('documents')
@@ -208,6 +209,7 @@ export async function evaluateDealReadinessForLenderSubmission(args: {
       .eq('organization_id', organizationId)
       .eq('deal_id', dealId)
       .eq('document_type', 'completed_application')
+      .is('deleted_at', null)
       .limit(10);
 
   const [docsRes, appRes, completedAppDocsRes, businessRes, ownerRes, uwRes, partnerAppRes] = await Promise.all([

@@ -28,6 +28,7 @@ export async function GET() {
       .select('id,application_id,label,file_name,status,created_at')
       .eq('organization_id', profile.organization_id)
       .in('application_id', applicationIds)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(50),
     supabase
