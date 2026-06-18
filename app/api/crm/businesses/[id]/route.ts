@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { digitsOnly, encryptSensitiveField, hashSensitiveLookup } from '@/lib/security';
 import { requireCrmProfile, requireSameOrigin } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
@@ -19,10 +20,12 @@ const businessSchema = z.object({
   city: z.string().trim().optional().nullable(),
   state: z.string().trim().optional().nullable(),
   zip: z.string().trim().optional().nullable(),
-  monthly_gross_revenue: z.number().nullable().optional(),
-  average_daily_balance: z.number().nullable().optional(),
-  deposit_count_monthly: z.number().int().nullable().optional(),
+  monthly_gross_revenue: z.coerce.number().nullable().optional(),
+  average_daily_balance: z.coerce.number().nullable().optional(),
+  deposit_count_monthly: z.coerce.number().int().nullable().optional(),
   notes: z.string().trim().optional().nullable(),
+  // Plaintext EIN — re-encrypted only when a non-empty value is supplied.
+  ein: z.string().trim().optional().nullable(),
 });
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -38,9 +41,18 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ success: false, error: 'Invalid business payload.' }, { status: 400 });
   }
 
+  const { ein, ...businessFields } = parsed.data;
+  const update: Record<string, any> = { ...businessFields, email: parsed.data.email || null, updated_by: profile.id };
+  const einDigits = digitsOnly(ein);
+  if (einDigits) {
+    update.ein_encrypted = encryptSensitiveField(einDigits);
+    update.ein_hash = hashSensitiveLookup(einDigits);
+    update.ein_last4 = einDigits.slice(-4);
+  }
+
   const { data, error } = await supabase
     .from('businesses')
-    .update({ ...parsed.data, email: parsed.data.email || null, updated_by: profile.id })
+    .update(update)
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .select('*')

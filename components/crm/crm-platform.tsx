@@ -32,11 +32,13 @@ import {
   TrendingUp,
   Upload,
   Eye,
+  Pencil,
   Users,
   WalletCards,
 } from 'lucide-react';
 import { DeleteConfirmButton } from '@/components/crm/delete-confirm-button';
 import { PartnerApplicationReviewForm } from '@/components/crm/partner-application-review-form';
+import { ProspectEditDialog } from '@/components/crm/prospect-edit-dialog';
 import {
   Bar,
   BarChart,
@@ -1747,6 +1749,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const [generatedApplicationLink, setGeneratedApplicationLink] = useState('');
   const [revealedSensitiveData, setRevealedSensitiveData] = useState<RecordMap | null>(null);
   const [revealingSensitiveData, setRevealingSensitiveData] = useState(false);
+  const [editProspectOpen, setEditProspectOpen] = useState(false);
   const [documentDescription, setDocumentDescription] = useState('');
   const [documentLabel, setDocumentLabel] = useState('');
   const [documentType, setDocumentType] = useState('auto');
@@ -1874,6 +1877,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   // Finance (commissions, splits, payouts) is admin-level — reps shouldn't see it.
   const canViewFinance = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
   const canAssignReps = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
+  // Editing prospect/application records — every internal write role, but not read-only viewers.
+  const canEditProspect = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter'].includes(activeProfile?.role || '');
   const internalUsers = users.filter((row: RecordMap) => isInternalCrmRole(row.role));
   const filteredDocs = documentFilter === 'all' ? dealDocs : dealDocs.filter((doc: RecordMap) => doc.status === documentFilter || doc.document_type === documentFilter);
   const missingDocItems = checklist.filter((item) => ['missing', 'requested', 'rejected', 'needs_replacement'].includes(item.status) && ['submission', 'compliance', 'funding'].includes(item.category));
@@ -2302,6 +2307,27 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
     else { toast.success(iso_broker_id ? 'Broker assigned and notified' : 'Broker removed'); reload(); }
   };
 
+  const prospectOwnerSeeds = displayOwners.slice(0, 4).map((owner: RecordMap) => {
+    const isReal = !!owner.id && !String(owner.id).startsWith('payload-');
+    return {
+      id: isReal ? owner.id : undefined,
+      isReal,
+      first_name: owner.first_name || '',
+      last_name: owner.last_name || '',
+      email: owner.email || '',
+      phone: owner.phone || '',
+      address: owner.address || owner.home_address || '',
+      city: owner.city || '',
+      state: owner.state || '',
+      zip: owner.zip || '',
+      ownership_percentage: owner.ownership_percentage != null ? String(owner.ownership_percentage) : '',
+      credit_score_range: owner.credit_score_range || '',
+      ssn: sensitiveOwnersById[owner.id]?.ssn || owner.ssn || '',
+      dob: sensitiveOwnersById[owner.id]?.dob || owner.dob || '',
+    };
+  });
+  const prospectEin = revealedSensitiveData?.business?.ein || app?.application_payload?.ein || '';
+
   return (
     <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
       <CrmCard className="p-4">
@@ -2311,6 +2337,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
             {internalUser ? <div className="mt-1"><Select value={normalizeStage(deal.stage_slug)} onValueChange={updateStage}><SelectTrigger data-testid="deal-detail-stage" className="h-10 w-full rounded-[7px] md:w-[220px]"><SelectValue /></SelectTrigger><SelectContent>{STAGE_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></div> : <div className="mt-1"><StatusBadge value={stageLabel(deal.stage_slug)} /></div>}
           </div>
           <div className="flex flex-wrap gap-2">
+            {canEditProspect && <Button data-testid="deal-edit-prospect" size="sm" variant="outline" className="h-9 rounded-[7px]" onClick={() => setEditProspectOpen(true)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit prospect info</Button>}
             {canUploadDocuments && <Button size="sm" variant="outline" className="h-9 rounded-[7px]" onClick={() => setDocumentDialogOpen(true)}><Upload className="mr-1 h-3.5 w-3.5" />Upload document</Button>}
             {canSendToLenders && <Button data-testid="deal-submit-lender-top" size="sm" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={openLenderSubmission}><Send className="mr-1 h-3.5 w-3.5" />Send to Funder</Button>}
           </div>
@@ -2437,6 +2464,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
         </DialogContent>
       </Dialog>
       <Dialog open={applicationLinkDialogOpen} onOpenChange={(open) => { setApplicationLinkDialogOpen(open); if (!open) { setGeneratedApplicationLink(''); setApplicationLinkMessage(''); } }}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Send Application Link</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Customer email</Label><Input data-testid="application-link-email" value={applicationLinkEmail} onChange={(event) => setApplicationLinkEmail(event.target.value)} className="mt-1 rounded-[7px]" placeholder={deal.businesses?.email || 'customer@email.com'} /></div><div><Label className="text-xs text-[#64748B]">Message</Label><Textarea data-testid="application-link-message" value={applicationLinkMessage} onChange={(event) => setApplicationLinkMessage(event.target.value)} className="mt-1 min-h-[100px] rounded-[7px]" placeholder="Optional note to include in the email" /></div>{generatedApplicationLink && <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-sm"><p className="text-xs font-semibold uppercase text-[#64748B]">Generated link</p><button className="mt-1 break-all text-left font-semibold text-[#0F2B5B]" onClick={() => navigator.clipboard?.writeText(generatedApplicationLink)}>{generatedApplicationLink}</button><p className="mt-1 text-xs text-[#64748B]">Click the link text to copy it.</p></div>}</div><DialogFooter><Button variant="outline" onClick={() => setApplicationLinkDialogOpen(false)}>Cancel</Button><Button data-testid="save-application-link" onClick={sendApplicationLink} disabled={sendingApplicationLink}>{sendingApplicationLink ? 'Creating...' : 'Create and send link'}</Button></DialogFooter></DialogContent></Dialog>
+      {canEditProspect && <ProspectEditDialog open={editProspectOpen} onOpenChange={setEditProspectOpen} deal={deal} business={deal.businesses} ein={prospectEin} owners={prospectOwnerSeeds} onSaved={reload} />}
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}><DialogContent className="max-w-xl rounded-[8px]"><DialogHeader><DialogTitle>Add deal note</DialogTitle></DialogHeader><div className="grid gap-4"><div><Label className="text-xs text-[#64748B]">Note</Label><Textarea data-testid="deal-note-body" value={noteBody} onChange={(event) => setNoteBody(event.target.value)} className="mt-1 min-h-[120px] rounded-[7px]" placeholder="Add underwriting, merchant, or document context..." /></div><label className="flex items-center gap-2 text-sm font-medium text-[#0F172A]"><input type="checkbox" checked={noteInternal} onChange={(event) => setNoteInternal(event.target.checked)} />Internal note (uncheck to make it a funder-facing note)</label></div><DialogFooter><Button variant="outline" onClick={() => setNoteDialogOpen(false)}>Cancel</Button><Button data-testid="deal-save-note" onClick={saveDealNote} disabled={savingNote}>{savingNote ? 'Saving...' : 'Save note'}</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={submissionDialogOpen} onOpenChange={setSubmissionDialogOpen}>
         <DialogContent className="grid max-h-[calc(100vh-2rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-[8px]">
