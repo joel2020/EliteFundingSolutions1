@@ -8,9 +8,6 @@ const DEAL_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor',
 
 const dealSchema = z.object({
   requested_amount: z.coerce.number().nonnegative().optional().nullable(),
-  contact_name: z.string().trim().optional().nullable(),
-  contact_email: z.string().trim().email().optional().nullable().or(z.literal('')),
-  contact_phone: z.string().trim().optional().nullable(),
 });
 
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
@@ -37,9 +34,6 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const update: Record<string, any> = {};
   if (parsed.data.requested_amount !== undefined) update.requested_amount = parsed.data.requested_amount;
-  if (parsed.data.contact_name !== undefined) update.contact_name = parsed.data.contact_name || null;
-  if (parsed.data.contact_email !== undefined) update.contact_email = parsed.data.contact_email || null;
-  if (parsed.data.contact_phone !== undefined) update.contact_phone = parsed.data.contact_phone || null;
   if (Object.keys(update).length === 0) return NextResponse.json({ success: true });
 
   const { error } = await supabase

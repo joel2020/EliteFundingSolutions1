@@ -94,9 +94,6 @@ export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, ow
     });
     setDealForm({
       requested_amount: deal?.requested_amount != null ? String(deal.requested_amount) : '',
-      contact_name: deal?.contact_name || '',
-      contact_email: deal?.contact_email || '',
-      contact_phone: deal?.contact_phone || '',
     });
     setOwnerForms(owners.length ? owners.map((o) => ({ ...o })) : []);
     setUseOfFundsForm(useOfFunds || '');
@@ -145,12 +142,7 @@ export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, ow
       calls.push(fetch(`/api/crm/deals/${deal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requested_amount: sanitizeNumber(dealForm.requested_amount),
-          contact_name: dealForm.contact_name || null,
-          contact_email: dealForm.contact_email || '',
-          contact_phone: dealForm.contact_phone || null,
-        }),
+        body: JSON.stringify({ requested_amount: sanitizeNumber(dealForm.requested_amount) }),
       }));
 
       ownerForms.forEach((owner, index) => {
@@ -233,12 +225,9 @@ export function ProspectEditDialog({ open, onOpenChange, deal, business, ein, ow
           </section>
 
           <section>
-            <h3 className="mb-3 text-sm font-semibold text-[#0F172A]">Funding request &amp; contact</h3>
+            <h3 className="mb-3 text-sm font-semibold text-[#0F172A]">Funding request</h3>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Requested amount" value={dealForm.requested_amount || ''} onChange={(v) => setDealForm({ ...dealForm, requested_amount: v })} placeholder="$" />
-              <Field label="Contact name" value={dealForm.contact_name || ''} onChange={(v) => setDealForm({ ...dealForm, contact_name: v })} />
-              <Field label="Contact email" value={dealForm.contact_email || ''} onChange={(v) => setDealForm({ ...dealForm, contact_email: v })} />
-              <Field label="Contact phone" value={dealForm.contact_phone || ''} onChange={(v) => setDealForm({ ...dealForm, contact_phone: v })} />
             </div>
           </section>
 
