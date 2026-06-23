@@ -2274,12 +2274,10 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const updateStage = async (stage_slug: string) => {
     if (stage_slug === 'funded') {
       if (!canMarkFunded) { toast.error('Only managers and admins can mark deals funded.'); return; }
-      if (complianceBlocks.length > 0 || fundingReadiness.score < 90) {
-        const blockers = [...complianceBlocks, ...fundingReadiness.rejected.map((i: RecordMap) => i.name), ...fundingReadiness.missing.map((i: RecordMap) => i.name)].filter(Boolean);
-        const detail = blockers.length ? `complete ${blockers.slice(0, 4).join(', ')}${blockers.length > 4 ? `, +${blockers.length - 4} more` : ''}` : `funding readiness is ${fundingReadiness.score}% (needs 90%)`;
-        toast.error(`Funding blocked — ${detail}`);
-        return;
-      }
+      // Only hard compliance items block marking a deal funded. The soft readiness
+      // checklist score no longer gates the funded status (it's reflecting reality,
+      // not an internal completeness target).
+      if (complianceBlocks.length > 0) { toast.error(`Funding blocked — ${complianceBlocks.slice(0, 4).join(' ')}`); return; }
     }
     const response = await fetch(`/api/crm/deals/${deal.id}/stage`, {
       method: 'POST',
