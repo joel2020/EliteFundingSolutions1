@@ -1873,7 +1873,6 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const fundingReadiness = calculateReadiness(checklist, 'funding');
   const offerInsights = getOfferInsights(dealOffers);
   const canWaive = ['super_admin', 'admin', 'manager', 'underwriter'].includes(profile?.role || '');
-  const canMarkFunded = ['super_admin', 'admin', 'manager'].includes(profile?.role || '');
   // Finance (commissions, splits, payouts) is admin-level — reps shouldn't see it.
   const canViewFinance = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
   const canAssignReps = ['super_admin', 'admin', 'manager'].includes(activeProfile?.role || '');
@@ -2272,13 +2271,9 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   };
 
   const updateStage = async (stage_slug: string) => {
-    if (stage_slug === 'funded') {
-      if (!canMarkFunded) { toast.error('Only managers and admins can mark deals funded.'); return; }
-      // Only hard compliance items block marking a deal funded. The soft readiness
-      // checklist score no longer gates the funded status (it's reflecting reality,
-      // not an internal completeness target).
-      if (complianceBlocks.length > 0) { toast.error(`Funding blocked — ${complianceBlocks.slice(0, 4).join(' ')}`); return; }
-    }
+    // Any internal write role may mark a deal funded (matches the server stage route).
+    // Only genuine compliance items block it — not role and not the soft readiness score.
+    if (stage_slug === 'funded' && complianceBlocks.length > 0) { toast.error(`Funding blocked — ${complianceBlocks.slice(0, 4).join(' ')}`); return; }
     const response = await fetch(`/api/crm/deals/${deal.id}/stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
