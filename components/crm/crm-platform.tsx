@@ -71,7 +71,6 @@ import { isInternalCrmRole, isIsoPartnerRole } from '@/lib/access-control';
 import { APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 import { isActiveFunderSubmissionStatus } from '@/lib/lender-submission-duplicates';
 import {
-  getComplianceBlocks,
   getCrmReportSourceOfTruth,
   getDealScore,
   getDealOperatingSignals,
@@ -1847,7 +1846,6 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   const positions = currentPositions.filter((row: RecordMap) => row.deal_id === deal.id || row.business_id === deal.business_id);
   const offer = dealOffers[0] || {};
   const intelligence = getDealScore(deal, dealDocs, positions);
-  const complianceBlocks = getComplianceBlocks(deal, dealDocs);
   const disclosureState = getDisclosureState(deal.businesses);
   const partnerMatches = getPartnerMatches(deal, partners, dealDocs, positions).slice(0, 5);
   const currentBalance = dealRenewals[0]?.current_balance || financial.current_balance || Math.max(Number(offer.payback_amount || deal.funded_amount || 0) - Number(deal.funded_amount || 0) * 0.45, 0);
@@ -2272,9 +2270,8 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
   };
 
   const updateStage = async (stage_slug: string) => {
-    // Any internal write role may mark a deal funded (matches the server stage route).
-    // Only genuine compliance items block it — not role and not the soft readiness score.
-    if (stage_slug === 'funded' && complianceBlocks.length > 0) { toast.error(`Funding blocked — ${complianceBlocks.slice(0, 4).join(' ')}`); return; }
+    // Any internal write role can move a deal to any stage, including Funded —
+    // no compliance/readiness/signed-document gate blocks the stage change.
     const response = await fetch(`/api/crm/deals/${deal.id}/stage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
