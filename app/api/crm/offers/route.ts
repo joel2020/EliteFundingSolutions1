@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'underwriter'];
 const offerSchema = z.object({
   deal_id: z.string().uuid(),
+  funding_partner_id: z.string().uuid().optional().nullable(),
   approved_amount: z.coerce.number().positive(),
   factor_rate: z.coerce.number().positive(),
   payback_amount: z.coerce.number().positive(),
@@ -15,6 +16,12 @@ const offerSchema = z.object({
   daily_payment: z.coerce.number().nonnegative().optional().nullable(),
   weekly_payment: z.coerce.number().nonnegative().optional().nullable(),
   holdback_pct: z.coerce.number().nonnegative().optional().nullable(),
+  buy_rate: z.coerce.number().nonnegative().optional().nullable(),
+  sell_rate: z.coerce.number().nonnegative().optional().nullable(),
+  net_funding_amount: z.coerce.number().nonnegative().optional().nullable(),
+  origination_fee: z.coerce.number().nonnegative().optional().nullable(),
+  expires_at: z.string().trim().optional().nullable(),
+  notes: z.string().trim().optional().nullable(),
 });
 
 export async function POST(request: Request) {
@@ -50,6 +57,13 @@ export async function POST(request: Request) {
       daily_payment: parsed.data.daily_payment ?? null,
       weekly_payment: parsed.data.weekly_payment ?? null,
       holdback_pct: parsed.data.holdback_pct ?? null,
+      funding_partner_id: parsed.data.funding_partner_id ?? null,
+      buy_rate: parsed.data.buy_rate ?? null,
+      sell_rate: parsed.data.sell_rate ?? null,
+      net_funding_amount: parsed.data.net_funding_amount ?? null,
+      origination_fee: parsed.data.origination_fee ?? null,
+      expires_at: parsed.data.expires_at || null,
+      notes: parsed.data.notes || null,
       status: 'received',
       created_by: profile.id,
     })

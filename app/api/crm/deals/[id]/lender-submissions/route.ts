@@ -102,7 +102,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: partner } = await supabase
     .from('funding_partners')
-    .select('id,name,email,submission_email,portal_url')
+    .select('id,name,email,submission_email,additional_cc_emails,portal_url')
     .eq('id', parsed.data.funding_partner_id)
     .eq('organization_id', profile.organization_id)
     .is('deleted_at', null)
@@ -111,8 +111,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
 
   const recipientEmail = partner.submission_email || partner.email || '';
-  // CC the funder's rep (their contact email) when the package is going to a separate submission inbox.
-  const repCcEmail = partner.email && partner.email !== recipientEmail ? partner.email : '';
+  // CC the funder's rep contact plus any additional rep CC emails on the funder profile,
+  // excluding the primary recipient and de-duplicating. Lenders with multiple reps get them all.
+  const ccCandidates = [partner.email, ...String(partner.additional_cc_emails || '').split(/[,;\s]+/)]
+    .map((e) => String(e || '').trim())
+    .filter((e) => e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && e.toLowerCase() !== recipientEmail.toLowerCase());
+  const repCcEmail = Array.from(new Set(ccCandidates.map((e) => e.toLowerCase())))
+    .map((lower) => ccCandidates.find((e) => e.toLowerCase() === lower) as string)
+    .join(', ');
 
   const { data: activeDuplicateSubmissions, error: duplicateSubmissionError } = await supabase
     .from('partner_submissions')

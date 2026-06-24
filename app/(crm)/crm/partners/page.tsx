@@ -29,6 +29,7 @@ const emptyPartner = {
   product_types: 'MCA, Revenue based financing',
   required_documents: 'completed_application, bank_statements, drivers_license',
   submission_email: '',
+  additional_cc_emails: '',
   portal_url: '',
   preferred_submission_method: 'email',
   avg_approval_days: '',
@@ -100,6 +101,7 @@ export default function PartnersPage() {
     product_types: partner.product_types?.length ? partner.product_types.join(', ') : '',
     required_documents: Array.isArray((partner as any).required_documents) && (partner as any).required_documents.length ? (partner as any).required_documents.join(', ') : '',
     submission_email: partner.submission_email || '',
+    additional_cc_emails: (partner as any).additional_cc_emails || '',
     portal_url: partner.portal_url || '',
     preferred_submission_method: (partner as any).preferred_submission_method || 'email',
     avg_approval_days: partner.avg_approval_days ? String(partner.avg_approval_days) : '',
@@ -297,6 +299,7 @@ export default function PartnersPage() {
             <div><Label>Email</Label><Input data-testid="partner-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
             <div><Label>Phone Number</Label><Input data-testid="partner-phone" type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></div>
             <div><Label>Submission Email</Label><Input value={form.submission_email} onChange={(event) => setForm({ ...form, submission_email: event.target.value })} /></div>
+            <div className="md:col-span-2"><Label>Additional CC Emails</Label><Input data-testid="partner-additional-cc" placeholder="rep2@funder.com, rep3@funder.com" value={form.additional_cc_emails} onChange={(event) => setForm({ ...form, additional_cc_emails: event.target.value })} /><p className="mt-1 text-xs text-[#64748B]">Comma-separated. These are CC&apos;d on every submission to this funder, alongside the contact email.</p></div>
             <div><Label>Portal URL</Label><Input value={form.portal_url} onChange={(event) => setForm({ ...form, portal_url: event.target.value })} /></div>
             <div><Label>Preferred Submission Method</Label><select className="mt-1 h-10 w-full rounded-[7px] border border-input bg-background px-3 text-sm" value={form.preferred_submission_method} onChange={(event) => setForm({ ...form, preferred_submission_method: event.target.value })}><option value="email">Email</option><option value="portal">Portal</option><option value="api">API</option><option value="manual">Manual</option></select></div>
             <div><Label>Preferred Industries</Label><Input data-testid="partner-preferred-industries" placeholder="Retail, restaurant, construction" value={form.preferred_industries} onChange={(event) => setForm({ ...form, preferred_industries: event.target.value })} /></div>
