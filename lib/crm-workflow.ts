@@ -66,7 +66,7 @@ export type StageTransitionContext = {
 
 const TERMINAL_STAGES = new Set<CrmStage>(['funded', 'declined', 'defaulted']);
 const MANAGER_ROLES = new Set(['super_admin', 'admin', 'manager']);
-const FUNDING_ROLES = new Set(['super_admin', 'admin', 'manager', 'processor']);
+const FUNDING_ROLES = new Set(['super_admin', 'admin', 'manager', 'processor', 'sales_rep', 'underwriter']);
 
 export function validateStageTransition(context: StageTransitionContext) {
   const fromStage = normalizeStageSlug(context.fromStage);
