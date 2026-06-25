@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: deal, error: loadError } = await supabase
     .from('deals')
-    .select('id,organization_id,business_id,application_id,lead_id,stage_slug,funded_amount')
+    .select('id,organization_id,business_id,application_id,lead_id,stage_slug,funded_amount,requested_amount')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
     .single();
@@ -46,12 +46,32 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ success: false, error: transition.error }, { status: 409 });
   }
 
-  const updatePayload: Record<string, string | null> = {
+  const updatePayload: Record<string, any> = {
     stage_slug: nextStage,
     updated_by: profile.id,
   };
 
-  if (nextStage === 'funded') updatePayload.funded_at = new Date().toISOString();
+  if (nextStage === 'funded') {
+    updatePayload.funded_at = new Date().toISOString();
+    // The deals_funded_state_check constraint requires a positive funded_amount on funded
+    // deals. Backfill it (so the move isn't blocked and finance/commissions have a figure):
+    // existing amount -> accepted offer -> most recent offer -> requested amount.
+    let fundedAmount = Number(deal.funded_amount || 0);
+    if (!(fundedAmount > 0)) {
+      const { data: dealOffers } = await supabase
+        .from('offers')
+        .select('approved_amount,status,created_at')
+        .eq('organization_id', profile.organization_id)
+        .eq('deal_id', deal.id)
+        .order('created_at', { ascending: false });
+      const accepted = (dealOffers || []).find((o: any) => o.status === 'accepted');
+      fundedAmount = Number(accepted?.approved_amount || (dealOffers || [])[0]?.approved_amount || deal.requested_amount || 0);
+    }
+    if (!(fundedAmount > 0)) {
+      return NextResponse.json({ success: false, error: 'Add an offer or a requested amount on this deal before marking it funded.' }, { status: 400 });
+    }
+    updatePayload.funded_amount = fundedAmount;
+  }
   if (nextStage === 'declined') updatePayload.declined_at = new Date().toISOString();
   if (nextStage === 'defaulted') updatePayload.defaulted_at = new Date().toISOString();
 
