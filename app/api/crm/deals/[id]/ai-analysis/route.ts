@@ -79,7 +79,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     safeRows(supabase.from('notes').select('id,title,body,note,content,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(15)),
     safeRows(supabase.from('deal_risk_events').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(15)),
     safeRows(supabase.from('partner_submissions').select('id,funding_partner_id,status,notes,decline_reason,conditions,created_at,updated_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(20)),
-    safeRows(supabase.from('offers').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(15)),
+    safeRows(supabase.from('offers').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(15)),
     safeRows(supabase.from('current_positions').select('*').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).limit(10)),
     safeRows(supabase.from('tasks').select('id,title,status,priority,due_date,description,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('due_date', { ascending: true }).limit(20)),
     safeRows(supabase.from('stipulations').select('id,name,status,required_by_partner,due_date,notes,created_at').eq('organization_id', profile.organization_id).eq('deal_id', deal.id).order('created_at', { ascending: false }).limit(15)),

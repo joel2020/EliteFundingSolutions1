@@ -63,6 +63,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         .select('approved_amount,status,created_at')
         .eq('organization_id', profile.organization_id)
         .eq('deal_id', deal.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
       const accepted = (dealOffers || []).find((o: any) => o.status === 'accepted');
       fundedAmount = Number(accepted?.approved_amount || (dealOffers || [])[0]?.approved_amount || deal.requested_amount || 0);

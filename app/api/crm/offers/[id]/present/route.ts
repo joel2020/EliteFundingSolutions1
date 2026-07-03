@@ -18,6 +18,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('id,organization_id,deal_id,status')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   if (!offer) return NextResponse.json({ success: false, error: 'Offer not found.' }, { status: 404 });

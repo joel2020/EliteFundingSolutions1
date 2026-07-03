@@ -81,7 +81,7 @@ export async function GET() {
   ] = await Promise.all([
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('organization_id', org).is('deleted_at', null),
     supabase.from('deals').select('id,title,business_id,application_id,assigned_user_id,requested_amount,funded_amount,stage_slug,funded_at,updated_at,created_at').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
-    supabase.from('offers').select('id,deal_id,funding_partner_id,approved_amount,status,created_at').eq('organization_id', org).order('created_at', { ascending: false }),
+    supabase.from('offers').select('id,deal_id,funding_partner_id,approved_amount,status,created_at').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }),
     supabase.from('renewals').select('id,original_deal_id,assigned_user_id,updated_at').eq('organization_id', org).order('updated_at', { ascending: false }),
     supabase.from('commissions').select('id,deal_id,offer_id,rep_id,commission_amount,payment_status,created_at').eq('organization_id', org).order('created_at', { ascending: false }),
     supabase.from('funding_partners').select('id,name').eq('organization_id', org).is('deleted_at', null).order('name'),

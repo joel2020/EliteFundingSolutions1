@@ -36,6 +36,7 @@ export async function GET() {
       .select('id,deal_id,approved_amount,payback_amount,payment_frequency,daily_payment,weekly_payment,term_days,status,created_at,deals!inner(application_id,title,businesses(legal_name,dba))')
       .eq('organization_id', profile.organization_id)
       .in('deals.application_id', applicationIds)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(25),
   ]);

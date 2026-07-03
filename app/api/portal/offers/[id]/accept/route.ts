@@ -21,6 +21,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .select('id,organization_id,deal_id,status,deals!inner(id,application_id,business_id,lead_id,stage_slug)')
     .eq('id', params.id)
     .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
     .single();
 
   const deal = Array.isArray(offer?.deals) ? offer?.deals[0] : offer?.deals;
