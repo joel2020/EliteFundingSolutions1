@@ -63,6 +63,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
   await supabase.from('leads').update({ status: 'converted', updated_by: profile.id }).eq('id', lead.id).eq('organization_id', profile.organization_id);
 
   await Promise.allSettled([
+    // Carry any notes taken on the lead onto the deal's notes so they follow the conversion.
+    ...(String(lead.notes || '').trim()
+      ? [supabase.from('notes').insert({
+          organization_id: profile.organization_id,
+          deal_id: deal.id,
+          business_id: business.id,
+          body: `Lead notes: ${String(lead.notes).trim()}`,
+          is_internal: true,
+          created_by: profile.id,
+        })]
+      : []),
     supabase.from('deal_status_history').insert({
       organization_id: profile.organization_id,
       deal_id: deal.id,

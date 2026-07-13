@@ -26,7 +26,7 @@ const REVIEWED_PARTNER_APPLICATION_STATUSES = new Set(['converted', 'saved_to_de
 
 const submissionSchema = z.object({
   funding_partner_id: z.string().uuid(),
-  custom_message: z.string().trim().min(1, 'A funder message is required.'),
+  custom_message: z.string().trim().optional().default(''),
   attachment_document_ids: z.array(z.string().uuid()).default([]),
   override_readiness_gate: z.boolean().optional().default(false),
   override_reason: z.string().trim().optional().default(''),
@@ -111,9 +111,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!partner) return NextResponse.json({ success: false, error: 'Funding partner not found.' }, { status: 404 });
 
   const recipientEmail = partner.submission_email || partner.email || '';
+  // Every outgoing funder submission also CCs the company inbox, no matter which rep sends it.
+  // Override the address list with the FUNDER_SUBMISSION_ALWAYS_CC env var (comma-separated).
+  const alwaysCcEmails = String(process.env.FUNDER_SUBMISSION_ALWAYS_CC ?? 'rbedi@elitefundingsol.com').split(/[,;\s]+/);
   // CC the funder's rep contact plus any additional rep CC emails on the funder profile,
   // excluding the primary recipient and de-duplicating. Lenders with multiple reps get them all.
-  const ccCandidates = [partner.email, ...String(partner.additional_cc_emails || '').split(/[,;\s]+/)]
+  const ccCandidates = [partner.email, ...String(partner.additional_cc_emails || '').split(/[,;\s]+/), ...alwaysCcEmails]
     .map((e) => String(e || '').trim())
     .filter((e) => e && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && e.toLowerCase() !== recipientEmail.toLowerCase());
   const repCcEmail = Array.from(new Set(ccCandidates.map((e) => e.toLowerCase())))
@@ -259,6 +262,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     };
     const applicationPdf = await generateLenderApplicationPdf({
       deal,
+      redactContactInfo: true,
       application: applicationForPdf,
       business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
       owners,
@@ -407,14 +411,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const emailSubject = `${deal.title || 'Funding package'} - funder review`;
   const selectedAttachmentLine = (documents || []).map((doc: any) => doc.file_name).join(', ') || 'None selected';
+  // Per the client, the funder email stays minimal: what we are looking for and what the
+  // current balances are, plus anything the rep typed. No boilerplate, attachment lists,
+  // or internal warnings.
+  const payloadForEmail = (application as any)?.application_payload || {};
+  const advancesForEmail = (Array.isArray(payloadForEmail.existing_advances) ? payloadForEmail.existing_advances : [])
+    .map((a: any) => ({ funder: String(a?.funder_name || a?.funder || '').trim(), balance: String(a?.current_balance || a?.balance || '').trim() }))
+    .filter((a: { funder: string; balance: string }) => a.funder || a.balance);
+  const balancesLine = advancesForEmail.length
+    ? advancesForEmail.map((a: { funder: string; balance: string }) => `${a.funder || 'Advance'}${a.balance ? ` - ${a.balance.startsWith('$') ? a.balance : `$${a.balance}`}` : ''}`).join('; ')
+    : 'None';
+  const lookingForLine = `Looking for: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}`;
   const generatedEmailBody = [
-    parsed.data.custom_message,
-    allowAdminOverride ? `Admin override: ${parsed.data.override_reason.trim()}` : '',
-    '',
-    `Requested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}`,
-    `Selected attachments: ${selectedAttachmentLine}`,
-    priorDefaults?.length ? `Risk warning: prior default history exists with ${partner.name}. Review before proceeding.` : '',
-  ].filter(Boolean).join('\n');
+    ...(parsed.data.custom_message ? [parsed.data.custom_message, ''] : []),
+    lookingForLine,
+    `Current balances: ${balancesLine}`,
+  ].join('\n');
 
   const { data: submission, error: submissionError } = await supabase
     .from('partner_submissions')
@@ -498,18 +510,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
     attachmentWarnings.push('One or more files were too large to attach directly, so secure download links were included for those files.');
   }
 
+  // Oversized attachments still need a way to reach the funder, so secure links stay when
+  // a file could not be attached directly. Everything else stays out of the funder email.
   const signedLinkText = signedLinks.length
     ? `\n\nSecure document links:\n${signedLinks.map((link) => `${link.fileName}: ${link.signedUrl}`).join('\n')}`
     : '';
-  const riskWarningText = priorDefaults?.length ? `\n\nRisk warning: prior default history exists with ${partner.name}. Review before proceeding.` : '';
-  const emailText = `${parsed.data.custom_message}\n\nRequested amount: $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}\nSelected attachments: ${selectedAttachmentLine}${signedLinkText}${riskWarningText}`;
+  const emailText = `${generatedEmailBody}${signedLinkText}`;
   const emailHtml = `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
-      <p>${textToHtml(parsed.data.custom_message)}</p>
-      <p><strong>Requested amount:</strong> $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}</p>
-      <p><strong>Selected attachments:</strong> ${escapeHtml(selectedAttachmentLine)}</p>
+      ${parsed.data.custom_message ? `<p>${textToHtml(parsed.data.custom_message)}</p>` : ''}
+      <p><strong>Looking for:</strong> $${Number(deal.requested_amount || deal.approved_amount || 0).toLocaleString()}</p>
+      <p><strong>Current balances:</strong> ${escapeHtml(balancesLine)}</p>
       ${signedLinks.length ? `<p><strong>Secure document links:</strong></p><ul>${signedLinks.map((link) => `<li><a href="${escapeHtml(link.signedUrl)}">${escapeHtml(link.fileName)}</a></li>`).join('')}</ul>` : ''}
-      ${priorDefaults?.length ? `<p style="color: #991b1b;"><strong>Risk warning:</strong> prior default history exists with ${escapeHtml(partner.name)}. Review before proceeding.</p>` : ''}
     </div>
   `;
 

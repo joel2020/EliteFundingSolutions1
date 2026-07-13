@@ -54,3 +54,43 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json({ success: true });
 }
+
+// Only admins and super admins may delete deals. Soft delete: the deal disappears from the
+// CRM (every read filters deleted_at) but the record stays recoverable.
+const DEAL_DELETE_ROLES = ['super_admin', 'admin'];
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const csrf = requireSameOrigin(request);
+  if (csrf) return csrf;
+
+  const auth = await requireCrmProfile(DEAL_DELETE_ROLES);
+  if ('response' in auth) return auth.response;
+  const { user, profile, supabase } = auth;
+
+  const { data: existing } = await supabase
+    .from('deals')
+    .select('id,organization_id,title,stage_slug')
+    .eq('id', params.id)
+    .eq('organization_id', profile.organization_id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (!existing) return NextResponse.json({ success: false, error: 'Deal not found.' }, { status: 404 });
+
+  const { error } = await supabase
+    .from('deals')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: profile.id, updated_by: profile.id })
+    .eq('id', existing.id)
+    .eq('organization_id', profile.organization_id);
+  if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  await supabase.from('audit_logs').insert({
+    organization_id: profile.organization_id,
+    user_id: user.id,
+    action: 'deal_deleted',
+    resource_type: 'deals',
+    resource_id: existing.id,
+    old_data: { title: existing.title, stage_slug: existing.stage_slug },
+  }).then(() => null, () => null);
+
+  return NextResponse.json({ success: true });
+}

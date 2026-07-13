@@ -13,6 +13,9 @@ export type LenderApplicationPdfData = {
   owners?: Owner[];
   ein?: string | null;
   drawnSignaturePng?: Buffer | null;
+  /** Leave every phone number and email blank on the rendered PDF. Used for applications
+   * that go out to funders so they cannot contact the merchant directly. */
+  redactContactInfo?: boolean;
 };
 
 export type ResolvedLenderApplicationPdfFields = {
@@ -426,7 +429,7 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
   const businessZip = fieldWithAddressFallback(firstText(payload.zip, payload.zip_code, payload.business_zip, payload.business_zip_code, payload.company_zip, business.zip), businessAddress, 'zip');
   const signatureDate = dateValue(application.signature_date || payload.signature_date || application.submitted_at);
 
-  return {
+  const resolved: ResolvedLenderApplicationPdfFields = {
     businessLegalName: firstText(payload.legal_name, payload.legal_business_name, payload.company_name, payload.business_name, business.legal_name, deal.title),
     businessDba: firstText(payload.dba, business.dba),
     businessStreet: fieldWithAddressFallback(firstText(payload.address, payload.business_address, payload.company_address, payload.business_street, business.address), businessAddress, 'address'),
@@ -471,6 +474,20 @@ export function resolveLenderApplicationPdfFields(data: LenderApplicationPdfData
     signatureDate,
     drawnSignaturePng: data.drawnSignaturePng && isValidSignaturePng(data.drawnSignaturePng) ? data.drawnSignaturePng : pngDataFromUrl(payload.signature_data_url),
   };
+
+  if (data.redactContactInfo) {
+    // Applications that go out to funders must never carry merchant contact details.
+    resolved.businessPhone = '';
+    resolved.businessMobile = '';
+    resolved.businessFax = '';
+    resolved.businessEmail = '';
+    resolved.posContact = '';
+    resolved.bankPhone = '';
+    resolved.owner1 = { ...resolved.owner1, phone: '', email: '' };
+    resolved.owner2 = { ...resolved.owner2, phone: '', email: '' };
+  }
+
+  return resolved;
 }
 
 export async function generateLenderApplicationPdf(data: LenderApplicationPdfData) {

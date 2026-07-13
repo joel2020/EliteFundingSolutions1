@@ -120,6 +120,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     };
     const pdf = await generateLenderApplicationPdf({
       deal,
+      redactContactInfo: true,
       application: applicationForPdf,
       business: { ...(business || {}), legal_name: editedPayload.company_name || (business as any)?.legal_name },
       owners,
