@@ -33,6 +33,73 @@ function classificationReviewNote(classification: Awaited<ReturnType<typeof clas
   return `Document classification: ${pieces.join(' | ')}`;
 }
 
+async function readUploadedFile(request: Request, supabase: any): Promise<
+  | { ok: true; fileName: string; mimeType: string; fileSize: number; bytes: Buffer; storagePath: string | null; explicitDocumentType: string; explicitLabel: string; reviewNotes: string; documentRequestId: string | null }
+  | { ok: false; error: string }
+> {
+  const contentType = request.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    // Finalize step of the direct-to-storage flow: the browser already PUT the file
+    // bytes straight to Supabase Storage via a signed upload URL (see
+    // /documents/upload-url), bypassing the serverless function's request-body limit.
+    // We only need to download the bytes here for classification/AI extraction.
+    const body = await request.json().catch(() => ({}));
+    const storagePath = String(body.storage_path || '').trim();
+    const fileName = String(body.file_name || '').trim();
+    const fileSize = Number(body.file_size || 0);
+    if (!storagePath || !fileName || !(fileSize > 0)) return { ok: false, error: 'Document file is required.' };
+
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    const mimeType = String(body.mime_type || '').trim();
+    if (fileSize > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(mimeType) && !allowedExtensions.has(extension))) {
+      return { ok: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' };
+    }
+
+    const { data: blob, error: downloadError } = await supabase.storage.from('application-documents').download(storagePath);
+    if (downloadError || !blob) return { ok: false, error: downloadError?.message || 'Could not read the uploaded file.' };
+    const bytes = Buffer.from(await blob.arrayBuffer());
+
+    return {
+      ok: true,
+      fileName,
+      mimeType,
+      fileSize,
+      bytes,
+      storagePath,
+      explicitDocumentType: String(body.document_type || '').trim(),
+      explicitLabel: String(body.label || '').trim(),
+      reviewNotes: String(body.review_notes || '').trim(),
+      documentRequestId: String(body.document_request_id || '').trim() || null,
+    };
+  }
+
+  // Legacy path: file bytes posted directly to this route as multipart form data.
+  // Still supported for small files, but subject to the platform request-body limit.
+  const formData = await request.formData().catch(() => null);
+  if (!formData) return { ok: false, error: 'Invalid document payload.' };
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size <= 0) return { ok: false, error: 'Document file is required.' };
+
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  if (file.size > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(file.type) && !allowedExtensions.has(extension))) {
+    return { ok: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' };
+  }
+
+  return {
+    ok: true,
+    fileName: file.name,
+    mimeType: file.type || '',
+    fileSize: file.size,
+    bytes: Buffer.from(await file.arrayBuffer()),
+    storagePath: null,
+    explicitDocumentType: String(formData.get('document_type') || '').trim(),
+    explicitLabel: String(formData.get('label') || '').trim(),
+    reviewNotes: String(formData.get('review_notes') || '').trim(),
+    documentRequestId: String(formData.get('document_request_id') || '').trim() || null,
+  };
+}
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const csrf = requireSameOrigin(request);
   if (csrf) return csrf;
@@ -41,23 +108,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
-  const formData = await request.formData().catch(() => null);
-  if (!formData) return NextResponse.json({ success: false, error: 'Invalid document payload.' }, { status: 400 });
-
-  const file = formData.get('file');
-  const explicitDocumentType = String(formData.get('document_type') || '').trim();
-  const explicitLabel = String(formData.get('label') || '').trim();
-  const reviewNotes = String(formData.get('review_notes') || '').trim();
-  const documentRequestId = String(formData.get('document_request_id') || '').trim() || null;
-  if (!(file instanceof File) || file.size <= 0) {
-    return NextResponse.json({ success: false, error: 'Document file is required.' }, { status: 400 });
-  }
-
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  if (file.size > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(file.type) && !allowedExtensions.has(extension))) {
-    return NextResponse.json({ success: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
-  }
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const uploaded = await readUploadedFile(request, supabase);
+  if (!uploaded.ok) return NextResponse.json({ success: false, error: uploaded.error }, { status: 400 });
+  const { fileName, mimeType, fileSize, bytes, explicitDocumentType, explicitLabel, reviewNotes, documentRequestId } = uploaded;
+  const existingStoragePath = uploaded.storagePath;
 
   const { data: deal } = await supabase
     .from('deals')
@@ -108,8 +162,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   const classification = await classifyDealDocumentUpload({
-    fileName: file.name,
-    mimeType: file.type || null,
+    fileName,
+    mimeType: mimeType || null,
     bytes,
     requests: documentRequests || [],
     funderRequirements,
@@ -120,13 +174,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const label = explicitLabel || classification.label;
   const initialReviewNotes = [reviewNotes, classificationReviewNote(classification)].filter(Boolean).join('\n\n') || null;
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${profile.organization_id}/${deal.id}/${Date.now()}-${safeName}`;
-  const { error: uploadError } = await supabase.storage
-    .from('application-documents')
-    .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-
-  if (uploadError) return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+  // When the browser already uploaded directly to storage (JSON finalize path), reuse
+  // that object instead of uploading again. Otherwise (legacy multipart path), upload now.
+  let storagePath = existingStoragePath;
+  if (!storagePath) {
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    storagePath = `${profile.organization_id}/${deal.id}/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from('application-documents')
+      .upload(storagePath, bytes, { contentType: mimeType || 'application/octet-stream', upsert: false });
+    if (uploadError) return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+  }
 
   const { data: document, error: documentError } = await supabase
     .from('documents')
@@ -137,9 +195,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       document_request_id: linkedRequestId,
       document_type: documentType,
       label,
-      file_name: file.name,
-      file_size: file.size,
-      mime_type: file.type || null,
+      file_name: fileName,
+      file_size: fileSize,
+      mime_type: mimeType || null,
       storage_path: storagePath,
       status: 'uploaded',
       uploaded_by_user_id: user.id,
@@ -157,8 +215,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
   let aiExtraction = null;
   if (sameCrmDocumentType(documentType, 'bank_statements') || sameCrmDocumentType(documentType, 'bank_statement')) {
     aiExtraction = await extractBankStatementSignals({
-      fileName: file.name,
-      mimeType: file.type || null,
+      fileName,
+      mimeType: mimeType || null,
       bytes,
     });
     const extractionSummary = [
@@ -206,7 +264,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       resourceType: 'deals',
       resourceId: deal.id,
       title: `Document uploaded: ${label}`,
-      body: `${file.name} uploaded to ${deal.title || 'deal'}${isInternalCrmRole(profile.role) ? '' : ' by an external partner'}.`,
+      body: `${fileName} uploaded to ${deal.title || 'deal'}${isInternalCrmRole(profile.role) ? '' : ' by an external partner'}.`,
       severity: 'info',
     }),
     supabase.from('activities').insert({
@@ -217,7 +275,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       lead_id: deal.lead_id,
       activity_type: 'document_event',
       title: `Document uploaded: ${label}`,
-      body: aiExtraction ? `${file.name} - AI extracted bank statement signals.` : file.name,
+      body: aiExtraction ? `${fileName} - AI extracted bank statement signals.` : fileName,
       performed_by: profile.id,
     }),
     supabase.from('audit_logs').insert({
@@ -226,7 +284,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       action: isInternalCrmRole(profile.role) ? 'deal_document_uploaded' : 'external_partner_document_uploaded',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { deal_id: deal.id, document_type: documentType, file_name: file.name, document_request_id: linkedRequestId, classification, ai_extraction: aiExtraction, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
+      new_data: { deal_id: deal.id, document_type: documentType, file_name: fileName, document_request_id: linkedRequestId, classification, ai_extraction: aiExtraction, external_role: isInternalCrmRole(profile.role) ? null : profile.role },
     }),
   ]);
 

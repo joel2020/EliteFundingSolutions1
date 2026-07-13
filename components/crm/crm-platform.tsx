@@ -261,6 +261,47 @@ function invalidDealDocumentFile(files: File[]) {
   });
 }
 
+// Uploads a deal document directly to Supabase Storage (bypassing the ~4.5MB request-body
+// limit on Vercel serverless functions): (1) get a short-lived signed upload URL, (2) PUT the
+// file bytes straight to storage from the browser, (3) finalize via a small JSON call that
+// classifies the document and creates the CRM record.
+async function uploadDealDocumentDirect(
+  dealId: string,
+  file: File,
+  meta: { review_notes?: string; label?: string; document_type?: string; document_request_id?: string } = {},
+) {
+  const urlResponse = await fetch(`/api/crm/deals/${dealId}/documents/upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_name: file.name, mime_type: file.type || '', file_size: file.size }),
+  });
+  const urlResult = await urlResponse.json().catch(() => ({}));
+  if (!urlResponse.ok || !urlResult.success) throw new Error(urlResult.error || `Failed to prepare upload for ${file.name}`);
+
+  const { error: uploadError } = await supabase.storage
+    .from('application-documents')
+    .uploadToSignedUrl(urlResult.path, urlResult.token, file, { contentType: file.type || 'application/octet-stream' });
+  if (uploadError) throw new Error(uploadError.message || `Failed to upload ${file.name}`);
+
+  const finalizeResponse = await fetch(`/api/crm/deals/${dealId}/documents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      storage_path: urlResult.storagePath,
+      file_name: file.name,
+      file_size: file.size,
+      mime_type: file.type || '',
+      review_notes: meta.review_notes || '',
+      label: meta.label || '',
+      document_type: meta.document_type || '',
+      document_request_id: meta.document_request_id || '',
+    }),
+  });
+  const result = await finalizeResponse.json().catch(() => ({}));
+  if (!finalizeResponse.ok || !result.success) throw new Error(result.error || `Failed to finalize ${file.name}`);
+  return result;
+}
+
 function fileIcon(fileName?: string) {
   const extension = fileName?.split('.').pop()?.toLowerCase();
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'].includes(extension || '')) return <FileArchive className="h-4 w-4" />;
@@ -1411,12 +1452,7 @@ export function CrmDealsExperience() {
     for (let index = 0; index < dealDocumentFiles.length; index += 1) {
       const file = dealDocumentFiles[index];
       setDealDocumentUploadProgress(`Uploading ${index + 1} of ${dealDocumentFiles.length}: ${file.name}`);
-      const formData = new FormData();
-      formData.set('file', file);
-      formData.set('review_notes', 'Uploaded during CRM deal creation.');
-      const response = await fetch(`/api/crm/deals/${dealId}/documents`, { method: 'POST', body: formData });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error || `Failed to upload ${file.name}`);
+      await uploadDealDocumentDirect(dealId, file, { review_notes: 'Uploaded during CRM deal creation.' });
     }
   };
 
@@ -1933,14 +1969,12 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
       for (let index = 0; index < documentFiles.length; index += 1) {
         const file = documentFiles[index];
         setDocumentUploadProgress(`Uploading ${index + 1} of ${documentFiles.length}: ${file.name}`);
-        const formData = new FormData();
-        formData.set('file', file);
-        formData.set('review_notes', documentDescription);
-        if (documentLabel.trim()) formData.set('label', documentFiles.length > 1 ? `${documentLabel.trim()} (${index + 1})` : documentLabel.trim());
-        if (documentType !== 'auto') formData.set('document_type', documentType);
-        const response = await fetch(`/api/crm/deals/${deal.id}/documents`, { method: 'POST', body: formData });
-        const result = await response.json();
-        if (!response.ok || !result.success) throw new Error(result.error || `Failed to upload ${file.name}`);
+        const label = documentLabel.trim() ? (documentFiles.length > 1 ? `${documentLabel.trim()} (${index + 1})` : documentLabel.trim()) : '';
+        const result = await uploadDealDocumentDirect(deal.id, file, {
+          review_notes: documentDescription,
+          label,
+          document_type: documentType !== 'auto' ? documentType : '',
+        });
         const classifiedType = result.document?.document_type || result.classification?.document_type;
         if (classifiedType) uploadedTypes.push(detailDocTypeLabel(classifiedType));
       }
