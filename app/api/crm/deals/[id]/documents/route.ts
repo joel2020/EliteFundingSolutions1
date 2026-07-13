@@ -33,7 +33,7 @@ function classificationReviewNote(classification: Awaited<ReturnType<typeof clas
   return `Document classification: ${pieces.join(' | ')}`;
 }
 
-async function readUploadedFile(request: Request, supabase: any): Promise<
+async function readUploadedFile(request: Request, supabase: any, expectedPathPrefix: string): Promise<
   | { ok: true; fileName: string; mimeType: string; fileSize: number; bytes: Buffer; storagePath: string | null; explicitDocumentType: string; explicitLabel: string; reviewNotes: string; documentRequestId: string | null }
   | { ok: false; error: string }
 > {
@@ -49,6 +49,8 @@ async function readUploadedFile(request: Request, supabase: any): Promise<
     const fileName = String(body.file_name || '').trim();
     const fileSize = Number(body.file_size || 0);
     if (!storagePath || !fileName || !(fileSize > 0)) return { ok: false, error: 'Document file is required.' };
+    // Only accept paths our upload-url route could have minted for this org + deal.
+    if (!storagePath.startsWith(expectedPathPrefix)) return { ok: false, error: 'Invalid upload path.' };
 
     const extension = fileName.split('.').pop()?.toLowerCase() || '';
     const mimeType = String(body.mime_type || '').trim();
@@ -108,7 +110,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
-  const uploaded = await readUploadedFile(request, supabase);
+  const uploaded = await readUploadedFile(request, supabase, `${profile.organization_id}/${params.id}/`);
   if (!uploaded.ok) return NextResponse.json({ success: false, error: uploaded.error }, { status: 400 });
   const { fileName, mimeType, fileSize, bytes, explicitDocumentType, explicitLabel, reviewNotes, documentRequestId } = uploaded;
   const existingStoragePath = uploaded.storagePath;

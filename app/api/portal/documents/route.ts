@@ -15,13 +15,42 @@ export async function POST(request: Request) {
   if ('response' in auth) return auth.response;
   const { user, profile, supabase } = auth;
 
-  const formData = await request.formData().catch(() => null);
-  if (!formData) return NextResponse.json({ success: false, error: 'Invalid upload payload.' }, { status: 400 });
+  // Two intake shapes:
+  // - JSON finalize (preferred): the browser already PUT the file bytes straight to Supabase
+  //   Storage via a signed upload URL (see ./upload-url), bypassing the serverless
+  //   request-body limit. The body carries the storage path to register.
+  // - Legacy multipart: raw file bytes posted here (subject to the ~4.5MB platform limit).
+  const contentType = request.headers.get('content-type') || '';
+  let applicationId = '';
+  let fileName = '';
+  let fileSize = 0;
+  let mimeType = '';
+  let claimedStoragePath: string | null = null;
+  let file: File | null = null;
 
-  const applicationId = String(formData.get('application_id') || '');
-  const file = formData.get('file');
-  if (!applicationId || !(file instanceof File) || file.size <= 0) {
-    return NextResponse.json({ success: false, error: 'Application and file are required.' }, { status: 400 });
+  if (contentType.includes('application/json')) {
+    const body = await request.json().catch(() => null);
+    if (!body) return NextResponse.json({ success: false, error: 'Invalid upload payload.' }, { status: 400 });
+    applicationId = String(body.application_id || '');
+    fileName = String(body.file_name || '').trim();
+    fileSize = Number(body.file_size || 0);
+    mimeType = String(body.mime_type || '').trim();
+    claimedStoragePath = String(body.storage_path || '').trim() || null;
+    if (!applicationId || !fileName || !(fileSize > 0) || !claimedStoragePath) {
+      return NextResponse.json({ success: false, error: 'Application and file are required.' }, { status: 400 });
+    }
+  } else {
+    const formData = await request.formData().catch(() => null);
+    if (!formData) return NextResponse.json({ success: false, error: 'Invalid upload payload.' }, { status: 400 });
+    applicationId = String(formData.get('application_id') || '');
+    const formFile = formData.get('file');
+    if (!applicationId || !(formFile instanceof File) || formFile.size <= 0) {
+      return NextResponse.json({ success: false, error: 'Application and file are required.' }, { status: 400 });
+    }
+    file = formFile;
+    fileName = formFile.name;
+    fileSize = formFile.size;
+    mimeType = formFile.type || '';
   }
 
   const applicationIds = await getPortalApplicationIds(supabase, user, profile.organization_id, profile);
@@ -29,8 +58,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
   }
 
-  const extension = file.name.split('.').pop()?.toLowerCase() || '';
-  if (file.size > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(file.type) && !allowedExtensions.has(extension))) {
+  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  if (fileSize > MAX_FILE_SIZE_BYTES || (!allowedTypes.has(mimeType) && !allowedExtensions.has(extension))) {
     return NextResponse.json({ success: false, error: 'Documents must be PDF, JPG, PNG, or HEIC files up to 10MB.' }, { status: 400 });
   }
 
@@ -43,14 +72,31 @@ export async function POST(request: Request) {
 
   if (!application) return NextResponse.json({ success: false, error: 'Application not found.' }, { status: 404 });
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${profile.organization_id}/${applicationId}/client_uploads/${Date.now()}-${safeName}`;
-  const { error: uploadError } = await supabase.storage
-    .from('application-documents')
-    .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+  const expectedPrefix = `${profile.organization_id}/${applicationId}/client_uploads/`;
+  let storagePath: string;
+  if (claimedStoragePath) {
+    // Direct-upload path: only accept paths our upload-url route could have minted for this
+    // application, and confirm the object actually exists in storage before registering it.
+    if (!claimedStoragePath.startsWith(expectedPrefix)) {
+      return NextResponse.json({ success: false, error: 'Invalid upload path.' }, { status: 400 });
+    }
+    const folder = claimedStoragePath.slice(0, claimedStoragePath.lastIndexOf('/'));
+    const objectName = claimedStoragePath.slice(claimedStoragePath.lastIndexOf('/') + 1);
+    const { data: found } = await supabase.storage.from('application-documents').list(folder, { search: objectName, limit: 1 });
+    if (!found?.some((item: any) => item.name === objectName)) {
+      return NextResponse.json({ success: false, error: 'Uploaded file not found in storage.' }, { status: 400 });
+    }
+    storagePath = claimedStoragePath;
+  } else {
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    storagePath = `${expectedPrefix}${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from('application-documents')
+      .upload(storagePath, file as File, { contentType: mimeType || 'application/octet-stream', upsert: false });
 
-  if (uploadError) {
-    return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+    if (uploadError) {
+      return NextResponse.json({ success: false, error: uploadError.message }, { status: 500 });
+    }
   }
 
   const { data: document, error: docError } = await supabase
@@ -60,10 +106,10 @@ export async function POST(request: Request) {
       application_id: applicationId,
       document_type: 'other',
       label: 'Client Portal Upload',
-      file_name: file.name,
+      file_name: fileName,
       storage_path: storagePath,
-      file_size: file.size,
-      mime_type: file.type || null,
+      file_size: fileSize,
+      mime_type: mimeType || null,
       status: 'uploaded',
       uploaded_by_user_id: user.id,
     })
@@ -82,7 +128,7 @@ export async function POST(request: Request) {
       lead_id: application.lead_id,
       activity_type: 'document_event',
       title: 'Client uploaded document',
-      body: file.name,
+      body: fileName,
       direction: 'inbound',
       performed_by: profile.id,
     }),
@@ -92,7 +138,7 @@ export async function POST(request: Request) {
       action: 'portal_document_uploaded',
       resource_type: 'documents',
       resource_id: document.id,
-      new_data: { application_id: applicationId, file_name: file.name },
+      new_data: { application_id: applicationId, file_name: fileName },
     }),
   ]);
 

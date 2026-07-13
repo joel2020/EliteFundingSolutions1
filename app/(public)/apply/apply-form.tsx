@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Lock, Phone, RotateCcw, Shield } f
 import { toast } from 'sonner';
 import { APPLICATION_CHECKBOX_CONSENT, APPLICATION_DISCLOSURE_SECTIONS } from '@/lib/application-disclosures';
 import { COMPANY, CONSENT_VERSION } from '@/lib/company';
+import { supabase } from '@/lib/supabase';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -652,12 +653,36 @@ export default function ApplyForm({ referral }: { referral?: { code: string; pat
 
       // Optional: attach supporting documents. Never block the application on these uploads.
       if (result.applicationId) {
+        // Files go directly from the browser to Supabase Storage via signed upload URLs
+        // (bypassing the serverless request-body limit), then one small JSON call registers
+        // them on the application. Falls back silently per-file; docs are optional.
         const uploadDocs = async (files: File[], documentType: string) => {
           if (!files.length) return;
-          const docForm = new FormData();
-          docForm.append('document_type', documentType);
-          files.forEach((file) => docForm.append('files', file));
-          await fetch(`/api/applications/${result.applicationId}/bank-statements`, { method: 'POST', body: docForm });
+          const uploadedEntries: { storage_path: string; file_name: string; file_size: number; mime_type: string }[] = [];
+          for (const file of files) {
+            try {
+              const urlResponse = await fetch(`/api/applications/${result.applicationId}/bank-statements/upload-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ file_name: file.name, mime_type: file.type || '', file_size: file.size }),
+              });
+              const urlResult = await urlResponse.json().catch(() => ({}));
+              if (!urlResponse.ok || !urlResult.success) continue;
+              const { error: uploadError } = await supabase.storage
+                .from('application-documents')
+                .uploadToSignedUrl(urlResult.path, urlResult.token, file, { contentType: file.type || 'application/octet-stream' });
+              if (uploadError) continue;
+              uploadedEntries.push({ storage_path: urlResult.storagePath, file_name: file.name, file_size: file.size, mime_type: file.type || '' });
+            } catch {
+              // Optional upload — skip this file and keep going.
+            }
+          }
+          if (!uploadedEntries.length) return;
+          await fetch(`/api/applications/${result.applicationId}/bank-statements`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ document_type: documentType, files: uploadedEntries }),
+          });
         };
         try {
           await uploadDocs(bankStatementFiles, 'bank_statement');

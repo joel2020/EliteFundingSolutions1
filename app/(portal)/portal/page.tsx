@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
+import { supabase } from '@/lib/supabase';
 
 const statusConfig: Record<string, { label: string; icon: any; color: string }> = {
   draft: { label: 'Draft', icon: FileText, color: 'bg-gray-100 text-gray-700' },
@@ -74,10 +75,32 @@ export default function ClientPortalPage() {
 
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.set('application_id', selectedApplicationId);
-      formData.set('file', uploadFile);
-      const response = await fetch('/api/portal/documents', { method: 'POST', body: formData });
+      // Upload directly to Supabase Storage via a signed URL (bypasses the ~4.5MB
+      // serverless request-body limit), then register the file with a small JSON call.
+      const urlResponse = await fetch('/api/portal/documents/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ application_id: selectedApplicationId, file_name: uploadFile.name, mime_type: uploadFile.type || '', file_size: uploadFile.size }),
+      });
+      const urlResult = await urlResponse.json().catch(() => ({}));
+      if (!urlResponse.ok || !urlResult.success) throw new Error(urlResult.error || 'Failed to prepare upload');
+
+      const { error: storageError } = await supabase.storage
+        .from('application-documents')
+        .uploadToSignedUrl(urlResult.path, urlResult.token, uploadFile, { contentType: uploadFile.type || 'application/octet-stream' });
+      if (storageError) throw new Error(storageError.message || 'Failed to upload document');
+
+      const response = await fetch('/api/portal/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          application_id: selectedApplicationId,
+          storage_path: urlResult.storagePath,
+          file_name: uploadFile.name,
+          file_size: uploadFile.size,
+          mime_type: uploadFile.type || '',
+        }),
+      });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Failed to upload document');
 
