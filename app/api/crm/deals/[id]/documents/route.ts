@@ -6,6 +6,8 @@ import { extractBankStatementSignals } from '@/lib/bank-statement-extraction';
 import { createCrmNotification } from '@/lib/crm-notifications';
 
 export const dynamic = 'force-dynamic';
+// Backstop: classification/extraction of a large document must never outlive the platform default.
+export const maxDuration = 60;
 
 const WRITE_ROLES = ['super_admin', 'admin', 'manager', 'sales_rep', 'processor', 'underwriter', 'iso_broker', 'broker', 'referral_partner'];
 const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif']);

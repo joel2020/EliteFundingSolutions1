@@ -2,7 +2,10 @@ type RecordMap = Record<string, any>;
 
 const AI_PROVIDER = (process.env.AI_PROVIDER || 'azure').toLowerCase();
 const ALLOW_OPENAI_FALLBACK = process.env.ALLOW_OPENAI_FALLBACK === 'true';
-const AI_MAX_BYTES = 10 * 1024 * 1024;
+// Files above this size skip AI review (rules/deterministic fallback instead). Inlining
+// larger files as base64 into the AI request made uploads hang for minutes.
+const AI_MAX_BYTES = 4 * 1024 * 1024;
+const AI_REQUEST_TIMEOUT_MS = 20_000;
 
 export const CRM_DOCUMENT_TYPES = [
   'bank_statement',
@@ -196,6 +199,7 @@ async function generateAzureClassification(args: { fileName: string; mimeType?: 
 
   const response = await fetch(responsesUrl, {
     method: 'POST',
+    signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: process.env.AZURE_OPENAI_MODEL || 'gpt-4.1-mini',
@@ -223,6 +227,7 @@ async function generateOpenAiClassification(args: { fileName: string; mimeType?:
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
+    signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
