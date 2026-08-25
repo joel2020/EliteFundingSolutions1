@@ -6,6 +6,7 @@ import { hasRequiredGmailSendScope } from '@/lib/gmail';
 import { sendEmail as sendGmailEmail } from '@/lib/gmail';
 import { generateLenderApplicationPdf } from '@/lib/lender-application-pdf';
 import { ACTIVE_FUNDER_SUBMISSION_STATUSES } from '@/lib/lender-submission-duplicates';
+import { shouldBlockUnreviewedPartnerApplication } from '@/lib/lender-submission-policy';
 import { loadApplicationSignaturePng } from '@/lib/pdf-signature';
 import { buildPartnerApplicationSyncUpdate } from '@/lib/partner-application-sync';
 import { syncOwnersFromApplicationPayload } from '@/lib/owner-sync';
@@ -236,7 +237,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
         : await completedDocQuery.eq('deal_id', deal.id);
       hasExistingCompletedApplication = (completedDocs || []).length > 0;
 
-      if (!hasExistingCompletedApplication) {
+      if (shouldBlockUnreviewedPartnerApplication({
+        hasPartnerApplication: Boolean(latestPartnerApplication),
+        partnerApplicationReviewed,
+        hasExistingCompletedApplication,
+      })) {
         return NextResponse.json({
           success: false,
           error: 'Latest partner application must be reviewed and regenerated into an Elite application before this deal can be sent to funders.',

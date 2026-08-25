@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
+import { safePostLoginRedirect } from '@/lib/auth-redirect';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowur
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
 
 export async function GET(request: NextRequest) {
+  const next = safePostLoginRedirect(request.nextUrl.searchParams.get('redirectTo'), '/crm');
+  const callbackUrl = new URL('/auth/callback', request.url);
+  callbackUrl.searchParams.set('next', next);
   const cookiesToSet: Array<{ name: string; value: string; options: any }> = [];
   const authClient = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -22,7 +26,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await authClient.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${new URL(request.url).origin}/auth/callback?next=/crm`,
+      redirectTo: callbackUrl.toString(),
       queryParams: {
         access_type: 'offline',
         prompt: 'select_account',

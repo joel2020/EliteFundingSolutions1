@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { CRM_ACCESS_ROLES } from '@/lib/access-control';
-import { getAuthenticatedUser } from '@/lib/server-auth';
+import { authenticationErrorResponse, getAuthenticatedUser } from '@/lib/server-auth';
 import { createServiceSupabaseClient } from '@/lib/server-supabase';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { user, error } = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ success: false, error: error || 'Unauthorized' }, { status: 401 });
+  const { user, error, errorCode } = await getAuthenticatedUser();
+  if (!user) return authenticationErrorResponse(error || 'Unauthorized', errorCode);
 
   const supabase = createServiceSupabaseClient();
   const { data: profile, error: profileError } = await supabase

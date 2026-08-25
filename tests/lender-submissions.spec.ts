@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { shouldBlockUnreviewedPartnerApplication } from '../lib/lender-submission-policy';
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -27,14 +28,26 @@ test.describe('funder submission hardening', () => {
     expect(routeSource).toContain('if (canSendViaGmail)');
   });
 
-  test('blocks draft partner application uploads from automatic funder package conversion', () => {
-    const routeSource = fs.readFileSync(path.join(repoRoot, 'app/api/crm/deals/[id]/lender-submissions/route.ts'), 'utf8');
-
-    expect(routeSource).toContain('REVIEWED_PARTNER_APPLICATION_STATUSES');
-    expect(routeSource).toContain("new Set(['converted', 'saved_to_deal'])");
-    expect(routeSource).toContain('Latest partner application must be reviewed and regenerated into an Elite application before this deal can be sent to funders.');
-    expect(routeSource).toContain('latestPartnerApplication && !REVIEWED_PARTNER_APPLICATION_STATUSES.has(latestPartnerApplicationStatus)');
-    expect(routeSource).toContain('partnerApplication: {');
-    expect(routeSource).toContain('{ status: 409 }');
+  test('blocks only unreviewed partner applications without an existing completed application', () => {
+    expect(shouldBlockUnreviewedPartnerApplication({
+      hasPartnerApplication: true,
+      partnerApplicationReviewed: false,
+      hasExistingCompletedApplication: false,
+    })).toBe(true);
+    expect(shouldBlockUnreviewedPartnerApplication({
+      hasPartnerApplication: true,
+      partnerApplicationReviewed: false,
+      hasExistingCompletedApplication: true,
+    })).toBe(false);
+    expect(shouldBlockUnreviewedPartnerApplication({
+      hasPartnerApplication: true,
+      partnerApplicationReviewed: true,
+      hasExistingCompletedApplication: false,
+    })).toBe(false);
+    expect(shouldBlockUnreviewedPartnerApplication({
+      hasPartnerApplication: false,
+      partnerApplicationReviewed: false,
+      hasExistingCompletedApplication: false,
+    })).toBe(false);
   });
 });

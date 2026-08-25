@@ -52,6 +52,11 @@ function NotificationsBell() {
     try {
       const response = await fetch('/api/crm/notifications', { cache: 'no-store' });
       const result = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        const returnPath = `${window.location.pathname}${window.location.search}`;
+        window.location.assign(`/login?redirectTo=${encodeURIComponent(returnPath)}`);
+        return;
+      }
       if (response.ok && result.success) {
         setNotifications(result.notifications || []);
         setUnreadCount(result.unreadCount || 0);

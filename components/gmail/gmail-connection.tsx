@@ -63,8 +63,13 @@ export function GmailConnection() {
       const response = await fetch('/api/gmail/auth');
       const { authUrl, error } = await response.json();
 
-      if (error) {
-        toast.error(error);
+      if (response.status === 401) {
+        window.location.assign(`/login?redirectTo=${encodeURIComponent('/crm/settings')}`);
+        return;
+      }
+
+      if (!response.ok || error || !authUrl) {
+        toast.error(error || 'Unable to start Google Workspace connection.');
         setConnecting(false);
         return;
       }

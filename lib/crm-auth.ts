@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CRM_ACCESS_ROLES, type InternalCrmRole } from '@/lib/access-control';
 
 export type CrmProfile = {
@@ -44,24 +44,32 @@ export async function requireInternalCrmRole(roles: readonly string[] = CRM_ACCE
 }
 
 export function useCrmUser() {
+  const mounted = useRef(false);
   const [profile, setProfile] = useState<CrmProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-
-    getCrmProfile().then((result) => {
-      if (!mounted) return;
-      setProfile(result.profile);
-      setError(result.error);
-      setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-    };
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    const result = await getCrmProfile().catch(() => ({
+      profile: null,
+      error: 'Unable to load your CRM profile.',
+    }));
+    if (!mounted.current) return result;
+    setProfile(result.profile);
+    setError(result.error);
+    setLoading(false);
+    return result;
   }, []);
 
-  return { profile, organizationId: profile?.organization_id ?? null, loading, error };
+  useEffect(() => {
+    mounted.current = true;
+    void loadProfile();
+
+    return () => {
+      mounted.current = false;
+    };
+  }, [loadProfile]);
+
+  return { profile, organizationId: profile?.organization_id ?? null, loading, error, refetch: loadProfile };
 }

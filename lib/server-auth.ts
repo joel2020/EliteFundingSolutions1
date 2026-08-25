@@ -29,6 +29,48 @@ export function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status });
 }
 
+type CookieValue = { name: string; value?: string };
+
+function supabaseAuthCookieBaseName() {
+  try {
+    const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+    return projectRef ? `sb-${projectRef}-auth-token` : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearSupabaseAuthCookies(response: NextResponse, cookieValues: CookieValue[]) {
+  const authCookieBaseName = supabaseAuthCookieBaseName();
+  if (!authCookieBaseName) return response;
+
+  cookieValues
+    .filter(({ name }) => {
+      if (name === authCookieBaseName) return true;
+      if (!name.startsWith(`${authCookieBaseName}.`)) return false;
+      return /^\d+$/.test(name.slice(authCookieBaseName.length + 1));
+    })
+    .forEach(({ name }) => {
+      response.cookies.set({
+        name,
+        value: '',
+        expires: new Date(0),
+        maxAge: 0,
+        path: '/',
+        sameSite: 'lax',
+      });
+    });
+  return response;
+}
+
+export function authenticationErrorResponse(error = 'Unauthorized', errorCode?: string | null) {
+  const response = jsonError(error, 401);
+  if (errorCode === 'refresh_token_not_found') {
+    clearSupabaseAuthCookies(response, cookies().getAll());
+  }
+  return response;
+}
+
 export function requireSameOrigin(request: Request) {
   const origin = request.headers.get('origin');
   // These routes are only ever called by the in-browser SPA, where a same-origin
@@ -49,7 +91,7 @@ export function requireSameOrigin(request: Request) {
   return null;
 }
 
-export async function getAuthenticatedUser(): Promise<{ user: User | null; error: string | null }> {
+export async function getAuthenticatedUser(): Promise<{ user: User | null; error: string | null; errorCode: string | null }> {
   const cookieStore = cookies();
   const authClient = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -63,13 +105,19 @@ export async function getAuthenticatedUser(): Promise<{ user: User | null; error
   });
 
   const { data, error } = await authClient.auth.getUser();
-  if (error || !data.user) return { user: null, error: 'Unauthorized' };
-  return { user: data.user, error: null };
+  if (error || !data.user) {
+    return {
+      user: null,
+      error: 'Unauthorized',
+      errorCode: (error as { code?: string } | null)?.code || null,
+    };
+  }
+  return { user: data.user, error: null, errorCode: null };
 }
 
 export async function requireCrmProfile(roles: readonly string[] = INTERNAL_CRM_ROLES) {
-  const { user, error } = await getAuthenticatedUser();
-  if (!user) return { response: jsonError(error || 'Unauthorized', 401) };
+  const { user, error, errorCode } = await getAuthenticatedUser();
+  if (!user) return { response: authenticationErrorResponse(error || 'Unauthorized', errorCode) };
 
   const supabase = createServiceSupabaseClient();
   const { data: profile } = await supabase
@@ -88,8 +136,8 @@ export async function requireCrmProfile(roles: readonly string[] = INTERNAL_CRM_
 }
 
 export async function requirePortalProfile() {
-  const { user, error } = await getAuthenticatedUser();
-  if (!user) return { response: jsonError(error || 'Unauthorized', 401) };
+  const { user, error, errorCode } = await getAuthenticatedUser();
+  if (!user) return { response: authenticationErrorResponse(error || 'Unauthorized', errorCode) };
 
   const supabase = createServiceSupabaseClient();
   const { data: profile } = await supabase

@@ -1,5 +1,17 @@
 type RecordMap = Record<string, any>;
 
+type PartnerApplicationSyncUpdate = {
+  application_payload?: RecordMap;
+  application_source: 'partner_upload';
+  application_review_status: 'converted_from_partner_app';
+  signed_name?: string;
+  e_signature?: string;
+  signature_type?: 'typed';
+  signature_status?: 'signed' | 'unsigned';
+  signature_date?: string;
+  signed_application_document_id?: string;
+};
+
 function text(value: unknown) {
   return String(value ?? '').trim();
 }
@@ -9,7 +21,7 @@ export function buildPartnerApplicationSyncUpdate(args: {
   editedPayload?: RecordMap | null;
   convertedDocumentId?: string | null;
   existingSignatureStatus?: string | null;
-}) {
+}): PartnerApplicationSyncUpdate {
   const existingPayload = args.existingApplicationPayload || {};
   const editedPayload = args.editedPayload || {};
   const signature = text(editedPayload.signature || editedPayload.signed_name);

@@ -600,7 +600,7 @@ function parseLeadCsv(text: string) {
 }
 
 function useCrmDataset() {
-  const { profile, organizationId, loading: profileLoading, error: profileError } = useCrmUser();
+  const { profile, organizationId, loading: profileLoading, error: profileError, refetch: refetchProfile } = useCrmUser();
   const browserSupabase = useMemo(() => createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY), []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -669,9 +669,14 @@ function useCrmDataset() {
       return (item.value as any).data || [];
     };
 
-    const hardError = settled.slice(0, 9).find((item) => item.status === 'fulfilled' && (item.value as any).error && !['notes', 'current_positions', 'deal_financials'].includes((item.value as any).error?.details || ''));
-    if (hardError?.status === 'fulfilled' && (hardError.value as any).error?.code !== '42P01') {
-      setError((hardError.value as any).error.message);
+    const coreQueryIndexes = [0, 1, 5, 6, 13];
+    const hardError = coreQueryIndexes
+      .map((index) => settled[index])
+      .find((item) => item.status === 'rejected' || (item.status === 'fulfilled' && (item.value as any).error));
+    if (hardError?.status === 'rejected') {
+      setError('Unable to load the CRM pipeline. Please retry.');
+    } else if (hardError?.status === 'fulfilled') {
+      setError('Unable to load the CRM pipeline. Please sign in again or retry.');
     }
 
     const rawLeads = unwrap(0);
@@ -737,7 +742,12 @@ function useCrmDataset() {
     load();
   }, [profileLoading, load]);
 
-  return { ...data, profile, organizationId: organizationId || ORG_ID, loading: loading || profileLoading, error: error || profileError, reload: load } as CrmDataset & {
+  const reload = useCallback(async () => {
+    await refetchProfile();
+    await load();
+  }, [load, refetchProfile]);
+
+  return { ...data, profile, organizationId: organizationId || ORG_ID, loading: loading || profileLoading, error: error || profileError, reload } as CrmDataset & {
     profile: typeof profile;
     organizationId: string;
     loading: boolean;
@@ -1377,7 +1387,7 @@ function DealTable({ rows, canEditStage, onStageChange }: { rows: RecordMap[]; c
 }
 
 export function CrmDealsExperience() {
-  const { deals, users, isoBrokers, profile, loading, reload } = useCrmDataset();
+  const { deals, users, isoBrokers, profile, loading, error, reload } = useCrmDataset();
   const { profile: directProfile, loading: directProfileLoading } = useCrmUser();
   const activeProfile = directProfile || profile;
   const [search, setSearch] = useState('');
@@ -1486,7 +1496,13 @@ export function CrmDealsExperience() {
 
   return (
     <PageFrame title={canCreateDeals ? 'Deals' : 'My Submissions'} subtitle={canCreateDeals ? 'All deals with inline stage updates, offers, and rep assignment' : 'Submitted files visible to your organization'} actions={canCreateDeals ? <Button data-testid="new-deal" className="h-9 rounded-[7px] bg-[#0F2B5B]" onClick={() => { resetDealDialog(); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />New deal</Button> : applicationUrl ? <Link href={applicationUrl} target="_blank" className="inline-flex h-9 items-center rounded-[7px] bg-[#0F2B5B] px-3 text-sm font-semibold text-white"><Plus className="mr-2 h-4 w-4" />Submit Application</Link> : null}>
-      <CrmCard>
+      {error ? (
+        <div role="alert" className="mb-4 rounded-[8px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <p>{error}</p>
+          <Button variant="outline" className="mt-3 h-9 rounded-[7px] border-red-300 bg-white" onClick={() => reload()}>Retry</Button>
+        </div>
+      ) : (
+        <CrmCard>
         <Toolbar search={search} setSearch={setSearch}>
           <Select value={stage} onValueChange={setStage}>
             <SelectTrigger className="h-10 w-[190px] rounded-[7px]"><SelectValue /></SelectTrigger>
@@ -1499,7 +1515,8 @@ export function CrmDealsExperience() {
           {canCreateDeals && <Button variant="outline" className="h-10 rounded-[7px]" onClick={() => exportCsv('deals', filtered)}><Download className="mr-2 h-4 w-4" />Export</Button>}
         </Toolbar>
         <DealTable rows={filtered} canEditStage={canEditStage} onStageChange={changeDealStage} />
-      </CrmCard>
+        </CrmCard>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetDealDialog(); }}>
         <DialogContent className="max-w-3xl rounded-[8px]">

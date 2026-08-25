@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, ArrowRight, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+import { safePostLoginRedirect } from '@/lib/auth-redirect';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +20,8 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      window.location.href = '/api/auth/google';
+      const returnPath = safePostLoginRedirect(searchParams.get('redirectTo'), '/crm');
+      window.location.href = `/api/auth/google?redirectTo=${encodeURIComponent(returnPath)}`;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google login failed';
       toast.error(msg);
@@ -37,7 +40,8 @@ export default function LoginPage() {
       });
       const result = await response.json().catch(() => null);
       if (!response.ok || !result?.success) throw new Error(result?.error || 'Login failed');
-      router.replace(result.redirectTo || '/crm');
+      const fallbackPath = result.redirectTo || '/crm';
+      router.replace(safePostLoginRedirect(searchParams.get('redirectTo'), fallbackPath));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       toast.error(msg);

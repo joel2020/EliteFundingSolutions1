@@ -23,10 +23,10 @@ type GmailOAuthState = {
 const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
 
 export function getConfiguredRedirectUri() {
-  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
-
   const crmUrl = process.env.NEXT_PUBLIC_CRM_URL || process.env.CRM_APP_URL;
   if (crmUrl) return `${crmUrl.replace(/\/$/, '')}/api/gmail/callback`;
+
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) {

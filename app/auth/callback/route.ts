@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { DEFAULT_ORG_ID, createServiceSupabaseClient } from '@/lib/server-supabase';
+import { safePostLoginRedirect } from '@/lib/auth-redirect';
 
 export const dynamic = 'force-dynamic';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mdrrcrmowurbrwvdsgnq.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-anon-key-for-build';
-
-function safeRedirectPath(path: string | null) {
-  if (!path || !path.startsWith('/') || path.startsWith('//')) return '/crm';
-  return path;
-}
 
 function splitName(name?: string) {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean);
@@ -26,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const next = safeRedirectPath(requestUrl.searchParams.get('next'));
+  const next = safePostLoginRedirect(requestUrl.searchParams.get('next'), '/crm');
   const response = NextResponse.redirect(new URL(next, request.url));
 
   if (!code) {

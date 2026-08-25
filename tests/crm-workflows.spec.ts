@@ -44,7 +44,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
       await expect(shell).toBeVisible();
       await expect(shell).toContainText('Elite CRM');
       await expect(page.getByLabel('Notifications coming soon')).toHaveCount(0);
-      for (const label of ['Dashboard', 'Leads', 'Deals', 'Offers', 'Tasks', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users & Access', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
+      for (const label of ['Dashboard', 'Deals', 'Leads', 'Funders', 'Renewals', 'Earnings', 'Reports', 'Archive', 'Tools', 'Users & Access', 'Settings', 'Search Deals', 'Elite Connect', 'Logout']) {
         await expect(shell.getByText(label, { exact: true })).toBeVisible();
       }
     }
@@ -158,7 +158,6 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByTestId('save-deal').click();
 
     await expect.poll(() => state.deals.some((deal) => deal.title === 'Peak Dental - $90K MCA')).toBe(true);
-    await expect(page.getByText('Peak Dental - $90K MCA')).toBeVisible();
     const createdDeal = state.deals.find((deal) => deal.title === 'Peak Dental - $90K MCA')!;
     await expect.poll(() => state.documents.some((doc) => doc.deal_id === createdDeal.id && doc.file_name === 'peak-dental-bank-statement.pdf' && doc.document_type === 'bank_statements')).toBe(true);
     await expect.poll(() => state.documents.some((doc) => doc.deal_id === createdDeal.id && doc.file_name === 'peak-dental-driver-license.pdf' && doc.document_type === 'drivers_license')).toBe(true);
@@ -173,10 +172,10 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await page.getByTestId('deal-detail-stage').click();
-    await page.getByRole('option', { name: 'Contract Out' }).click();
+    await page.getByRole('option', { name: 'Contracts requested' }).click();
 
-    await expect.poll(() => state.deals.find((deal) => deal.id === DEAL_ID)?.stage_slug).toBe('contract_sent');
-    await expect(page.getByText('Contract Out').first()).toBeVisible();
+    await expect.poll(() => state.deals.find((deal) => deal.id === DEAL_ID)?.stage_slug).toBe('contract_requested');
+    await expect(page.getByText('Contracts requested').first()).toBeVisible();
   });
 
   test('shows every deal detail tab with renewal calculations and approved-not-accepted offer state', async ({ page }) => {
@@ -185,7 +184,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
 
-    for (const tab of ['Overview', 'Readiness', 'Applications', 'Documents', 'Notes', 'Funders Sent To', 'Offers', 'Finance', 'History', 'Tasks', 'Activity']) {
+    for (const tab of ['Overview', 'Documents', 'Funders Sent To', 'Offers', 'Finance', 'History', 'Activity', 'AI Analysis']) {
       await page.getByRole('tab', { name: tab }).click();
       await expect(page.getByRole('tabpanel')).toBeVisible();
     }
@@ -205,7 +204,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
-    await page.getByRole('tab', { name: 'Applications' }).click();
+    await page.getByRole('tab', { name: 'Documents' }).click();
 
     await page.getByTestId('deal-upload-partner-application').click();
     await page.getByTestId('partner-application-file').setInputFiles({
@@ -220,10 +219,9 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.partner_application_uploads.some((row) => row.original_file_name === 'partner-app.pdf')).toBe(true);
     await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.status).toBe('draft_ready');
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'atlas-retail-llc-elite-application.pdf')).toBe(false);
-    await page.getByRole('tab', { name: 'Applications' }).click();
-    await expect(page.getByText('Original partner application')).toBeVisible();
-    await expect(page.getByText('Elite Funding Solutions converted application')).toHaveCount(0);
-    await page.getByRole('button', { name: /Review fields/i }).click();
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    await expect(page.getByText('partner-app.pdf').first()).toBeVisible();
+    await page.getByRole('button', { name: /Review & Generate Elite PDF/i }).click();
     await expect(page.getByRole('dialog', { name: 'Elite Application Review' })).toBeVisible();
     await page.getByLabel('Company legal name').fill('Atlas Retail Group LLC');
     await expect(page.getByLabel('Co-owner first name')).toHaveValue('Riley');
@@ -235,27 +233,24 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.edited_payload?.owner2?.ownership_percentage).toBe('30');
     await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'partner-app.pdf')?.edited_payload?.existing_advances?.[0]?.current_balance).toBe('$10,500');
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'atlas-retail-regenerated-elite-application.pdf')).toBe(true);
-    await page.getByRole('tab', { name: 'Applications' }).click();
+    await page.getByRole('tab', { name: 'Documents' }).click();
 
     await page.getByTestId('deal-generate-elite-application').click();
     await expect.poll(() => state.documents.some((doc) => doc.application_variant === 'elite_generated')).toBe(true);
-    await page.getByRole('tab', { name: 'Applications' }).click();
+    await page.getByRole('tab', { name: 'Documents' }).click();
 
     await page.getByTestId('deal-send-application-link').click();
     await page.getByTestId('application-link-email').fill('owner@atlas.test');
     await page.getByTestId('save-application-link').click();
     await expect(page.getByText('/apply?deal=deal_mock_completion_token')).toBeVisible();
     await page.keyboard.press('Escape');
-    await page.getByRole('tab', { name: 'Applications' }).click();
-
-    await page.getByRole('button', { name: /Reveal full fields/i }).click();
-    await expect(page.getByText('123-45-6789')).toBeVisible();
-    await expect(page.getByText('Application disclosure preview')).toBeVisible();
-    await expect(page.getByText('Credit Review Consent').first()).toBeVisible();
+    await page.getByRole('tab', { name: 'Overview' }).click();
+    await expect(page.getByText('12-3456789')).toBeVisible();
+    await expect(page.getByText('999887777')).toBeVisible();
     expect(calls.some((call) => call.table === 'partner_application_uploads_api')).toBe(true);
     expect(calls.some((call) => call.table === 'application_generate_api')).toBe(true);
     expect(calls.some((call) => call.table === 'application_link_api')).toBe(true);
-    expect(calls.some((call) => call.table === 'application_sensitive_api')).toBe(true);
+    expect(calls.some((call) => call.table === 'deal_sensitive_api')).toBe(true);
   });
 
   test('attaches an uploaded partner application to a deal that has no application yet', async ({ page }) => {
@@ -265,7 +260,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
-    await page.getByRole('tab', { name: 'Applications' }).click();
+    await page.getByRole('tab', { name: 'Documents' }).click();
 
     await page.getByTestId('deal-upload-partner-application').click();
     await page.getByTestId('partner-application-file').setInputFiles({
@@ -278,11 +273,9 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.deals.find((deal) => deal.id === DEAL_ID)?.application_id).toBe('application-1');
     await expect.poll(() => state.applications.some((app) => app.id === 'application-1' && app.application_source === 'partner_upload')).toBe(true);
     await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'new-record-partner-app.pdf')?.status).toBe('draft_ready');
-    await page.getByRole('tab', { name: 'Applications' }).click();
-    await expect(page.getByText('Original partner application')).toBeVisible();
-    await expect(page.getByText('Elite Funding Solutions converted application')).toHaveCount(0);
-    await expect(page.getByText('new-record-partner-app.pdf')).toBeVisible();
-    await page.getByRole('button', { name: /Review fields/i }).click();
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    await expect(page.getByText('new-record-partner-app.pdf').first()).toBeVisible();
+    await page.getByRole('button', { name: /Review & Generate Elite PDF/i }).click();
     await expect(page.getByRole('dialog', { name: 'Elite Application Review' })).toBeVisible();
     await page.getByRole('button', { name: 'Save & Regenerate Elite Application' }).click();
     await expect.poll(() => state.partner_application_uploads.find((row) => row.original_file_name === 'new-record-partner-app.pdf')?.status).toBe('converted');
@@ -428,14 +421,6 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.goto(`/crm/deals/${DEAL_ID}`);
     await expect(page.getByTestId('crm-page-atlas-retail')).toBeVisible();
-    await expect(page.getByText('Submission Ready')).toBeVisible();
-    await expect(page.getByTestId('submission-cockpit')).toContainText('Recommended funder');
-    await expect(page.getByTestId('submission-cockpit')).toContainText('Package snapshot');
-
-    await page.getByRole('tab', { name: 'Readiness' }).click();
-    await expect(page.getByText('Submission readiness')).toBeVisible();
-    await expect(page.getByTestId('missing-document-checklist')).toContainText('Voided check');
-
     await page.getByRole('tab', { name: 'Documents' }).click();
     await expect(page.getByText('Missing required documents')).toBeVisible();
     await expect(page.getByText('Bank Statement').first()).toBeVisible();
@@ -450,7 +435,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect.poll(() => state.documents.some((doc) => doc.file_name === 'voided-check.pdf' && doc.deal_id === DEAL_ID)).toBe(true);
     await expect.poll(() => state.documents.find((doc) => doc.file_name === 'voided-check.pdf')?.document_type).toBe('voided_check');
 
-    await page.getByRole('tab', { name: 'Notes' }).click();
+    await page.getByRole('tab', { name: 'Overview' }).click();
     await page.getByTestId('deal-add-note').click();
     await page.getByTestId('deal-note-body').fill('Processor requested final statements.');
     await page.getByTestId('deal-save-note').click();
@@ -485,8 +470,6 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await page.getByRole('tab', { name: 'Offers' }).click();
     await expect(page.getByTestId('offer-comparison-view')).toContainText('Recommended Offer');
 
-    await page.getByRole('tab', { name: 'Tasks' }).click();
-    await expect(page.getByText('Follow up with Apex')).toBeVisible();
   });
 
   test('deal detail command center empty states render without documents, lenders, or offers', async ({ page }) => {
@@ -545,17 +528,17 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     await expect(page.getByTestId(`partner-card-${createdPartner.id}`)).toContainText('Active');
     expect(calls.some((call) => call.table === 'funding_partners_restore_api' && call.body.id === createdPartner.id)).toBe(true);
 
-    await page.goto('/crm/offers');
-    await page.getByTestId('create-offer').click();
-    await page.getByTestId('offer-deal').click();
-    await page.getByRole('option', { name: 'Atlas Retail - $75K MCA' }).click();
-    await page.getByTestId('offer-approved-amount').fill('123000');
-    await page.getByTestId('save-offer').click();
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await page.getByRole('tab', { name: 'Offers' }).click();
+    await page.getByTestId('deal-add-offer').click();
+    const offerDialog = page.getByRole('dialog', { name: 'Add offer' });
+    await offerDialog.getByText('Approved amount *', { exact: true }).locator('..').getByRole('textbox').fill('123000');
+    await offerDialog.getByText('Factor rate *', { exact: true }).locator('..').getByRole('textbox').fill('1.30');
+    await offerDialog.getByText('Payback amount *', { exact: true }).locator('..').getByRole('textbox').fill('159900');
+    await offerDialog.getByText('Term (days) *', { exact: true }).locator('..').getByRole('textbox').fill('120');
+    await page.getByTestId('save-manual-offer').click();
     await expect.poll(() => state.offers.find((offer) => offer.approved_amount === 123000)?.status).toBe('received');
-
-    const createdOffer = state.offers.find((offer) => offer.approved_amount === 123000)!;
-    await page.getByTestId(`present-offer-${createdOffer.id}`).click();
-    await expect.poll(() => state.offers.find((offer) => offer.id === createdOffer.id)?.status).toBe('presented');
+    await expect(page.getByTestId('offer-comparison-view')).toContainText('$123,000');
   });
 
   test('uploads and previews deal documents through signed URLs', async ({ page }) => {
@@ -592,7 +575,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
     expect(signedUrlResponse.url).toBe('https://signed.example/atlas-bank-statements.pdf');
   });
 
-  test('uploads multiple deal documents without requiring manual categories', async ({ page }) => {
+  test('uploads multiple deal documents with auto-detection selected by default', async ({ page }) => {
     const { state, calls } = await mockCrmApis(page);
 
     await page.goto(`/crm/deals/${DEAL_ID}`, { waitUntil: 'domcontentloaded' });
@@ -601,7 +584,7 @@ test.describe('Elite Funding Solutions CRM workflows', () => {
 
     await page.getByTestId('deal-upload-document').click();
     await expect(page.getByText('Document files')).toBeVisible();
-    await expect(page.getByText(/Category|Document type/i)).toHaveCount(0);
+    await expect(page.getByTestId('deal-document-type')).toContainText('Auto-detect');
     await page.getByTestId('deal-document-file').setInputFiles([
       {
         name: 'march-bank-statement.pdf',

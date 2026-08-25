@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { shouldBypassAuthForE2e } from '@/lib/e2e-auth-bypass';
 
 const CRM_ACCESS_ROLES = [
   'super_admin',
@@ -55,7 +56,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.rewrite(rewriteUrl);
   }
 
-  if (process.env.NODE_ENV !== 'production' && process.env.E2E_AUTH_BYPASS === '1' && (pathname.startsWith('/crm') || pathname.startsWith('/portal'))) {
+  if (shouldBypassAuthForE2e(process.env.E2E_AUTH_BYPASS, req.nextUrl.hostname) && (pathname.startsWith('/crm') || pathname.startsWith('/portal'))) {
     return res;
   }
 

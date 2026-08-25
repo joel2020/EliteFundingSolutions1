@@ -42,6 +42,23 @@ test.describe('Google OAuth verification readiness', () => {
     }
   });
 
+  test('does not let a stale redirect override move Gmail OAuth off the CRM origin', () => {
+    const originalGoogleRedirectUri = process.env.GOOGLE_REDIRECT_URI;
+    const originalCrmUrl = process.env.NEXT_PUBLIC_CRM_URL;
+
+    try {
+      process.env.GOOGLE_REDIRECT_URI = 'https://elite-funding-solutions1.vercel.app/api/gmail/callback';
+      process.env.NEXT_PUBLIC_CRM_URL = 'https://crm.elitefundingsolution.com';
+
+      expect(getConfiguredRedirectUri()).toBe('https://crm.elitefundingsolution.com/api/gmail/callback');
+    } finally {
+      if (originalGoogleRedirectUri === undefined) delete process.env.GOOGLE_REDIRECT_URI;
+      else process.env.GOOGLE_REDIRECT_URI = originalGoogleRedirectUri;
+      if (originalCrmUrl === undefined) delete process.env.NEXT_PUBLIC_CRM_URL;
+      else process.env.NEXT_PUBLIC_CRM_URL = originalCrmUrl;
+    }
+  });
+
   test('does not include Gmail inbox read/list API calls', () => {
     const gmailSource = fs.readFileSync(path.join(repoRoot, 'lib/gmail.ts'), 'utf8');
     expect(gmailSource).not.toContain('gmail.users.messages.list');

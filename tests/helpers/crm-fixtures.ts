@@ -314,7 +314,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
   });
 
-  await page.route('**/storage/v1/object/application-documents/**', async (route) => {
+  await page.route('**/storage/v1/object/**', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ Key: 'mock-uploaded-file' }) });
   });
 
@@ -340,6 +340,14 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ success: true, profile: state.user_profiles.find((profile) => profile.user_id === 'auth-user-1') }),
+    });
+  });
+
+  await page.route('**/api/crm/notifications', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, notifications: [], unreadCount: 0 }),
     });
   });
 
@@ -430,12 +438,26 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
   });
 
+  await page.route('**/api/crm/deals/*/documents/upload-url', async (route) => {
+    const payload = route.request().postDataJSON() as any;
+    const dealId = new URL(route.request().url()).pathname.split('/').at(-3);
+    const storagePath = `${ORG_ID}/${dealId}/mock-${payload.file_name}`;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, path: storagePath, token: 'mock-upload-token', storagePath }),
+    });
+  });
+
   await page.route('**/api/crm/deals/*/documents', async (route) => {
     const body = route.request().postData() || '';
-    const fileName = body.match(/filename="([^"]+)"/)?.[1] || 'uploaded-document.pdf';
+    const contentType = await route.request().headerValue('content-type');
+    const isJson = (contentType || '').includes('application/json');
+    const payload = isJson ? route.request().postDataJSON() as any : null;
+    const fileName = payload?.file_name || body.match(/filename="([^"]+)"/)?.[1] || 'uploaded-document.pdf';
     const id = new URL(route.request().url()).pathname.split('/').at(-2);
-    const lower = `${fileName} ${body}`.toLowerCase();
-    const documentType = lower.includes('voided') || lower.includes('check')
+    const lower = `${fileName} ${isJson ? `${payload?.label || ''} ${payload?.document_type || ''}` : body}`.toLowerCase();
+    const inferredDocumentType = lower.includes('voided') || lower.includes('check')
       ? 'voided_check'
       : lower.includes('a/r') || lower.includes(' ar-') || lower.includes('ar aging') || lower.includes('receivable') || lower.includes('aging-report')
         ? 'ar_report'
@@ -444,6 +466,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
         : lower.includes('bank') || lower.includes('statement')
           ? 'bank_statements'
           : 'other';
+    const documentType = payload?.document_type || inferredDocumentType;
     const label = documentType === 'voided_check'
       ? 'Voided Check'
       : documentType === 'ar_report'
@@ -486,7 +509,7 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
         deal_id: id,
         file_name: fileName,
         document_type: documentType,
-        manual_document_type_present: /name="document_type"/.test(body),
+        manual_document_type_present: Boolean(payload?.document_type) || /name="document_type"/.test(body),
       },
     });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, document, classification: { document_type: documentType, label, confidence: 'medium', provider: 'rules' }, aiExtraction: document.ai_extraction }) });
@@ -660,6 +683,11 @@ export async function mockCrmApis(page: Page, role: MockRole = 'admin') {
 
   await page.route('**/api/crm/applications/*/sensitive', async (route) => {
     calls.push({ method: route.request().method(), table: 'application_sensitive_api', body: null });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { business: { ein: '12-3456789' }, owners: [{ id: 'owner-1', name: 'Jordan Lee', ssn: '123-45-6789', dob: '1985-04-10' }] } }) });
+  });
+
+  await page.route('**/api/crm/deals/*/sensitive', async (route) => {
+    calls.push({ method: route.request().method(), table: 'deal_sensitive_api', body: null });
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { business: { ein: '12-3456789' }, owners: [{ id: 'owner-1', name: 'Jordan Lee', ssn: '123-45-6789', dob: '1985-04-10' }] } }) });
   });
 
