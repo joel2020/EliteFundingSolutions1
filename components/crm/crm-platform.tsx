@@ -599,7 +599,7 @@ function parseLeadCsv(text: string) {
   }).filter((row) => row.business_name || row.first_name || row.last_name || row.email || row.phone);
 }
 
-function useCrmDataset() {
+function useCrmDataset(focusedDealId?: string) {
   const { profile, organizationId, loading: profileLoading, error: profileError, refetch: refetchProfile } = useCrmUser();
   const browserSupabase = useMemo(() => createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY), []);
   const [loading, setLoading] = useState(true);
@@ -635,6 +635,15 @@ function useCrmDataset() {
     setLoading(true);
     setError(null);
 
+    const documentsQuery = browserSupabase
+      .from('documents')
+      .select('*')
+      .eq('organization_id', org)
+      .is('superseded_at', null)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
     const settled = await Promise.allSettled([
       browserSupabase.from('leads').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(2000),
       browserSupabase.from('deals').select('*').eq('organization_id', org).is('deleted_at', null).order('created_at', { ascending: false }).limit(2000),
@@ -644,7 +653,7 @@ function useCrmDataset() {
       browserSupabase.from('funding_partners').select('*').eq('organization_id', org).is('deleted_at', null).order('name').limit(2000),
       browserSupabase.from('user_profiles').select('*').eq('organization_id', org).is('deleted_at', null).order('first_name').limit(2000),
       browserSupabase.from('activities').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
-      browserSupabase.from('documents').select('*').eq('organization_id', org).is('superseded_at', null).is('deleted_at', null).order('created_at', { ascending: false }).limit(100),
+      focusedDealId ? documentsQuery.eq('deal_id', focusedDealId) : documentsQuery,
       browserSupabase.from('notes').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('partner_submissions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
       browserSupabase.from('current_positions').select('*').eq('organization_id', org).order('created_at', { ascending: false }).limit(100),
@@ -677,6 +686,8 @@ function useCrmDataset() {
       setError('Unable to load the CRM pipeline. Please retry.');
     } else if (hardError?.status === 'fulfilled') {
       setError('Unable to load the CRM pipeline. Please sign in again or retry.');
+    } else if (focusedDealId && (settled[8].status === 'rejected' || (settled[8].status === 'fulfilled' && (settled[8].value as any).error))) {
+      setError('Unable to load documents for this deal. Please retry.');
     }
 
     const rawLeads = unwrap(0);
@@ -735,7 +746,7 @@ function useCrmDataset() {
       partnerApplications: unwrap(21),
     });
     setLoading(false);
-  }, [browserSupabase, organizationId]);
+  }, [browserSupabase, focusedDealId, organizationId]);
 
   useEffect(() => {
     if (profileLoading) return;
@@ -1753,7 +1764,7 @@ function uniqueRecordsById(rows: RecordMap[]) {
 }
 
 export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
-  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, isoBrokers, partnerApplications, profile, loading, reload } = useCrmDataset();
+  const { deals, offers, partners, documents, activities, notes, partnerSubmissions, renewals, commissions, commissionRecipients, riskEvents, currentPositions, dealFinancials, documentRequests, tasks, stipulations, applications, owners, users, isoBrokers, partnerApplications, profile, loading, error, reload } = useCrmDataset(dealId);
   const { profile: directProfile, loading: directProfileLoading } = useCrmUser();
   const activeProfile = directProfile || profile;
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
@@ -2446,6 +2457,7 @@ export function CrmDealDetailExperience({ dealId }: { dealId: string }) {
 
   return (
     <PageFrame title={businessName(deal)} subtitle={`Deal ${shortId(deal.id)} · ${stageLabel(deal.stage_slug)}`} actions={<Link href="/crm/deals" className="text-sm font-semibold text-[#0F2B5B]">Back to deals</Link>}>
+      {error && <div className="mb-4 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <CrmCard className="p-4">
         <div className="mb-4 flex flex-col gap-3 border-b border-[#E2E8F0] pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div>

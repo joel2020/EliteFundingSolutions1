@@ -1,7 +1,37 @@
 import { test, expect } from '@playwright/test';
-import { mockCrmApis } from './helpers/crm-fixtures';
+import { DEAL_ID, mockCrmApis } from './helpers/crm-fixtures';
 
 test.describe('CRM reliability errors', () => {
+  test('scopes a deal detail document query to the deal being viewed', async ({ page }) => {
+    await mockCrmApis(page, 'sales_rep');
+    const documentRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/rest/v1/documents') documentRequests.push(url.toString());
+    });
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+    await expect(page.getByText('Atlas Retail LLC')).toBeVisible();
+    await expect.poll(() => documentRequests.length).toBeGreaterThan(0);
+
+    expect(documentRequests.map((url) => new URL(url).searchParams.get('deal_id'))).toEqual([`eq.${DEAL_ID}`]);
+  });
+
+  test('shows a document loading error instead of an empty document list', async ({ page }) => {
+    await mockCrmApis(page, 'sales_rep');
+    await page.route('**/rest/v1/documents**', async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: '57014', message: 'canceling statement due to statement timeout' }),
+      });
+    });
+
+    await page.goto(`/crm/deals/${DEAL_ID}`);
+
+    await expect(page.getByText('Unable to load documents for this deal. Please retry.')).toBeVisible();
+  });
+
   test('recovers when the CRM notification poll detects an expired session', async ({ page }) => {
     await mockCrmApis(page);
     await page.route('**/api/crm/notifications', async (route) => {
